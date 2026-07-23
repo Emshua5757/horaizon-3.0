@@ -29,6 +29,27 @@ impl TryFrom<u8> for MsgType {
     }
 }
 
+/// Standardized structured error payload for HBP v2 responses
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct HbpError {
+    pub code: u16,
+    pub category: u8,
+    pub message: String,
+    #[serde(default)]
+    pub details: Option<std::collections::HashMap<String, String>>,
+}
+
+impl HbpError {
+    pub fn new(code: u16, category: u8, message: &str) -> Self {
+        Self {
+            code,
+            category,
+            message: message.to_string(),
+            details: None,
+        }
+    }
+}
+
 /// Universal HBP v2 message envelope.
 /// All fields map directly to the spec in hbp_v2_spec.md.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,9 +69,9 @@ pub struct HbpFrame {
     pub ts: u64,
     /// Payload bytes (msgpack-encoded operation body)
     pub p: Vec<u8>,
-    /// Error string — None/nil on success
+    /// Structured error object — None/nil on success
     #[serde(default)]
-    pub err: Option<String>,
+    pub err: Option<HbpError>,
 }
 
 impl HbpFrame {
@@ -83,8 +104,9 @@ impl HbpFrame {
         }
     }
 
-    /// Create an error RESPONSE
-    pub fn error_response(req_id: &str, module: &str, op: &str, error: &str) -> Self {
+    /// Create a structured error RESPONSE
+    pub fn error_response(req_id: &str, module: &str, op: &str, error_code: &str) -> Self {
+        let err_obj = HbpError::new(400, 3, error_code);
         Self {
             v: 2,
             t: MsgType::Response as u8,
@@ -93,7 +115,7 @@ impl HbpFrame {
             op: op.to_string(),
             ts: now_ms(),
             p: vec![],
-            err: Some(error.to_string()),
+            err: Some(err_obj),
         }
     }
 
@@ -178,6 +200,7 @@ mod tests {
     fn test_error_response() {
         let err = HbpFrame::error_response("tx-123", "shua.governor", "status", "ERR_UNKNOWN_OP");
         assert!(err.err.is_some());
+        assert_eq!(err.err.as_ref().unwrap().message, "ERR_UNKNOWN_OP");
         assert_eq!(err.id, "tx-123");
     }
 }

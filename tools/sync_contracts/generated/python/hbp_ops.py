@@ -7,50 +7,6 @@ from __future__ import annotations
 
 # HBP v2 operation key constants
 class HbpOps:
-    # Heartbeat check
-    SHUA_GOVERNOR_PING: str = 'shua.governor.ping'
-    # Returns all module process states and Ollama info
-    SHUA_GOVERNOR_STATUS: str = 'shua.governor.status'
-    # SIGCONT a suspended module
-    SHUA_GOVERNOR_MODULE_WAKE: str = 'shua.governor.module.wake'
-    # SIGSTOP a running module
-    SHUA_GOVERNOR_MODULE_SLEEP: str = 'shua.governor.module.sleep'
-    # Load a named Ollama model into RAM
-    SHUA_GOVERNOR_OLLAMA_LOAD: str = 'shua.governor.ollama.load'
-    # Evict the currently loaded Ollama model
-    SHUA_GOVERNOR_OLLAMA_EVICT: str = 'shua.governor.ollama.evict'
-    # Route a prompt through the intent classifier and get an AI reply
-    SHUA_GOVERNOR_AI_ROUTE: str = 'shua.governor.ai.route'
-    # Subscribe or update WebSocket log stream filter
-    SHUA_GOVERNOR_LOGS_SUBSCRIBE: str = 'shua.governor.logs.subscribe'
-    # Ingest client log event into Governor
-    SHUA_GOVERNOR_LOG_EMIT: str = 'shua.governor.log.emit'
-    # Query historical logs from SQLite LTM
-    SHUA_GOVERNOR_LOGS_QUERY: str = 'shua.governor.logs.query'
-    # Server-pushed live log event to subscribed WebSocket clients
-    SHUA_GOVERNOR_LOG_EVENT: str = 'shua.governor.log_event'
-    # Compile a Typst PDF with optional AI tailoring
-    SHUA_RESUME_COMPILE: str = 'shua.resume.compile'
-    # Fetch the current resume matrix
-    SHUA_RESUME_MATRIX_GET: str = 'shua.resume.matrix.get'
-    # List past PDF compilations
-    SHUA_RESUME_HISTORY_LIST: str = 'shua.resume.history.list'
-    # List available Typst templates
-    SHUA_RESUME_TEMPLATES_LIST: str = 'shua.resume.templates.list'
-    # Paginated diary entry list
-    SHUA_DIARY_ENTRY_LIST: str = 'shua.diary.entry.list'
-    # Create a new diary entry
-    SHUA_DIARY_ENTRY_CREATE: str = 'shua.diary.entry.create'
-    # Delete a diary entry and all its blocks
-    SHUA_DIARY_ENTRY_DELETE: str = 'shua.diary.entry.delete'
-    # Upsert a diary block (debounced)
-    SHUA_DIARY_BLOCK_SAVE: str = 'shua.diary.block.save'
-    # Delete a diary block
-    SHUA_DIARY_BLOCK_DELETE: str = 'shua.diary.block.delete'
-    # Server-pushed sentiment score after a block save
-    SHUA_DIARY_SENTIMENT_SCORE: str = 'shua.diary.sentiment.score'
-    # Elevate a diary entry to the Global Identity Matrix
-    SHUA_DIARY_MEMORY_ELEVATE: str = 'shua.diary.memory.elevate'
     # Trigger a full repo AST scan
     SHUA_CODE_VISUALIZER_SCAN: str = 'shua.code_visualizer.scan'
     # Return the latest topology export without re-scanning
@@ -61,10 +17,58 @@ class HbpOps:
     SHUA_CODE_VISUALIZER_WATCH_STOP: str = 'shua.code_visualizer.watch.stop'
     # Server-pushed incremental topology delta on file change
     SHUA_CODE_VISUALIZER_CHANGED: str = 'shua.code_visualizer.changed'
+    # Heartbeat check — server responds with PONG frame
+    SHUA_GOVERNOR_PING: str = 'shua.governor.ping'
+    # Paginated diary entry list
+    SHUA_DIARY_ENTRY_LIST: str = 'shua.diary.entry.list'
+    # Single entry with all blocks
+    SHUA_DIARY_ENTRY_GET: str = 'shua.diary.entry.get'
+    # Create a new diary entry
+    SHUA_DIARY_ENTRY_CREATE: str = 'shua.diary.entry.create'
+    # Delete a diary entry
+    SHUA_DIARY_ENTRY_DELETE: str = 'shua.diary.entry.delete'
+    # Upsert a block (debounced)
+    SHUA_DIARY_BLOCK_SAVE: str = 'shua.diary.block.save'
+    # Reorder blocks with LexoRank
+    SHUA_DIARY_BLOCK_REORDER: str = 'shua.diary.block.reorder'
+    # Delete a diary block
+    SHUA_DIARY_BLOCK_DELETE: str = 'shua.diary.block.delete'
+    # Server-pushed sentiment score after a block save
+    SHUA_DIARY_SENTIMENT_SCORE: str = 'shua.diary.sentiment.score'
+    # Elevate a diary entry to the Global Identity Matrix
+    SHUA_DIARY_MEMORY_ELEVATE: str = 'shua.diary.memory.elevate'
+    # Fetch lifecycle status of all supervised modules and Ollama
+    SHUA_GOVERNOR_STATUS: str = 'shua.governor.status'
+    # Send SIGCONT to wake a sleeping module process
+    SHUA_GOVERNOR_MODULE_WAKE: str = 'shua.governor.module.wake'
+    # Send SIGSTOP to freeze a running module process
+    SHUA_GOVERNOR_MODULE_SLEEP: str = 'shua.governor.module.sleep'
+    # Load a named Ollama model, evicting any previously loaded model
+    SHUA_GOVERNOR_OLLAMA_LOAD: str = 'shua.governor.ollama.load'
+    # Evict the currently loaded Ollama model (keep_alive: 0)
+    SHUA_GOVERNOR_OLLAMA_EVICT: str = 'shua.governor.ollama.evict'
+    # Route a prompt through the intent classifier and get an AI reply
+    SHUA_GOVERNOR_AI_ROUTE: str = 'shua.governor.ai.route'
+    # Subscribe or update WebSocket live log stream filter
+    SHUA_GOVERNOR_LOGS_SUBSCRIBE: str = 'shua.governor.logs.subscribe'
+    # Ingest client diagnostic log event into Governor
+    SHUA_GOVERNOR_LOG_EMIT: str = 'shua.governor.log.emit'
+    # Query historical logs from SQLite LTM database
+    SHUA_GOVERNOR_LOGS_QUERY: str = 'shua.governor.logs.query'
+    # Server-pushed live log event frame to subscribed WebSocket clients
+    SHUA_GOVERNOR_LOG_EVENT: str = 'shua.governor.log_event'
+    # Compile a Typst PDF with optional AI tailoring
+    SHUA_RESUME_COMPILE: str = 'shua.resume.compile'
+    # Fetch the current resume matrix
+    SHUA_RESUME_MATRIX_GET: str = 'shua.resume.matrix.get'
+    # List past PDF compilations
+    SHUA_RESUME_HISTORY_LIST: str = 'shua.resume.history.list'
+    # List available Typst templates
+    SHUA_RESUME_TEMPLATES_LIST: str = 'shua.resume.templates.list'
 
 # HBP v2 module namespace constants
 class HbpModules:
-    SHUA_GOVERNOR: str = 'shua.governor'
-    SHUA_RESUME: str = 'shua.resume'
-    SHUA_DIARY: str = 'shua.diary'
     SHUA_CODE_VISUALIZER: str = 'shua.code_visualizer'
+    SHUA_GOVERNOR: str = 'shua.governor'
+    SHUA_DIARY: str = 'shua.diary'
+    SHUA_RESUME: str = 'shua.resume'

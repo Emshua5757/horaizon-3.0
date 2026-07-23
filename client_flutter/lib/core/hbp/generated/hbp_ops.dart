@@ -7,50 +7,6 @@
 
 /// HBP v2 operation key constants.
 abstract final class HbpOps {
-  /// Heartbeat check
-  static const String shua_governor_ping = 'shua.governor.ping';
-  /// Returns all module process states and Ollama info
-  static const String shua_governor_status = 'shua.governor.status';
-  /// SIGCONT a suspended module
-  static const String shua_governor_module_wake = 'shua.governor.module.wake';
-  /// SIGSTOP a running module
-  static const String shua_governor_module_sleep = 'shua.governor.module.sleep';
-  /// Load a named Ollama model into RAM
-  static const String shua_governor_ollama_load = 'shua.governor.ollama.load';
-  /// Evict the currently loaded Ollama model
-  static const String shua_governor_ollama_evict = 'shua.governor.ollama.evict';
-  /// Route a prompt through the intent classifier and get an AI reply
-  static const String shua_governor_ai_route = 'shua.governor.ai.route';
-  /// Subscribe or update WebSocket log stream filter
-  static const String shua_governor_logs_subscribe = 'shua.governor.logs.subscribe';
-  /// Ingest client log event into Governor
-  static const String shua_governor_log_emit = 'shua.governor.log.emit';
-  /// Query historical logs from SQLite LTM
-  static const String shua_governor_logs_query = 'shua.governor.logs.query';
-  /// Server-pushed live log event to subscribed WebSocket clients
-  static const String shua_governor_log_event = 'shua.governor.log_event';
-  /// Compile a Typst PDF with optional AI tailoring
-  static const String shua_resume_compile = 'shua.resume.compile';
-  /// Fetch the current resume matrix
-  static const String shua_resume_matrix_get = 'shua.resume.matrix.get';
-  /// List past PDF compilations
-  static const String shua_resume_history_list = 'shua.resume.history.list';
-  /// List available Typst templates
-  static const String shua_resume_templates_list = 'shua.resume.templates.list';
-  /// Paginated diary entry list
-  static const String shua_diary_entry_list = 'shua.diary.entry.list';
-  /// Create a new diary entry
-  static const String shua_diary_entry_create = 'shua.diary.entry.create';
-  /// Delete a diary entry and all its blocks
-  static const String shua_diary_entry_delete = 'shua.diary.entry.delete';
-  /// Upsert a diary block (debounced)
-  static const String shua_diary_block_save = 'shua.diary.block.save';
-  /// Delete a diary block
-  static const String shua_diary_block_delete = 'shua.diary.block.delete';
-  /// Server-pushed sentiment score after a block save
-  static const String shua_diary_sentiment_score = 'shua.diary.sentiment.score';
-  /// Elevate a diary entry to the Global Identity Matrix
-  static const String shua_diary_memory_elevate = 'shua.diary.memory.elevate';
   /// Trigger a full repo AST scan
   static const String shua_code_visualizer_scan = 'shua.code_visualizer.scan';
   /// Return the latest topology export without re-scanning
@@ -61,12 +17,60 @@ abstract final class HbpOps {
   static const String shua_code_visualizer_watch_stop = 'shua.code_visualizer.watch.stop';
   /// Server-pushed incremental topology delta on file change
   static const String shua_code_visualizer_changed = 'shua.code_visualizer.changed';
+  /// Heartbeat check — server responds with PONG frame
+  static const String shua_governor_ping = 'shua.governor.ping';
+  /// Paginated diary entry list
+  static const String shua_diary_entry_list = 'shua.diary.entry.list';
+  /// Single entry with all blocks
+  static const String shua_diary_entry_get = 'shua.diary.entry.get';
+  /// Create a new diary entry
+  static const String shua_diary_entry_create = 'shua.diary.entry.create';
+  /// Delete a diary entry
+  static const String shua_diary_entry_delete = 'shua.diary.entry.delete';
+  /// Upsert a block (debounced)
+  static const String shua_diary_block_save = 'shua.diary.block.save';
+  /// Reorder blocks with LexoRank
+  static const String shua_diary_block_reorder = 'shua.diary.block.reorder';
+  /// Delete a diary block
+  static const String shua_diary_block_delete = 'shua.diary.block.delete';
+  /// Server-pushed sentiment score after a block save
+  static const String shua_diary_sentiment_score = 'shua.diary.sentiment.score';
+  /// Elevate a diary entry to the Global Identity Matrix
+  static const String shua_diary_memory_elevate = 'shua.diary.memory.elevate';
+  /// Fetch lifecycle status of all supervised modules and Ollama
+  static const String shua_governor_status = 'shua.governor.status';
+  /// Send SIGCONT to wake a sleeping module process
+  static const String shua_governor_module_wake = 'shua.governor.module.wake';
+  /// Send SIGSTOP to freeze a running module process
+  static const String shua_governor_module_sleep = 'shua.governor.module.sleep';
+  /// Load a named Ollama model, evicting any previously loaded model
+  static const String shua_governor_ollama_load = 'shua.governor.ollama.load';
+  /// Evict the currently loaded Ollama model (keep_alive: 0)
+  static const String shua_governor_ollama_evict = 'shua.governor.ollama.evict';
+  /// Route a prompt through the intent classifier and get an AI reply
+  static const String shua_governor_ai_route = 'shua.governor.ai.route';
+  /// Subscribe or update WebSocket live log stream filter
+  static const String shua_governor_logs_subscribe = 'shua.governor.logs.subscribe';
+  /// Ingest client diagnostic log event into Governor
+  static const String shua_governor_log_emit = 'shua.governor.log.emit';
+  /// Query historical logs from SQLite LTM database
+  static const String shua_governor_logs_query = 'shua.governor.logs.query';
+  /// Server-pushed live log event frame to subscribed WebSocket clients
+  static const String shua_governor_log_event = 'shua.governor.log_event';
+  /// Compile a Typst PDF with optional AI tailoring
+  static const String shua_resume_compile = 'shua.resume.compile';
+  /// Fetch the current resume matrix
+  static const String shua_resume_matrix_get = 'shua.resume.matrix.get';
+  /// List past PDF compilations
+  static const String shua_resume_history_list = 'shua.resume.history.list';
+  /// List available Typst templates
+  static const String shua_resume_templates_list = 'shua.resume.templates.list';
 }
 
 /// HBP v2 module namespace constants.
 abstract final class HbpModules {
-  static const String SHUA_GOVERNOR = 'shua.governor';
-  static const String SHUA_RESUME = 'shua.resume';
-  static const String SHUA_DIARY = 'shua.diary';
   static const String SHUA_CODE_VISUALIZER = 'shua.code_visualizer';
+  static const String SHUA_GOVERNOR = 'shua.governor';
+  static const String SHUA_DIARY = 'shua.diary';
+  static const String SHUA_RESUME = 'shua.resume';
 }

@@ -9,6 +9,73 @@ from dataclasses import dataclass, field
 from typing import Optional, Any
 from .hbp_enums import *
 
+# Full AST topology graph payload
+@dataclass
+class TopologyExportResponse:
+    nodes: list[str] = field(default_factory=list)
+    edges: list[str] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> 'TopologyExportResponse':
+        return cls(
+            nodes=d['nodes']
+            edges=d['edges']
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'nodes': self.nodes,
+            'edges': self.edges,
+        }
+
+# Incremental code delta push on file change
+@dataclass
+class TopologyDeltaEvent:
+    file_path: str
+    change_type: str
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> 'TopologyDeltaEvent':
+        return cls(
+            file_path=d['file_path']
+            change_type=d['change_type']
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'file_path': self.file_path,
+            'change_type': self.change_type,
+        }
+
+# Standardized structured error payload for HBP v2 responses
+@dataclass
+class HbpError:
+    # Standard error code (e.g. 400 bad request, 404 not found, 500 internal)
+    code: int
+    # Error category enum code
+    category: ErrorCategory
+    # Human-readable error description
+    message: str
+    # Optional context details key-value map
+    details: Optional[dict[str, str]] = None
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> 'HbpError':
+        return cls(
+            code=d['code']
+            category=ErrorCategory(d['category'])
+            message=d['message']
+            details=d.get('details')
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'code': self.code,
+            'category': self.category.value,
+            'message': self.message,
+            'details': self.details,
+        }
+
 # Universal HBP v2 message envelope — every message uses this outer shape
 @dataclass
 class HbpFrame:
@@ -22,12 +89,12 @@ class HbpFrame:
     mod: str
     # Operation name e.g. compile
     op: str
-    # Unix timestamp in milliseconds (UTC)
+    # Timestamp of creation (UTC)
     ts: int
     # Payload bytes — msgpack-encoded operation body. Empty string for PING/PONG.
     p: str
-    # null on success. Error string on failure. Present only on RESPONSE and ERROR frames.
-    err: Optional[str] = None
+    # null on success. Structured error object on failure.
+    err: Optional[HbpError] = None
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> 'HbpFrame':
@@ -39,7 +106,7 @@ class HbpFrame:
             op=d['op']
             ts=d['ts']
             p=d['p']
-            err=d.get('err')
+            err=HbpError.from_dict(d['err']) if d.get('err') is not None else None
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -51,17 +118,72 @@ class HbpFrame:
             'op': self.op,
             'ts': self.ts,
             'p': self.p,
-            'err': self.err,
+            'err': self.err.to_dict() if self.err is not None else None,
         }
 
-# State of a single managed module process
+# Standardized pagination metadata wrapper
+@dataclass
+class PaginationMeta:
+    # Total matching items count
+    total_items: int
+    # True if additional pages exist
+    has_more: bool
+    # Current page index (0-indexed)
+    page: int
+    # Items per page
+    page_size: int
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> 'PaginationMeta':
+        return cls(
+            total_items=d['total_items']
+            has_more=d['has_more']
+            page=d['page']
+            page_size=d['page_size']
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'total_items': self.total_items,
+            'has_more': self.has_more,
+            'page': self.page,
+            'page_size': self.page_size,
+        }
+
+# Server-pushed sentiment analysis event
+@dataclass
+class SentimentEvent:
+    entry_id: str
+    score: float
+    label: str
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> 'SentimentEvent':
+        return cls(
+            entry_id=d['entry_id']
+            score=d['score']
+            label=d['label']
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'entry_id': self.entry_id,
+            'score': self.score,
+            'label': self.label,
+        }
+
+# Module process description returned in governor.status
 @dataclass
 class ModuleEntry:
-    # Module namespace e.g. shua.resume
+    # Module namespace string e.g. shua.resume
     name: str
+    # Current process state
     state: ModuleState
+    # OS Process ID if running or sleeping
     pid: Optional[int] = None
+    # Current RSS memory usage in megabytes
     ram_mb: Optional[float] = None
+    # Uptime in seconds
     uptime_s: Optional[int] = None
 
     @classmethod
@@ -83,11 +205,12 @@ class ModuleEntry:
             'uptime_s': self.uptime_s,
         }
 
-# Current Ollama runtime state
+# Current Ollama subsystem state
 @dataclass
 class OllamaInfo:
-    # Name of the currently loaded model, or null
+    # Currently loaded model name or null
     loaded_model: Optional[str] = None
+    # VRAM/RAM footprint of loaded model in MB
     ram_mb: Optional[float] = None
 
     @classmethod
@@ -106,7 +229,9 @@ class OllamaInfo:
 # Response payload for governor.status
 @dataclass
 class GovernorStatusResponse:
+    # Array of all registered module states
     modules: list[ModuleEntry] = field(default_factory=list)
+    # Ollama lifecycle state
     ollama: OllamaInfo
 
     @classmethod
@@ -178,8 +303,9 @@ class ModuleWakeRequest:
 
 @dataclass
 class AiRouteRequest:
+    # User input prompt text
     prompt: str
-    # Optional hint: diary | code | resume | general
+    # Optional module domain hint e.g. diary
     context_hint: Optional[str] = None
 
     @classmethod
@@ -197,33 +323,162 @@ class AiRouteRequest:
 
 @dataclass
 class AiRouteResponse:
-    intent: IntentClass
     model_used: str
+    intent: IntentClass
     reply: str
+    duration_ms: int
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> 'AiRouteResponse':
         return cls(
-            intent=IntentClass(d['intent'])
             model_used=d['model_used']
+            intent=IntentClass(d['intent'])
             reply=d['reply']
+            duration_ms=d['duration_ms']
         )
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            'intent': self.intent.value,
             'model_used': self.model_used,
+            'intent': self.intent.value,
             'reply': self.reply,
+            'duration_ms': self.duration_ms,
         }
 
+# Client WebSocket subscription filter for live log events
+@dataclass
+class LogFilter:
+    # Minimum log level (1=TRACE..5=ERROR)
+    min_level: Optional[int] = None
+    # List of module namespaces to filter
+    modules: Optional[list[str]] = field(default_factory=list)
+    # Tag bitmask filter
+    tag_mask: Optional[int] = None
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> 'LogFilter':
+        return cls(
+            min_level=d.get('min_level')
+            modules=d['modules']
+            tag_mask=d.get('tag_mask')
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'min_level': self.min_level,
+            'modules': self.modules,
+            'tag_mask': self.tag_mask,
+        }
+
+# Centralized log event entry payload
+@dataclass
+class LogEntryDto:
+    # Timestamp of creation (UTC)
+    ts: int
+    # Log level (1=TRACE..5=ERROR)
+    level: int
+    # Module ID
+    module: int
+    # Subsystem component name
+    subsystem: str
+    # Log message text
+    msg: str
+    # Tag bitmask
+    tags: int
+    # Optional transaction trace ID
+    trace_id: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> 'LogEntryDto':
+        return cls(
+            ts=d['ts']
+            level=d['level']
+            module=d['module']
+            subsystem=d['subsystem']
+            msg=d['msg']
+            tags=d['tags']
+            trace_id=d.get('trace_id')
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'ts': self.ts,
+            'level': self.level,
+            'module': self.module,
+            'subsystem': self.subsystem,
+            'msg': self.msg,
+            'tags': self.tags,
+            'trace_id': self.trace_id,
+        }
+
+# Request payload for governor.logs.query
+@dataclass
+class LogQueryRequestDto:
+    min_level: Optional[int] = None
+    module: Optional[int] = None
+    subsystem: Optional[str] = None
+    start_ts: Optional[int] = None
+    end_ts: Optional[int] = None
+    trace_id: Optional[str] = None
+    limit: Optional[int] = None
+    offset: Optional[int] = None
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> 'LogQueryRequestDto':
+        return cls(
+            min_level=d.get('min_level')
+            module=d.get('module')
+            subsystem=d.get('subsystem')
+            start_ts=d.get('start_ts')
+            end_ts=d.get('end_ts')
+            trace_id=d.get('trace_id')
+            limit=d.get('limit')
+            offset=d.get('offset')
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'min_level': self.min_level,
+            'module': self.module,
+            'subsystem': self.subsystem,
+            'start_ts': self.start_ts,
+            'end_ts': self.end_ts,
+            'trace_id': self.trace_id,
+            'limit': self.limit,
+            'offset': self.offset,
+        }
+
+# Response payload for governor.logs.query
+@dataclass
+class LogQueryResponseDto:
+    total: int
+    entries: list[LogEntryDto] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> 'LogQueryResponseDto':
+        return cls(
+            total=d['total']
+            entries=[LogEntryDto.from_dict(e) for e in (d.get('entries') or [])]
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'total': self.total,
+            'entries': [e.to_dict() for e in self.entries],
+        }
+
+# Request payload for resume.compile
 @dataclass
 class ResumeCompileRequest:
+    # ID of resume matrix to compile
     matrix_id: str
     # Typst template name
     template: str
-    # Optional job description for AI tailoring
+    # Optional job description text for AI tailoring
     job_desc: Optional[str] = None
+    # Apply AI keyword tailoring filter
     tailor: bool
+    # Apply full Ollama enhancement
     ai_enhance: bool
 
     @classmethod
@@ -245,13 +500,16 @@ class ResumeCompileRequest:
             'ai_enhance': self.ai_enhance,
         }
 
+# Response payload for resume.compile
 @dataclass
 class ResumeCompileResponse:
-    # CAS content-addressed ID of the PDF
+    # CAS content-addressed ID of generated PDF
     exhibit_id: str
+    # Accessible HTTP URL on Pi5
     pdf_url: str
+    # Compilation time in milliseconds
     duration_ms: int
-    # Jaccard similarity score if tailored, else null
+    # Jaccard similarity score if tailored
     tailor_score: Optional[float] = None
 
     @classmethod
@@ -269,146 +527,4 @@ class ResumeCompileResponse:
             'pdf_url': self.pdf_url,
             'duration_ms': self.duration_ms,
             'tailor_score': self.tailor_score,
-        }
-
-@dataclass
-class DiaryBlockSaveRequest:
-    entry_id: str
-    block_id: str
-    # paragraph | heading1 | heading2 | code | quote | callout | moodTracker | aiSummary
-    block_type: str
-    content: str
-    # LexoRank string
-    sort_order: str
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> 'DiaryBlockSaveRequest':
-        return cls(
-            entry_id=d['entry_id']
-            block_id=d['block_id']
-            block_type=d['block_type']
-            content=d['content']
-            sort_order=d['sort_order']
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            'entry_id': self.entry_id,
-            'block_id': self.block_id,
-            'block_type': self.block_type,
-            'content': self.content,
-            'sort_order': self.sort_order,
-        }
-
-# Lightweight entry metadata for list views
-@dataclass
-class DiaryEntryMeta:
-    id: str
-    title: str
-    mood_score: Optional[float] = None
-    # Unix ms
-    created_at: int
-    updated_at: int
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> 'DiaryEntryMeta':
-        return cls(
-            id=d['id']
-            title=d['title']
-            mood_score=d.get('mood_score')
-            created_at=d['created_at']
-            updated_at=d['updated_at']
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            'id': self.id,
-            'title': self.title,
-            'mood_score': self.mood_score,
-            'created_at': self.created_at,
-            'updated_at': self.updated_at,
-        }
-
-@dataclass
-class DiaryEntryListResponse:
-    entries: list[DiaryEntryMeta] = field(default_factory=list)
-    total: int
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> 'DiaryEntryListResponse':
-        return cls(
-            entries=[DiaryEntryMeta.from_dict(e) for e in (d.get('entries') or [])]
-            total=d['total']
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            'entries': [e.to_dict() for e in self.entries],
-            'total': self.total,
-        }
-
-# Server-pushed sentiment score after a block save
-@dataclass
-class SentimentEvent:
-    entry_id: str
-    # 0.0 = very negative, 1.0 = very positive
-    score: float
-    # Positive | Neutral | Negative | Sensitive
-    label: str
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> 'SentimentEvent':
-        return cls(
-            entry_id=d['entry_id']
-            score=d['score']
-            label=d['label']
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            'entry_id': self.entry_id,
-            'score': self.score,
-            'label': self.label,
-        }
-
-@dataclass
-class TopologyExportResponse:
-    # Unix ms of last scan
-    generated_at: int
-    file_count: int
-    # Full topology JSON payload
-    topology_json: str
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> 'TopologyExportResponse':
-        return cls(
-            generated_at=d['generated_at']
-            file_count=d['file_count']
-            topology_json=d['topology_json']
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            'generated_at': self.generated_at,
-            'file_count': self.file_count,
-            'topology_json': self.topology_json,
-        }
-
-# Pushed when a file changes during watch mode
-@dataclass
-class TopologyDeltaEvent:
-    changed_file: str
-    delta_json: str
-
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> 'TopologyDeltaEvent':
-        return cls(
-            changed_file=d['changed_file']
-            delta_json=d['delta_json']
-        )
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            'changed_file': self.changed_file,
-            'delta_json': self.delta_json,
         }

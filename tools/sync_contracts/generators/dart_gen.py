@@ -18,16 +18,22 @@ class DartGenerator(BaseGenerator):
     file_extension = ".dart"
 
     TYPE_MAP = {
-        "u8":   "int",
-        "u32":  "int",
-        "u64":  "int",
-        "f32":  "double",
-        "bool": "bool",
-        "str":  "String",
+        "u8":        "int",
+        "u16":       "int",
+        "u32":       "int",
+        "u64":       "int",
+        "f32":       "double",
+        "bool":      "bool",
+        "str":       "String",
+        "timestamp": "int",
+        "uuid":      "String",
     }
 
     def wrap_array(self, inner: str) -> str:
         return f"List<{inner}>"
+
+    def wrap_map(self, key_type: str, val_type: str) -> str:
+        return f"Map<{key_type}, {val_type}>"
 
     def wrap_optional(self, inner: str) -> str:
         return f"{inner}?"

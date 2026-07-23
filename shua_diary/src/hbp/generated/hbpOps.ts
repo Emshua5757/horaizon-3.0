@@ -5,50 +5,6 @@
 
 /** HBP v2 operation key constants */
 export const HbpOps = {
-  /** Heartbeat check */
-  shuaGovernorPing: 'shua.governor.ping',
-  /** Returns all module process states and Ollama info */
-  shuaGovernorStatus: 'shua.governor.status',
-  /** SIGCONT a suspended module */
-  shuaGovernorModuleWake: 'shua.governor.module.wake',
-  /** SIGSTOP a running module */
-  shuaGovernorModuleSleep: 'shua.governor.module.sleep',
-  /** Load a named Ollama model into RAM */
-  shuaGovernorOllamaLoad: 'shua.governor.ollama.load',
-  /** Evict the currently loaded Ollama model */
-  shuaGovernorOllamaEvict: 'shua.governor.ollama.evict',
-  /** Route a prompt through the intent classifier and get an AI reply */
-  shuaGovernorAiRoute: 'shua.governor.ai.route',
-  /** Subscribe or update WebSocket log stream filter */
-  shuaGovernorLogsSubscribe: 'shua.governor.logs.subscribe',
-  /** Ingest client log event into Governor */
-  shuaGovernorLogEmit: 'shua.governor.log.emit',
-  /** Query historical logs from SQLite LTM */
-  shuaGovernorLogsQuery: 'shua.governor.logs.query',
-  /** Server-pushed live log event to subscribed WebSocket clients */
-  shuaGovernorLogEvent: 'shua.governor.log_event',
-  /** Compile a Typst PDF with optional AI tailoring */
-  shuaResumeCompile: 'shua.resume.compile',
-  /** Fetch the current resume matrix */
-  shuaResumeMatrixGet: 'shua.resume.matrix.get',
-  /** List past PDF compilations */
-  shuaResumeHistoryList: 'shua.resume.history.list',
-  /** List available Typst templates */
-  shuaResumeTemplatesList: 'shua.resume.templates.list',
-  /** Paginated diary entry list */
-  shuaDiaryEntryList: 'shua.diary.entry.list',
-  /** Create a new diary entry */
-  shuaDiaryEntryCreate: 'shua.diary.entry.create',
-  /** Delete a diary entry and all its blocks */
-  shuaDiaryEntryDelete: 'shua.diary.entry.delete',
-  /** Upsert a diary block (debounced) */
-  shuaDiaryBlockSave: 'shua.diary.block.save',
-  /** Delete a diary block */
-  shuaDiaryBlockDelete: 'shua.diary.block.delete',
-  /** Server-pushed sentiment score after a block save */
-  shuaDiarySentimentScore: 'shua.diary.sentiment.score',
-  /** Elevate a diary entry to the Global Identity Matrix */
-  shuaDiaryMemoryElevate: 'shua.diary.memory.elevate',
   /** Trigger a full repo AST scan */
   shuaCodeVisualizerScan: 'shua.code_visualizer.scan',
   /** Return the latest topology export without re-scanning */
@@ -59,14 +15,62 @@ export const HbpOps = {
   shuaCodeVisualizerWatchStop: 'shua.code_visualizer.watch.stop',
   /** Server-pushed incremental topology delta on file change */
   shuaCodeVisualizerChanged: 'shua.code_visualizer.changed',
+  /** Heartbeat check — server responds with PONG frame */
+  shuaGovernorPing: 'shua.governor.ping',
+  /** Paginated diary entry list */
+  shuaDiaryEntryList: 'shua.diary.entry.list',
+  /** Single entry with all blocks */
+  shuaDiaryEntryGet: 'shua.diary.entry.get',
+  /** Create a new diary entry */
+  shuaDiaryEntryCreate: 'shua.diary.entry.create',
+  /** Delete a diary entry */
+  shuaDiaryEntryDelete: 'shua.diary.entry.delete',
+  /** Upsert a block (debounced) */
+  shuaDiaryBlockSave: 'shua.diary.block.save',
+  /** Reorder blocks with LexoRank */
+  shuaDiaryBlockReorder: 'shua.diary.block.reorder',
+  /** Delete a diary block */
+  shuaDiaryBlockDelete: 'shua.diary.block.delete',
+  /** Server-pushed sentiment score after a block save */
+  shuaDiarySentimentScore: 'shua.diary.sentiment.score',
+  /** Elevate a diary entry to the Global Identity Matrix */
+  shuaDiaryMemoryElevate: 'shua.diary.memory.elevate',
+  /** Fetch lifecycle status of all supervised modules and Ollama */
+  shuaGovernorStatus: 'shua.governor.status',
+  /** Send SIGCONT to wake a sleeping module process */
+  shuaGovernorModuleWake: 'shua.governor.module.wake',
+  /** Send SIGSTOP to freeze a running module process */
+  shuaGovernorModuleSleep: 'shua.governor.module.sleep',
+  /** Load a named Ollama model, evicting any previously loaded model */
+  shuaGovernorOllamaLoad: 'shua.governor.ollama.load',
+  /** Evict the currently loaded Ollama model (keep_alive: 0) */
+  shuaGovernorOllamaEvict: 'shua.governor.ollama.evict',
+  /** Route a prompt through the intent classifier and get an AI reply */
+  shuaGovernorAiRoute: 'shua.governor.ai.route',
+  /** Subscribe or update WebSocket live log stream filter */
+  shuaGovernorLogsSubscribe: 'shua.governor.logs.subscribe',
+  /** Ingest client diagnostic log event into Governor */
+  shuaGovernorLogEmit: 'shua.governor.log.emit',
+  /** Query historical logs from SQLite LTM database */
+  shuaGovernorLogsQuery: 'shua.governor.logs.query',
+  /** Server-pushed live log event frame to subscribed WebSocket clients */
+  shuaGovernorLogEvent: 'shua.governor.log_event',
+  /** Compile a Typst PDF with optional AI tailoring */
+  shuaResumeCompile: 'shua.resume.compile',
+  /** Fetch the current resume matrix */
+  shuaResumeMatrixGet: 'shua.resume.matrix.get',
+  /** List past PDF compilations */
+  shuaResumeHistoryList: 'shua.resume.history.list',
+  /** List available Typst templates */
+  shuaResumeTemplatesList: 'shua.resume.templates.list',
 } as const;
 
 export type HbpOp = typeof HbpOps[keyof typeof HbpOps];
 
 /** HBP v2 module namespace constants */
 export const HbpModules = {
-  shuaGovernor: 'shua.governor',
-  shuaResume: 'shua.resume',
-  shuaDiary: 'shua.diary',
   shuaCodeVisualizer: 'shua.code_visualizer',
+  shuaGovernor: 'shua.governor',
+  shuaDiary: 'shua.diary',
+  shuaResume: 'shua.resume',
 } as const;

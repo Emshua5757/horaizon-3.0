@@ -5,6 +5,30 @@
 package hbp
 
 
+// Full AST topology graph payload
+type TopologyExportResponse struct {
+	Nodes []string `msgpack:"nodes"`
+	Edges []string `msgpack:"edges"`
+}
+
+// Incremental code delta push on file change
+type TopologyDeltaEvent struct {
+	FilePath string `msgpack:"file_path"`
+	ChangeType string `msgpack:"change_type"`
+}
+
+// Standardized structured error payload for HBP v2 responses
+type HbpError struct {
+	// Standard error code (e.g. 400 bad request, 404 not found, 500 internal)
+	Code uint16 `msgpack:"code"`
+	// Error category enum code
+	Category ErrorCategory `msgpack:"category"`
+	// Human-readable error description
+	Message string `msgpack:"message"`
+	// Optional context details key-value map
+	Details *map[string]string `msgpack:"details"`
+}
+
 // Universal HBP v2 message envelope — every message uses this outer shape
 type HbpFrame struct {
 	// Protocol version, always 2
@@ -17,34 +41,60 @@ type HbpFrame struct {
 	Mod string `msgpack:"mod"`
 	// Operation name e.g. compile
 	Op string `msgpack:"op"`
-	// Unix timestamp in milliseconds (UTC)
+	// Timestamp of creation (UTC)
 	Ts uint64 `msgpack:"ts"`
 	// Payload bytes — msgpack-encoded operation body. Empty string for PING/PONG.
 	P string `msgpack:"p"`
-	// null on success. Error string on failure. Present only on RESPONSE and ERROR frames.
-	Err *string `msgpack:"err"`
+	// null on success. Structured error object on failure.
+	Err *HbpError `msgpack:"err"`
 }
 
-// State of a single managed module process
+// Standardized pagination metadata wrapper
+type PaginationMeta struct {
+	// Total matching items count
+	TotalItems uint32 `msgpack:"total_items"`
+	// True if additional pages exist
+	HasMore bool `msgpack:"has_more"`
+	// Current page index (0-indexed)
+	Page uint32 `msgpack:"page"`
+	// Items per page
+	PageSize uint32 `msgpack:"page_size"`
+}
+
+// Server-pushed sentiment analysis event
+type SentimentEvent struct {
+	EntryId string `msgpack:"entry_id"`
+	Score float32 `msgpack:"score"`
+	Label string `msgpack:"label"`
+}
+
+// Module process description returned in governor.status
 type ModuleEntry struct {
-	// Module namespace e.g. shua.resume
+	// Module namespace string e.g. shua.resume
 	Name string `msgpack:"name"`
+	// Current process state
 	State ModuleState `msgpack:"state"`
+	// OS Process ID if running or sleeping
 	Pid *uint32 `msgpack:"pid"`
+	// Current RSS memory usage in megabytes
 	RamMb *float32 `msgpack:"ram_mb"`
+	// Uptime in seconds
 	UptimeS *uint32 `msgpack:"uptime_s"`
 }
 
-// Current Ollama runtime state
+// Current Ollama subsystem state
 type OllamaInfo struct {
-	// Name of the currently loaded model, or null
+	// Currently loaded model name or null
 	LoadedModel *string `msgpack:"loaded_model"`
+	// VRAM/RAM footprint of loaded model in MB
 	RamMb *float32 `msgpack:"ram_mb"`
 }
 
 // Response payload for governor.status
 type GovernorStatusResponse struct {
+	// Array of all registered module states
 	Modules []ModuleEntry `msgpack:"modules"`
+	// Ollama lifecycle state
 	Ollama OllamaInfo `msgpack:"ollama"`
 }
 
@@ -66,80 +116,87 @@ type ModuleWakeRequest struct {
 }
 
 type AiRouteRequest struct {
+	// User input prompt text
 	Prompt string `msgpack:"prompt"`
-	// Optional hint: diary | code | resume | general
+	// Optional module domain hint e.g. diary
 	ContextHint *string `msgpack:"context_hint"`
 }
 
 type AiRouteResponse struct {
-	Intent IntentClass `msgpack:"intent"`
 	ModelUsed string `msgpack:"model_used"`
+	Intent IntentClass `msgpack:"intent"`
 	Reply string `msgpack:"reply"`
+	DurationMs uint32 `msgpack:"duration_ms"`
 }
 
+// Client WebSocket subscription filter for live log events
+type LogFilter struct {
+	// Minimum log level (1=TRACE..5=ERROR)
+	MinLevel *uint8 `msgpack:"min_level"`
+	// List of module namespaces to filter
+	Modules *[]string `msgpack:"modules"`
+	// Tag bitmask filter
+	TagMask *uint32 `msgpack:"tag_mask"`
+}
+
+// Centralized log event entry payload
+type LogEntryDto struct {
+	// Timestamp of creation (UTC)
+	Ts uint64 `msgpack:"ts"`
+	// Log level (1=TRACE..5=ERROR)
+	Level uint8 `msgpack:"level"`
+	// Module ID
+	Module uint8 `msgpack:"module"`
+	// Subsystem component name
+	Subsystem string `msgpack:"subsystem"`
+	// Log message text
+	Msg string `msgpack:"msg"`
+	// Tag bitmask
+	Tags uint32 `msgpack:"tags"`
+	// Optional transaction trace ID
+	TraceId *string `msgpack:"trace_id"`
+}
+
+// Request payload for governor.logs.query
+type LogQueryRequestDto struct {
+	MinLevel *uint8 `msgpack:"min_level"`
+	Module *uint8 `msgpack:"module"`
+	Subsystem *string `msgpack:"subsystem"`
+	StartTs *uint64 `msgpack:"start_ts"`
+	EndTs *uint64 `msgpack:"end_ts"`
+	TraceId *string `msgpack:"trace_id"`
+	Limit *uint32 `msgpack:"limit"`
+	Offset *uint32 `msgpack:"offset"`
+}
+
+// Response payload for governor.logs.query
+type LogQueryResponseDto struct {
+	Total uint32 `msgpack:"total"`
+	Entries []LogEntryDto `msgpack:"entries"`
+}
+
+// Request payload for resume.compile
 type ResumeCompileRequest struct {
+	// ID of resume matrix to compile
 	MatrixId string `msgpack:"matrix_id"`
 	// Typst template name
 	Template string `msgpack:"template"`
-	// Optional job description for AI tailoring
+	// Optional job description text for AI tailoring
 	JobDesc *string `msgpack:"job_desc"`
+	// Apply AI keyword tailoring filter
 	Tailor bool `msgpack:"tailor"`
+	// Apply full Ollama enhancement
 	AiEnhance bool `msgpack:"ai_enhance"`
 }
 
+// Response payload for resume.compile
 type ResumeCompileResponse struct {
-	// CAS content-addressed ID of the PDF
+	// CAS content-addressed ID of generated PDF
 	ExhibitId string `msgpack:"exhibit_id"`
+	// Accessible HTTP URL on Pi5
 	PdfUrl string `msgpack:"pdf_url"`
+	// Compilation time in milliseconds
 	DurationMs uint32 `msgpack:"duration_ms"`
-	// Jaccard similarity score if tailored, else null
+	// Jaccard similarity score if tailored
 	TailorScore *float32 `msgpack:"tailor_score"`
-}
-
-type DiaryBlockSaveRequest struct {
-	EntryId string `msgpack:"entry_id"`
-	BlockId string `msgpack:"block_id"`
-	// paragraph | heading1 | heading2 | code | quote | callout | moodTracker | aiSummary
-	BlockType string `msgpack:"block_type"`
-	Content string `msgpack:"content"`
-	// LexoRank string
-	SortOrder string `msgpack:"sort_order"`
-}
-
-// Lightweight entry metadata for list views
-type DiaryEntryMeta struct {
-	Id string `msgpack:"id"`
-	Title string `msgpack:"title"`
-	MoodScore *float32 `msgpack:"mood_score"`
-	// Unix ms
-	CreatedAt uint64 `msgpack:"created_at"`
-	UpdatedAt uint64 `msgpack:"updated_at"`
-}
-
-type DiaryEntryListResponse struct {
-	Entries []DiaryEntryMeta `msgpack:"entries"`
-	Total uint32 `msgpack:"total"`
-}
-
-// Server-pushed sentiment score after a block save
-type SentimentEvent struct {
-	EntryId string `msgpack:"entry_id"`
-	// 0.0 = very negative, 1.0 = very positive
-	Score float32 `msgpack:"score"`
-	// Positive | Neutral | Negative | Sensitive
-	Label string `msgpack:"label"`
-}
-
-type TopologyExportResponse struct {
-	// Unix ms of last scan
-	GeneratedAt uint64 `msgpack:"generated_at"`
-	FileCount uint32 `msgpack:"file_count"`
-	// Full topology JSON payload
-	TopologyJson string `msgpack:"topology_json"`
-}
-
-// Pushed when a file changes during watch mode
-type TopologyDeltaEvent struct {
-	ChangedFile string `msgpack:"changed_file"`
-	DeltaJson string `msgpack:"delta_json"`
 }

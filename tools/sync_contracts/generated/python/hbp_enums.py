@@ -16,16 +16,25 @@ class MessageType(IntEnum):
     PONG = 5
     ERROR = 6
 
+# High-level category for structured HbpError payloads
+class ErrorCategory(IntEnum):
+    TRANSPORT = 1
+    AUTHSECURITY = 2
+    RPCROUTING = 3
+    DATABASE = 4
+    RESOURCEEXHAUSTION = 5
+    INTERNAL = 6
+
 # Lifecycle state of a managed shua module process
-class ModuleState(StrEnum):
-    RUNNING = 'running'
-    SLEEPING = 'sleeping'
-    STOPPED = 'stopped'
-    UNKNOWN = 'unknown'
+class ModuleState(IntEnum):
+    RUNNING = 1
+    SLEEPING = 2
+    STOPPED = 3
+    UNKNOWN = 4
 
 # AI router intent classification result
-class IntentClass(StrEnum):
-    FACTUALPRECISION = 'factualprecision'
-    REFLECTIVEDIALOGUE = 'reflectivedialogue'
-    CODEAST = 'codeast'
-    COPILOTCOMMAND = 'copilotcommand'
+class IntentClass(IntEnum):
+    FACTUALPRECISION = 1
+    REFLECTIVEDIALOGUE = 2
+    CODEAST = 3
+    COPILOTCOMMAND = 4

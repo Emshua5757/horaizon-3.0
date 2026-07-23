@@ -1,0 +1,149 @@
+# =============================================================================
+# HBP v2 — Centralized Logging Subsystem Schema
+# Log Ingress, Server-Side WebSocket Filter, Query RPC
+# =============================================================================
+
+[[structs]]
+name        = "LogFilter"
+description = "Client WebSocket subscription filter for live log events"
+[[structs.fields]]
+index       = 1
+name        = "min_level"
+type        = "u8?"
+description = "Minimum log level (1=TRACE..5=ERROR)"
+[[structs.fields]]
+index       = 2
+name        = "modules"
+type        = "str[]?"
+description = "List of module namespaces to filter"
+[[structs.fields]]
+index       = 3
+name        = "tag_mask"
+type        = "u32?"
+description = "Tag bitmask filter"
+
+[[structs]]
+name        = "LogEntryDto"
+description = "Centralized log event entry payload"
+[[structs.fields]]
+index       = 1
+name        = "ts"
+type        = "timestamp"
+description = "Timestamp of creation (UTC)"
+[[structs.fields]]
+index       = 2
+name        = "level"
+type        = "u8"
+description = "Log level (1=TRACE..5=ERROR)"
+[[structs.fields]]
+index       = 3
+name        = "module"
+type        = "u8"
+description = "Module ID"
+[[structs.fields]]
+index       = 4
+name        = "subsystem"
+type        = "str"
+description = "Subsystem component name"
+[[structs.fields]]
+index       = 5
+name        = "msg"
+type        = "str"
+description = "Log message text"
+[[structs.fields]]
+index       = 6
+name        = "tags"
+type        = "u32"
+description = "Tag bitmask"
+[[structs.fields]]
+index       = 7
+name        = "trace_id"
+type        = "uuid?"
+description = "Optional transaction trace ID"
+
+[[structs]]
+name        = "LogQueryRequestDto"
+description = "Request payload for governor.logs.query"
+[[structs.fields]]
+index       = 1
+name        = "min_level"
+type        = "u8?"
+[[structs.fields]]
+index       = 2
+name        = "module"
+type        = "u8?"
+[[structs.fields]]
+index       = 3
+name        = "subsystem"
+type        = "str?"
+[[structs.fields]]
+index       = 4
+name        = "start_ts"
+type        = "timestamp?"
+[[structs.fields]]
+index       = 5
+name        = "end_ts"
+type        = "timestamp?"
+[[structs.fields]]
+index       = 6
+name        = "trace_id"
+type        = "uuid?"
+[[structs.fields]]
+index       = 7
+name        = "limit"
+type        = "u32?"
+[[structs.fields]]
+index       = 8
+name        = "offset"
+type        = "u32?"
+
+[[structs]]
+name        = "LogQueryResponseDto"
+description = "Response payload for governor.logs.query"
+[[structs.fields]]
+index       = 1
+name        = "total"
+type        = "u32"
+[[structs.fields]]
+index       = 2
+name        = "entries"
+type        = "LogEntryDto[]"
+
+# ---------------------------------------------------------------------------
+# Logging Operations
+# ---------------------------------------------------------------------------
+
+[[operations]]
+module          = "shua.governor"
+name            = "logs.subscribe"
+type            = "rpc"
+requires_auth   = true
+description     = "Subscribe or update WebSocket live log stream filter"
+request_struct  = "LogFilter"
+response_struct = ""
+
+[[operations]]
+module          = "shua.governor"
+name            = "log.emit"
+type            = "rpc"
+requires_auth   = true
+description     = "Ingest client diagnostic log event into Governor"
+request_struct  = "LogEntryDto"
+response_struct = ""
+
+[[operations]]
+module          = "shua.governor"
+name            = "logs.query"
+type            = "rpc"
+requires_auth   = true
+description     = "Query historical logs from SQLite LTM database"
+request_struct  = "LogQueryRequestDto"
+response_struct = "LogQueryResponseDto"
+
+[[operations]]
+module          = "shua.governor"
+name            = "log_event"
+type            = "event"
+requires_auth   = true
+description     = "Server-pushed live log event frame to subscribed WebSocket clients"
+event_struct    = "LogEntryDto"

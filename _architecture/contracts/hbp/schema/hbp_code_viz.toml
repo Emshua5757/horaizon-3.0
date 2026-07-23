@@ -1,0 +1,76 @@
+# =============================================================================
+# HBP v2 — shua.code_visualizer Module Schema (Rust)
+# AST Scanner, Topology Export, Delta Watcher
+# =============================================================================
+
+[[structs]]
+name        = "TopologyExportResponse"
+description = "Full AST topology graph payload"
+[[structs.fields]]
+index       = 1
+name        = "nodes"
+type        = "str[]"
+[[structs.fields]]
+index       = 2
+name        = "edges"
+type        = "str[]"
+
+[[structs]]
+name        = "TopologyDeltaEvent"
+description = "Incremental code delta push on file change"
+[[structs.fields]]
+index       = 1
+name        = "file_path"
+type        = "str"
+[[structs.fields]]
+index       = 2
+name        = "change_type"
+type        = "str"
+
+# ---------------------------------------------------------------------------
+# Operations
+# ---------------------------------------------------------------------------
+
+[[operations]]
+module          = "shua.code_visualizer"
+name            = "scan"
+type            = "rpc"
+requires_auth   = true
+description     = "Trigger a full repo AST scan"
+request_struct  = ""
+response_struct = "TopologyExportResponse"
+
+[[operations]]
+module          = "shua.code_visualizer"
+name            = "topology.get"
+type            = "rpc"
+requires_auth   = true
+description     = "Return the latest topology export without re-scanning"
+request_struct  = ""
+response_struct = "TopologyExportResponse"
+
+[[operations]]
+module          = "shua.code_visualizer"
+name            = "watch.start"
+type            = "rpc"
+requires_auth   = true
+description     = "Start the file-watcher daemon"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.code_visualizer"
+name            = "watch.stop"
+type            = "rpc"
+requires_auth   = true
+description     = "Stop the file-watcher daemon"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.code_visualizer"
+name            = "changed"
+type            = "event"
+requires_auth   = true
+description     = "Server-pushed incremental topology delta on file change"
+event_struct    = "TopologyDeltaEvent"

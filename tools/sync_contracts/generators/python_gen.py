@@ -18,16 +18,22 @@ class PythonGenerator(BaseGenerator):
     file_extension = ".py"
 
     TYPE_MAP = {
-        "u8":   "int",
-        "u32":  "int",
-        "u64":  "int",
-        "f32":  "float",
-        "bool": "bool",
-        "str":  "str",
+        "u8":        "int",
+        "u16":       "int",
+        "u32":       "int",
+        "u64":       "int",
+        "f32":       "float",
+        "bool":      "bool",
+        "str":       "str",
+        "timestamp": "int",
+        "uuid":      "str",
     }
 
     def wrap_array(self, inner: str) -> str:
         return f"list[{inner}]"
+
+    def wrap_map(self, key_type: str, val_type: str) -> str:
+        return f"dict[{key_type}, {val_type}]"
 
     def wrap_optional(self, inner: str) -> str:
         return f"Optional[{inner}]"

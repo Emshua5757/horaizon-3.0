@@ -17,22 +17,34 @@ const (
 	MessageTypeError MessageType = 6
 )
 
-// Lifecycle state of a managed shua module process
-type ModuleState string
+// High-level category for structured HbpError payloads
+type ErrorCategory int
 
 const (
-	ModuleStateRunning ModuleState = "running"
-	ModuleStateSleeping ModuleState = "sleeping"
-	ModuleStateStopped ModuleState = "stopped"
-	ModuleStateUnknown ModuleState = "unknown"
+	ErrorCategoryTransport ErrorCategory = 1
+	ErrorCategoryAuthSecurity ErrorCategory = 2
+	ErrorCategoryRpcRouting ErrorCategory = 3
+	ErrorCategoryDatabase ErrorCategory = 4
+	ErrorCategoryResourceExhaustion ErrorCategory = 5
+	ErrorCategoryInternal ErrorCategory = 6
+)
+
+// Lifecycle state of a managed shua module process
+type ModuleState int
+
+const (
+	ModuleStateRunning ModuleState = 1
+	ModuleStateSleeping ModuleState = 2
+	ModuleStateStopped ModuleState = 3
+	ModuleStateUnknown ModuleState = 4
 )
 
 // AI router intent classification result
-type IntentClass string
+type IntentClass int
 
 const (
-	IntentClassFactualPrecision IntentClass = "factualprecision"
-	IntentClassReflectiveDialogue IntentClass = "reflectivedialogue"
-	IntentClassCodeAst IntentClass = "codeast"
-	IntentClassCopilotCommand IntentClass = "copilotcommand"
+	IntentClassFactualPrecision IntentClass = 1
+	IntentClassReflectiveDialogue IntentClass = 2
+	IntentClassCodeAst IntentClass = 3
+	IntentClassCopilotCommand IntentClass = 4
 )

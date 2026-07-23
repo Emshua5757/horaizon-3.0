@@ -20,16 +20,22 @@ class GoGenerator(BaseGenerator):
     file_extension = ".go"
 
     TYPE_MAP = {
-        "u8":   "uint8",
-        "u32":  "uint32",
-        "u64":  "uint64",
-        "f32":  "float32",
-        "bool": "bool",
-        "str":  "string",
+        "u8":        "uint8",
+        "u16":       "uint16",
+        "u32":       "uint32",
+        "u64":       "uint64",
+        "f32":       "float32",
+        "bool":      "bool",
+        "str":       "string",
+        "timestamp": "uint64",
+        "uuid":      "string",
     }
 
     def wrap_array(self, inner: str) -> str:
         return f"[]{inner}"
+
+    def wrap_map(self, key_type: str, val_type: str) -> str:
+        return f"map[{key_type}]{val_type}"
 
     def wrap_optional(self, inner: str) -> str:
         # Go uses pointers for optional scalar types
