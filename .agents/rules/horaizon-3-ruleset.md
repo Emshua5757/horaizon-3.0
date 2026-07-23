@@ -21,3 +21,9 @@ description: horAIzon 3.0 Mandatory Engineering Ruleset
 ## 4. HBP Schema Documentation & Modularization
 - **Living Contract Specs**: Whenever adding or modifying an HBP operation, DTO, or payload schema, document it immediately in `_architecture/contracts/hbp/`.
 - **Modularized Schema Files**: Keep HBP specifications organized in dedicated domain-specific files under `_architecture/contracts/hbp/` (e.g. `hbp_v2_spec.md`, `hbp_logging_spec.md`, `hbp_governor_ops.md`) so AI agents and developers can reference precise schemas without inferring or guessing.
+
+## 5. Weekly Progress Documentation Naming
+- **Clean Weekly Progress Naming**: Weekly progress logs inside `_architecture/progress/` MUST be named by week index (`week_01_progress.md`, `week_02_progress.md`, etc.) without hardcoding mid-week calendar dates into the filename. This ensures predictable file paths for AI agents and clean timeline visualization.
+
+## 6. Task Archiving Policy
+- **Archive Completed Task Files**: Upon finishing a task and merging its feature branch to `main`, move its task specification document from `_architecture/tasks/active/` to `_architecture/tasks/archived/` (e.g. `_architecture/tasks/archived/TASK-004_governor_hbp_broker.md`) and update its metadata field to `Status: [x] Completed`.
