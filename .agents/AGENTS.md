@@ -6,3 +6,4 @@
 - **HBP Schema Documentation**: Always document any HBP operation/payload schema change in `_architecture/contracts/hbp/` as modular schema files. Never guess or force agents to guess schemas.
 - **Weekly Progress Naming**: Name weekly progress files strictly by week index (`week_01_progress.md`, `week_02_progress.md`) without mid-week hardcoded dates in the filename.
 - **Task Archiving Policy**: Move completed task spec files from `_architecture/tasks/active/` to `_architecture/tasks/archived/` upon task completion and mark `Status: [x] Completed`.
+- **Centralized Telemetry Logging**: Always emit structured `tracing` logs (`info!`, `warn!`, `error!`) with subsystem attributes for all process state changes, RPC dispatching, and errors.

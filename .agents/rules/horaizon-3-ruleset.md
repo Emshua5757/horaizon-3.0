@@ -27,3 +27,6 @@ description: horAIzon 3.0 Mandatory Engineering Ruleset
 
 ## 6. Task Archiving Policy
 - **Archive Completed Task Files**: Upon finishing a task and merging its feature branch to `main`, move its task specification document from `_architecture/tasks/active/` to `_architecture/tasks/archived/` (e.g. `_architecture/tasks/archived/TASK-004_governor_hbp_broker.md`) and update its metadata field to `Status: [x] Completed`.
+
+## 7. Centralized Telemetry & Logging Discipline
+- **Respect Centralized Logging**: All code across `shua_governor` and all microservices MUST emit structured telemetry logs (`info!`, `warn!`, `error!`) with explicit subsystem and module attributes. Never bypass or omit logging on state changes, RPC dispatching, errors, or process lifecycle events so all operational data flows into the central telemetry pipeline (`activity.db` & `important.log`).
