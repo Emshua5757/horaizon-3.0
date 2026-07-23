@@ -2,7 +2,7 @@
 
 | Field | Value |
 | :--- | :--- |
-| **Status** | [ ] Not started |
+| **Status** | [x] Completed |
 | **Phase** | Phase 1 |
 | **Type** | AI-executable |
 | **Language** | Rust |
@@ -315,12 +315,12 @@ Expected: builds successfully, produces `target/debug/shua_governor.exe`.
 
 ## Acceptance Criteria
 
-- [ ] `shua_governor/Cargo.toml` exists with all dependencies listed
-- [ ] All source directories exist (`broker/`, `registry/`, `ollama/`, etc.)
-- [ ] `cargo check` passes with zero errors
-- [ ] `cargo build` produces a binary
-- [ ] Running the binary prints a JSON log line containing `"shua_governor starting"`
-- [ ] `cargo clippy` produces no `error` level output
+- [x] `shua_governor/Cargo.toml` exists with all dependencies listed
+- [x] All source directories exist (`broker/`, `registry/`, `ollama/`, etc.)
+- [x] `cargo check` passes with zero errors
+- [x] `cargo build` produces a binary
+- [x] Running the binary prints a JSON log line containing `"shua_governor starting"`
+- [x] `cargo clippy` produces no `error` level output
 
 ---
 
