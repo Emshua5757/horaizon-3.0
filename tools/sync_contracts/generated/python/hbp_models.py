@@ -365,6 +365,51 @@ class AiRouteResponse:
             'duration_ms': self.duration_ms,
         }
 
+# System configuration settings payload returned/updated via governor.config.*
+@dataclass
+class GovernorConfigDto:
+    # HBP WebSocket broker server port (default 7700)
+    port: int
+    # Global log verbosity level (trace, debug, info, warn, error)
+    log_level: str
+    # System timezone string (e.g. Asia/Manila)
+    timezone: str
+    # Optional laptop node URL for heavy AI offloading
+    offload_device_url: Optional[str] = None
+    # Ollama model RAM ceiling cap in megabytes
+    ollama_ram_cap_mb: int
+    # Nightly 02:00 AM maintenance dream loop toggle
+    dream_loop_enabled: bool
+    # Dream loop cron schedule expression
+    dream_loop_cron: str
+    # SQLite log database retention period in days
+    log_retention_days: int
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> 'GovernorConfigDto':
+        return cls(
+            port=d['port']
+            log_level=d['log_level']
+            timezone=d['timezone']
+            offload_device_url=d.get('offload_device_url')
+            ollama_ram_cap_mb=d['ollama_ram_cap_mb']
+            dream_loop_enabled=d['dream_loop_enabled']
+            dream_loop_cron=d['dream_loop_cron']
+            log_retention_days=d['log_retention_days']
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'port': self.port,
+            'log_level': self.log_level,
+            'timezone': self.timezone,
+            'offload_device_url': self.offload_device_url,
+            'ollama_ram_cap_mb': self.ollama_ram_cap_mb,
+            'dream_loop_enabled': self.dream_loop_enabled,
+            'dream_loop_cron': self.dream_loop_cron,
+            'log_retention_days': self.log_retention_days,
+        }
+
 # Client WebSocket subscription filter for live log events
 @dataclass
 class LogFilter:

@@ -391,6 +391,53 @@ class AiRouteResponse {
 
 }
 
+/// System configuration settings payload returned/updated via governor.config.*
+class GovernorConfigDto {
+  /// HBP WebSocket broker server port (default 7700)
+  final int port;
+  /// Global log verbosity level (trace, debug, info, warn, error)
+  final String logLevel;
+  /// System timezone string (e.g. Asia/Manila)
+  final String timezone;
+  /// Optional laptop node URL for heavy AI offloading
+  final String? offloadDeviceUrl;
+  /// Ollama model RAM ceiling cap in megabytes
+  final int ollamaRamCapMb;
+  /// Nightly 02:00 AM maintenance dream loop toggle
+  final bool dreamLoopEnabled;
+  /// Dream loop cron schedule expression
+  final String dreamLoopCron;
+  /// SQLite log database retention period in days
+  final int logRetentionDays;
+
+  const GovernorConfigDto({required this.port, required this.logLevel, required this.timezone, required this.offloadDeviceUrl, required this.ollamaRamCapMb, required this.dreamLoopEnabled, required this.dreamLoopCron, required this.logRetentionDays});
+
+  factory GovernorConfigDto.fromMap(Map<String, dynamic> m) {
+    return GovernorConfigDto(
+      port: m['port'] as int,
+      logLevel: m['log_level'] as String,
+      timezone: m['timezone'] as String,
+      offloadDeviceUrl: m['offload_device_url'] as String?,
+      ollamaRamCapMb: m['ollama_ram_cap_mb'] as int,
+      dreamLoopEnabled: m['dream_loop_enabled'] as bool,
+      dreamLoopCron: m['dream_loop_cron'] as String,
+      logRetentionDays: m['log_retention_days'] as int,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'port': port,
+    'log_level': logLevel,
+    'timezone': timezone,
+    'offload_device_url': offloadDeviceUrl,
+    'ollama_ram_cap_mb': ollamaRamCapMb,
+    'dream_loop_enabled': dreamLoopEnabled,
+    'dream_loop_cron': dreamLoopCron,
+    'log_retention_days': logRetentionDays,
+  };
+
+}
+
 /// Client WebSocket subscription filter for live log events
 class LogFilter {
   /// Minimum log level (1=TRACE..5=ERROR)

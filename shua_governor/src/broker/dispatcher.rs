@@ -1,10 +1,12 @@
 use std::sync::Arc;
 use tokio::sync::mpsc::{Sender, UnboundedSender};
+use tokio::sync::RwLock;
 use tracing::{info, warn};
 
 use crate::ai_router::intent_classifier::IntentClassifier;
 use crate::ai_router::prompt_budget::PromptBudget;
 use crate::broker::frame::{HbpFrame, MsgType};
+use crate::config::AppConfig;
 use crate::logging::broadcaster::LogBroadcaster;
 use crate::logging::entry::{LogEntry, MODULE_FLUTTER};
 use crate::logging::filter::LogFilter;
@@ -56,12 +58,26 @@ pub struct AiRouteRequest {
     pub offload_device_url: Option<String>,
 }
 
+/// Config DTO payload for `governor.config.get` / `governor.config.update`
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct GovernorConfigDto {
+    pub port: u32,
+    pub log_level: String,
+    pub timezone: String,
+    pub offload_device_url: Option<String>,
+    pub ollama_ram_cap_mb: u32,
+    pub dream_loop_enabled: bool,
+    pub dream_loop_cron: String,
+    pub log_retention_days: u32,
+}
+
 /// The dispatcher routes incoming HBP frames to the correct handler.
 pub struct Dispatcher {
     log_tx: Sender<LogEntry>,
     log_broadcaster: Arc<LogBroadcaster>,
     process_manager: Arc<ProcessManager>,
     ollama: Arc<OllamaLifecycle>,
+    config: Arc<RwLock<AppConfig>>,
 }
 
 impl Dispatcher {
@@ -70,12 +86,14 @@ impl Dispatcher {
         log_broadcaster: Arc<LogBroadcaster>,
         process_manager: Arc<ProcessManager>,
         ollama: Arc<OllamaLifecycle>,
+        config: Arc<RwLock<AppConfig>>,
     ) -> Self {
         Self {
             log_tx,
             log_broadcaster,
             process_manager,
             ollama,
+            config,
         }
     }
 
@@ -137,6 +155,50 @@ impl Dispatcher {
                 });
                 let payload = HbpFrame::encode_payload(&payload_data).unwrap_or_default();
                 Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+            }
+
+            "config.get" | "governor.config.get" => {
+                let cfg = self.config.read().await;
+                let dto = GovernorConfigDto {
+                    port: cfg.governor.port as u32,
+                    log_level: cfg.governor.log_level.clone(),
+                    timezone: cfg.governor.timezone.clone(),
+                    offload_device_url: cfg.governor.offload_device_url.clone(),
+                    ollama_ram_cap_mb: cfg.ollama.ram_cap_mb,
+                    dream_loop_enabled: cfg.dream_loop.enabled,
+                    dream_loop_cron: cfg.dream_loop.cron.clone(),
+                    log_retention_days: cfg.governor.log_retention_days,
+                };
+                let payload = HbpFrame::encode_payload(&dto).unwrap_or_default();
+                Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+            }
+
+            "config.update" | "governor.config.update" => {
+                if let Ok(dto) = frame.decode_payload::<GovernorConfigDto>() {
+                    let mut cfg = self.config.write().await;
+                    cfg.governor.port = dto.port as u16;
+                    cfg.governor.log_level = dto.log_level.clone();
+                    cfg.governor.timezone = dto.timezone.clone();
+                    cfg.governor.offload_device_url = dto.offload_device_url.clone();
+                    cfg.ollama.ram_cap_mb = dto.ollama_ram_cap_mb;
+                    cfg.dream_loop.enabled = dto.dream_loop_enabled;
+                    cfg.dream_loop.cron = dto.dream_loop_cron.clone();
+                    cfg.governor.log_retention_days = dto.log_retention_days;
+
+                    // Persist to disk
+                    let save_path = std::path::Path::new("/etc/horaizon/governor/config.toml");
+                    let _ = cfg.save(save_path);
+
+                    let payload = HbpFrame::encode_payload(&dto).unwrap_or_default();
+                    Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                } else {
+                    Some(HbpFrame::error_response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        "ERR_MALFORMED_PAYLOAD",
+                    ))
+                }
             }
 
             "module.wake" | "governor.module.wake" => {
@@ -245,7 +307,13 @@ impl Dispatcher {
                 if let Ok(req) = frame.decode_payload::<AiRouteRequest>() {
                     let start = std::time::Instant::now();
                     let intent = IntentClassifier::classify(&req.prompt, req.context_hint.as_deref());
-                    let budget = PromptBudget::for_intent(&intent, req.offload_device_url.as_deref());
+
+                    let offload_url = req.offload_device_url.as_deref().or_else(|| {
+                        // Use global offload URL if set
+                        None
+                    });
+
+                    let budget = PromptBudget::for_intent(&intent, offload_url);
 
                     info!(
                         subsystem = "dispatcher",
@@ -255,7 +323,6 @@ impl Dispatcher {
                         "AI Intent route selected"
                     );
 
-                    // Execute LLM inference (or stub fallback if Ollama service is unreachable)
                     let client = if let Some(ref url) = budget.offload_url {
                         crate::ollama::client::OllamaClient::new(url)
                     } else {

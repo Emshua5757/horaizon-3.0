@@ -182,6 +182,28 @@ pub struct AiRouteResponse {
     pub duration_ms: u32,
 }
 
+/// System configuration settings payload returned/updated via governor.config.*
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GovernorConfigDto {
+    /// Index 1: HBP WebSocket broker server port (default 7700)
+    pub port: u32,
+    /// Index 2: Global log verbosity level (trace, debug, info, warn, error)
+    pub log_level: String,
+    /// Index 3: System timezone string (e.g. Asia/Manila)
+    pub timezone: String,
+    /// Index 4: Optional laptop node URL for heavy AI offloading
+    #[serde(default)]
+    pub offload_device_url: Option<String>,
+    /// Index 5: Ollama model RAM ceiling cap in megabytes
+    pub ollama_ram_cap_mb: u32,
+    /// Index 6: Nightly 02:00 AM maintenance dream loop toggle
+    pub dream_loop_enabled: bool,
+    /// Index 7: Dream loop cron schedule expression
+    pub dream_loop_cron: String,
+    /// Index 8: SQLite log database retention period in days
+    pub log_retention_days: u32,
+}
+
 /// Client WebSocket subscription filter for live log events
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogFilter {

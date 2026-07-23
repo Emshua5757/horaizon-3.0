@@ -43,6 +43,10 @@ class HbpOps:
     SHUA_GOVERNOR_MODULE_WAKE: str = 'shua.governor.module.wake'
     # Send SIGSTOP to freeze a running module process
     SHUA_GOVERNOR_MODULE_SLEEP: str = 'shua.governor.module.sleep'
+    # Fetch current Governor system configuration settings
+    SHUA_GOVERNOR_CONFIG_GET: str = 'shua.governor.config.get'
+    # Update Governor system configuration settings and persist to config.toml
+    SHUA_GOVERNOR_CONFIG_UPDATE: str = 'shua.governor.config.update'
     # Load a named Ollama model, evicting any previously loaded model
     SHUA_GOVERNOR_OLLAMA_LOAD: str = 'shua.governor.ollama.load'
     # Evict the currently loaded Ollama model (keep_alive: 0)

@@ -139,6 +139,26 @@ export interface AiRouteResponse {
   duration_ms: number;
 }
 
+/** System configuration settings payload returned/updated via governor.config.* */
+export interface GovernorConfigDto {
+  /** HBP WebSocket broker server port (default 7700) */
+  port: number;
+  /** Global log verbosity level (trace, debug, info, warn, error) */
+  log_level: string;
+  /** System timezone string (e.g. Asia/Manila) */
+  timezone: string;
+  /** Optional laptop node URL for heavy AI offloading */
+  offload_device_url?: string;
+  /** Ollama model RAM ceiling cap in megabytes */
+  ollama_ram_cap_mb: number;
+  /** Nightly 02:00 AM maintenance dream loop toggle */
+  dream_loop_enabled: boolean;
+  /** Dream loop cron schedule expression */
+  dream_loop_cron: string;
+  /** SQLite log database retention period in days */
+  log_retention_days: number;
+}
+
 /** Client WebSocket subscription filter for live log events */
 export interface LogFilter {
   /** Minimum log level (1=TRACE..5=ERROR) */

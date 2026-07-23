@@ -43,6 +43,10 @@ abstract final class HbpOps {
   static const String shua_governor_module_wake = 'shua.governor.module.wake';
   /// Send SIGSTOP to freeze a running module process
   static const String shua_governor_module_sleep = 'shua.governor.module.sleep';
+  /// Fetch current Governor system configuration settings
+  static const String shua_governor_config_get = 'shua.governor.config.get';
+  /// Update Governor system configuration settings and persist to config.toml
+  static const String shua_governor_config_update = 'shua.governor.config.update';
   /// Load a named Ollama model, evicting any previously loaded model
   static const String shua_governor_ollama_load = 'shua.governor.ollama.load';
   /// Evict the currently loaded Ollama model (keep_alive: 0)
