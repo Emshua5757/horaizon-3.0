@@ -12,6 +12,15 @@ path = "src/main.rs"
 [dependencies]
 # Async runtime
 tokio            = { version = "1", features = ["full"] }
+tokio-stream     = { version = "0.1", features = ["sync"] }
+
+# HTTP framework
+axum             = { version = "0.7", features = ["ws", "multipart"] }
+tower            = "0.5"
+tower-http       = { version = "0.6", features = ["cors", "fs"] }
+hyper            = { version = "1", features = ["full"] }
+hyper-util       = { version = "0.1", features = ["full"] }
+http-body-util   = "0.1"
 
 # WebSocket
 tokio-tungstenite = { version = "0.23", features = ["rustls-tls-native-roots"] }
@@ -25,44 +34,31 @@ serde_json       = "1"
 # HTTP client (Ollama API)
 reqwest          = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 
-# Process management / signals
-# nix only available on Unix targets (Pi5); cfg-gated in code
-[target.'cfg(unix)'.dependencies]
-nix              = { version = "0.29", features = ["signal", "process"] }
-
-[dependencies.tokio-cron-scheduler]
-version = "0.13"
+# SQLite (centralized log persistence)
+rusqlite         = { version = "0.31", features = ["bundled"] }
 
 # Config file
-[dependencies.toml]
-version = "0.8"
+toml             = "0.8"
+
+# Scheduling (Dream Loop)
+tokio-cron-scheduler = "0.13"
 
 # Logging
-[dependencies.tracing]
-version = "0.1"
-
-[dependencies.tracing-subscriber]
-version = "0.3"
-features = ["env-filter", "json"]
+tracing          = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # UUID generation
-[dependencies.uuid]
-version = "1"
-features = ["v4"]
+uuid             = { version = "1", features = ["v4"] }
 
 # Misc
-[dependencies.anyhow]
-version = "1"
+anyhow           = "1"
+thiserror        = "1"
+once_cell        = "1"
+chrono           = { version = "0.4", features = ["serde"] }
 
-[dependencies.thiserror]
-version = "1"
-
-[dependencies.once_cell]
-version = "1"
-
-[dependencies.chrono]
-version = "0.4"
-features = ["serde"]
+# Process management / signals (Unix / Pi5 only)
+[target.'cfg(unix)'.dependencies]
+nix              = { version = "0.29", features = ["signal", "process"] }
 
 [dev-dependencies]
 tokio-test = "0.4"
