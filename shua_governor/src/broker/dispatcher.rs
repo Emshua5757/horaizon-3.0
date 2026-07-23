@@ -2,11 +2,14 @@ use std::sync::Arc;
 use tokio::sync::mpsc::{Sender, UnboundedSender};
 use tracing::{info, warn};
 
+use crate::ai_router::intent_classifier::IntentClassifier;
+use crate::ai_router::prompt_budget::PromptBudget;
 use crate::broker::frame::{HbpFrame, MsgType};
 use crate::logging::broadcaster::LogBroadcaster;
 use crate::logging::entry::{LogEntry, MODULE_FLUTTER};
 use crate::logging::filter::LogFilter;
 use crate::logging::flush::{query_logs_from_db, resolved_db_path, LogQueryParams};
+use crate::ollama::lifecycle::OllamaLifecycle;
 use crate::registry::process_manager::ProcessManager;
 
 /// Query request DTO for `governor.logs.query`
@@ -39,11 +42,26 @@ pub struct ModuleOpRequest {
     pub module: String,
 }
 
+/// Ollama load payload DTO for `ollama.load`
+#[derive(serde::Deserialize)]
+pub struct OllamaLoadRequest {
+    pub model: String,
+}
+
+/// AI route payload DTO for `ai.route`
+#[derive(serde::Deserialize)]
+pub struct AiRouteRequest {
+    pub prompt: String,
+    pub context_hint: Option<String>,
+    pub offload_device_url: Option<String>,
+}
+
 /// The dispatcher routes incoming HBP frames to the correct handler.
 pub struct Dispatcher {
     log_tx: Sender<LogEntry>,
     log_broadcaster: Arc<LogBroadcaster>,
     process_manager: Arc<ProcessManager>,
+    ollama: Arc<OllamaLifecycle>,
 }
 
 impl Dispatcher {
@@ -51,11 +69,13 @@ impl Dispatcher {
         log_tx: Sender<LogEntry>,
         log_broadcaster: Arc<LogBroadcaster>,
         process_manager: Arc<ProcessManager>,
+        ollama: Arc<OllamaLifecycle>,
     ) -> Self {
         Self {
             log_tx,
             log_broadcaster,
             process_manager,
+            ollama,
         }
     }
 
@@ -103,9 +123,17 @@ impl Dispatcher {
 
             "status" => {
                 let modules = self.process_manager.status_snapshot().await;
+                let loaded_model = self.ollama.current_model().await;
+                let ram_mb = loaded_model.as_ref().and_then(|m| {
+                    self.ollama.registry().find(m).map(|rm| rm.ram_mb as f32)
+                });
+
                 let payload_data = serde_json::json!({
                     "modules": modules,
-                    "ollama": { "loaded_model": null, "ram_mb": null }
+                    "ollama": {
+                        "loaded_model": loaded_model,
+                        "ram_mb": ram_mb
+                    }
                 });
                 let payload = HbpFrame::encode_payload(&payload_data).unwrap_or_default();
                 Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
@@ -151,6 +179,111 @@ impl Dispatcher {
                             &format!("ERR_MODULE_SLEEP: {e}"),
                         )),
                     }
+                } else {
+                    Some(HbpFrame::error_response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        "ERR_MALFORMED_PAYLOAD",
+                    ))
+                }
+            }
+
+            "ollama.load" | "governor.ollama.load" => {
+                if let Ok(req) = frame.decode_payload::<OllamaLoadRequest>() {
+                    let start = std::time::Instant::now();
+                    match self.ollama.load(&req.model).await {
+                        Ok(_) => {
+                            let duration_ms = start.elapsed().as_millis() as u32;
+                            let loaded_model = self.ollama.current_model().await;
+                            let ram_mb = loaded_model.as_ref().and_then(|m| {
+                                self.ollama.registry().find(m).map(|rm| rm.ram_mb as f32)
+                            }).unwrap_or(0.0);
+
+                            let res = serde_json::json!({
+                                "loaded_model": loaded_model,
+                                "ram_mb": ram_mb,
+                                "duration_ms": duration_ms
+                            });
+                            let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
+                            Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                        }
+                        Err(e) => Some(HbpFrame::error_response(
+                            &frame.id,
+                            &frame.mod_,
+                            &frame.op,
+                            &format!("ERR_OLLAMA_LOAD: {e}"),
+                        )),
+                    }
+                } else {
+                    Some(HbpFrame::error_response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        "ERR_MALFORMED_PAYLOAD",
+                    ))
+                }
+            }
+
+            "ollama.evict" | "governor.ollama.evict" => {
+                match self.ollama.evict().await {
+                    Ok(_) => {
+                        let res = serde_json::json!({ "status": "evicted" });
+                        let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
+                        Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                    }
+                    Err(e) => Some(HbpFrame::error_response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        &format!("ERR_OLLAMA_EVICT: {e}"),
+                    )),
+                }
+            }
+
+            "ai.route" | "governor.ai.route" => {
+                if let Ok(req) = frame.decode_payload::<AiRouteRequest>() {
+                    let start = std::time::Instant::now();
+                    let intent = IntentClassifier::classify(&req.prompt, req.context_hint.as_deref());
+                    let budget = PromptBudget::for_intent(&intent, req.offload_device_url.as_deref());
+
+                    info!(
+                        subsystem = "dispatcher",
+                        intent = intent.as_str(),
+                        model = %budget.model,
+                        offload_url = ?budget.offload_url,
+                        "AI Intent route selected"
+                    );
+
+                    // Execute LLM inference (or stub fallback if Ollama service is unreachable)
+                    let client = if let Some(ref url) = budget.offload_url {
+                        crate::ollama::client::OllamaClient::new(url)
+                    } else {
+                        crate::ollama::client::OllamaClient::new(self.ollama.client().base_url())
+                    };
+
+                    let messages = vec![crate::ollama::client::ChatMessage {
+                        role: "user".into(),
+                        content: req.prompt.clone(),
+                    }];
+
+                    let reply = match client.chat(&budget.model, messages, 0).await {
+                        Ok(res) => res,
+                        Err(e) => {
+                            warn!(subsystem = "dispatcher", error = %e, "Ollama chat fallback to stub");
+                            format!("[AI Router Stub ({})] Intent: {}", intent.as_str(), req.prompt)
+                        }
+                    };
+
+                    let duration_ms = start.elapsed().as_millis() as u32;
+                    let res = serde_json::json!({
+                        "model_used": budget.model,
+                        "intent": intent.as_str(),
+                        "reply": reply,
+                        "duration_ms": duration_ms
+                    });
+                    let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
+                    Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
                 } else {
                     Some(HbpFrame::error_response(
                         &frame.id,

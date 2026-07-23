@@ -12,14 +12,16 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use broker::{dispatcher::Dispatcher, server::BrokerServer};
+use dream_loop::DreamLoopScheduler;
 use logging::bridge::ChannelLogger;
 use logging::broadcaster::LogBroadcaster;
 use logging::entry::LogEntry;
 use logging::flush::{flush_loop, resolved_important_log_path};
 use logging::listener::start_log_ipc_listener;
+use ollama::{ModelRegistry, OllamaClient, OllamaLifecycle, RegisteredModel};
 use registry::{ModuleEntry, ProcessManager};
 use tokio::sync::{broadcast, mpsc};
-use tracing::info;
+use tracing::{error, info};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
@@ -103,18 +105,51 @@ async fn main() -> anyhow::Result<()> {
         "ProcessManager initialized with default microservice entries"
     );
 
-    // 7. Initialize WebSocket Log Broadcaster
+    // 7. Initialize Ollama Lifecycle Manager
+    let registered_models = vec![
+        RegisteredModel {
+            name: "qwen2.5:1.5b".into(),
+            ram_mb: 1200,
+            role: "primary_dialogue".into(),
+            keep_alive: -1,
+        },
+        RegisteredModel {
+            name: "llama3.2:3b".into(),
+            ram_mb: 2400,
+            role: "text_generator".into(),
+            keep_alive: -1,
+        },
+    ];
+    let model_registry = ModelRegistry::new(registered_models, 4096);
+    let ollama_client = OllamaClient::new("http://127.0.0.1:11434");
+    let ollama_lifecycle = Arc::new(OllamaLifecycle::new(ollama_client, model_registry));
+
+    info!(
+        subsystem = "governor_main",
+        ram_cap_mb = 4096,
+        "Ollama Lifecycle Manager initialized"
+    );
+
+    // 8. Start Nightly Dream Loop Scheduler
+    tokio::spawn(async move {
+        if let Err(e) = DreamLoopScheduler::start().await {
+            error!(error = %e, "Dream Loop scheduler failed to start");
+        }
+    });
+
+    // 9. Initialize WebSocket Log Broadcaster
     let log_broadcaster = Arc::new(LogBroadcaster::new());
     let log_broadcaster_clone = Arc::clone(&log_broadcaster);
     tokio::spawn(async move {
         log_broadcaster_clone.run_broadcast_loop(log_broadcast_rx).await;
     });
 
-    // 8. Initialize HBP v2 Dispatcher & Broker Server
+    // 10. Initialize HBP v2 Dispatcher & Broker Server
     let dispatcher = Arc::new(Dispatcher::new(
         log_tx.clone(),
         Arc::clone(&log_broadcaster),
         Arc::clone(&process_manager),
+        Arc::clone(&ollama_lifecycle),
     ));
     let broker = BrokerServer::new(Arc::clone(&dispatcher));
 
