@@ -1,0 +1,180 @@
+# ============================================================
+# horAIzon 3.0 — .gitignore
+# Covers: Rust, Flutter/Dart, Python, Go, TypeScript/Node,
+#         n8n, Docker, PowerShell, Windows, IDE tooling
+# ============================================================
+
+
+# ─── Rust / Cargo (shua_governor) ───────────────────────────
+target/
+**/*.rs.bk
+Cargo.lock          # Keep if this is a binary crate; remove line if library
+.cargo/registry/
+.cargo/git/
+
+
+# ─── Flutter / Dart (client_flutter) ────────────────────────
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/pubspec.lock     # Keep for reproducible builds; remove line to track it
+**/.packages
+**/generated_plugin_registrant.dart
+**/flutter_export_environment.sh
+**/GeneratedPluginRegistrant.java
+**/GeneratedPluginRegistrant.m
+**/*.g.dart
+**/*.freezed.dart
+**/*.mocks.dart
+
+
+# ─── Python (tools/) ────────────────────────────────────────
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.pytest_cache/
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+.env
+*.env
+*.env.local
+
+
+# ─── Go (shua_resume, future modules) ───────────────────────
+*.exe
+*.test
+*.out
+vendor/
+
+
+# ─── TypeScript / Node (shua_diary) ─────────────────────────
+node_modules/
+dist/
+.next/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json   # Remove this line if you want to track lockfile
+.yarn/
+
+
+# ─── n8n ────────────────────────────────────────────────────
+.n8n/
+tools/n8n_agent/n8n_data/
+
+
+# ─── Docker / Qdrant ────────────────────────────────────────
+tools/n8n_agent/qdrant_data/
+docker-compose.override.yml
+*.pid
+
+
+# ─── Secrets / Credentials ──────────────────────────────────
+*.key
+*.pem
+*.p12
+*.pfx
+*.cer
+*.crt
+secrets/
+.secrets/
+config/local.toml
+config/production.toml
+# aider API keys
+.aider.conf.yml.local
+.env.aider
+
+
+# ─── Aider (overnight agent) ────────────────────────────────
+.aider/
+.aider.chat.history.md
+.aider.input.history
+.aider.tags.cache.v3/
+
+
+# ─── Ollama / AI models ─────────────────────────────────────
+*.gguf
+*.ggml
+*.bin
+*.safetensors
+models/
+
+
+# ─── SQLite (shua_portal, shua_diary) ───────────────────────
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+
+# ─── Logs / Runtime outputs ─────────────────────────────────
+*.log
+logs/
+agent_logs/
+*.log.*
+
+
+# ─── OS / Windows ───────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+
+# ─── IDE / Editors ──────────────────────────────────────────
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+.idea/
+*.iml
+*.suo
+*.user
+*.swp
+*.swo
+*~
+.DS_Store
+
+
+# ─── Typst / PDF build outputs ──────────────────────────────
+*.pdf
+*.aux
+*.synctex.gz
+
+
+# ─── Top-level Python cache dir ─────────────────────────────
+Python/_cache/
+Python/
+
+# ─── Temporary / scratch ────────────────────────────────────
+*.tmp
+*.bak
+*.orig
+scratch/
+tmp/
+
+# ─── Keep these tracked (explicit whitelist) ────────────────
+!_architecture/**
+!tools/sync_contracts/**
+!tools/*.py
+!tools/*.ps1
+!tools/*.json
+!.vscode/extensions.json
+!.vscode/horaizon.code-workspace

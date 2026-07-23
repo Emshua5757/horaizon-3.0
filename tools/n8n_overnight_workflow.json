@@ -1,0 +1,677 @@
+{
+  "name": "horAIzon — Overnight Loop Engineering (Full Native AI)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 0 22 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        200
+      ],
+      "id": "node-schedule",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs'), path = require('path');\nconst REPO = 'c:\\\\horaizon-3.0';\nconst repoIndexPath = path.join(REPO, '_architecture', 'repo_index.md');\nconst repoIndex = fs.existsSync(repoIndexPath) ? fs.readFileSync(repoIndexPath, 'utf8') : '(not generated)';\nconst activePath = path.join(REPO, '_architecture', 'tasks', 'active');\nconst proposedPath = path.join(REPO, '_architecture', 'tasks', 'proposed');\nconst existingTasks = [\n  ...fs.readdirSync(activePath).filter(f => f.endsWith('.md')),\n  ...(fs.existsSync(proposedPath) ? fs.readdirSync(proposedPath).filter(f => f.endsWith('.md')) : [])\n].join('\\n') || 'None';\nconst TOPICS = [\n  { key: 'phase2_code_vis', description: 'Phase 2 — shua_code_visualizer: Python AST scanner, real-time file watcher emitting TopologyDeltaEvent over HBP v2, Flutter visualizer screen.' },\n  { key: 'phase3_resume', description: 'Phase 3 — shua_resume: Go backend for Typst PDF compilation, YAML resume block matrix, AI tailoring via Ollama qwen2.5:1.5b, CAS for generated PDFs.' },\n  { key: 'phase3_diary', description: 'Phase 3 — shua_diary: TypeScript/Node block diary engine with LexoRank, SQLite storage, sentiment scoring events, Global Identity Matrix memory elevation.' }\n];\nreturn TOPICS.map(t => ({ json: { topicKey: t.key, topicDescription: t.description, existingTasks, repoIndex: repoIndex.slice(0, 2500),\n  plannerPrompt: `You are an expert Principal Software Architect for horAIzon 3.0.\\nProtocol: HBP v2 (MessagePack over WebSocket port 7700). Processes: Rust (shua_governor), Flutter (client_flutter), Go (shua_resume), TypeScript (shua_diary), Python (shua_code_visualizer). Rule: NO SDUI, typed contracts.\\n\\nREPO INDEX:\\n${repoIndex.slice(0, 2000)}\\n\\nEXISTING TASKS (do NOT duplicate):\\n${existingTasks}\\n\\nTOPIC: ${t.description}\\n\\nGenerate exactly 1 detailed TASK spec using this EXACT format:\\n\\n---START_TASK---\\n# TASK-XXX — [Title]\\n| Field | Value |\\n| :--- | :--- |\\n| **Status** | [ ] Proposed |\\n| **Phase** | Phase 2 or 3 |\\n| **Type** | AI-executable |\\n| **Language** | [Language] |\\n| **Target** | [path] |\\n| **Prerequisites** | [deps] |\\n---\\n## Context\\n[why]\\n---\\n## Technical Specifications\\n[exact specs]\\n---\\n## Implementation Steps\\n[steps]\\n---\\n## Acceptance Criteria\\n- [ ] criterion\\n---END_TASK---` } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        200
+      ],
+      "id": "node-load-context",
+      "name": "Load Context"
+    },
+    {
+      "parameters": {
+        "prompt": "={{ $json.plannerPrompt }}",
+        "messages": {
+          "messageValues": []
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        440,
+        200
+      ],
+      "id": "node-planner-chain",
+      "name": "Planner LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5-coder:7b",
+        "options": {
+          "temperature": 0.2,
+          "numCtx": 8192
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmOllama",
+      "typeVersion": 1,
+      "position": [
+        440,
+        380
+      ],
+      "id": "node-planner-ollama",
+      "name": "Ollama — Planner"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs'), path = require('path');\nconst REPO = 'c:\\\\horaizon-3.0';\nconst ACTIVE = path.join(REPO, '_architecture', 'tasks', 'active');\nconst PROPOSED = path.join(REPO, '_architecture', 'tasks', 'proposed');\nconst raw = $input.first().json.text || '';\nconst topicKey = $('Loop Over Topics').item.json.topicKey;\nconst allFiles = [...fs.readdirSync(ACTIVE), ...(fs.existsSync(PROPOSED) ? fs.readdirSync(PROPOSED) : [])];\nconst nums = allFiles.map(f => { const m = f.match(/TASK-(\\d+)/); return m ? parseInt(m[1]) : 0; }).filter(n => n > 0);\nlet nextNum = (nums.length ? Math.max(...nums) : 15) + 1;\nconst blocks = raw.split('---START_TASK---');\nconst written = [];\nfor (const block of blocks) {\n  if (!block.includes('---END_TASK---')) continue;\n  const taskMd = block.split('---END_TASK---')[0].trim();\n  const titleLine = taskMd.split('\\n').find(l => l.startsWith('# TASK-')) || '';\n  let slug = topicKey;\n  if (titleLine.includes('\\u2014')) slug = titleLine.split('\\u2014')[1].trim().toLowerCase().replace(/\\s+/g,'_').replace(/[^a-z0-9_]/g,'');\n  const taskId = `TASK-${String(nextNum).padStart(3,'0')}`; nextNum++;\n  const filename = `${taskId}_${slug}.md`;\n  fs.mkdirSync(PROPOSED, { recursive: true });\n  fs.writeFileSync(path.join(PROPOSED, filename), taskMd, 'utf8');\n  written.push({ filename, taskMd, taskId });\n}\nreturn written.length > 0 ? written.map(t => ({ json: { filename: t.filename, task_markdown: t.taskMd, taskId: t.taskId } })) : [{ json: { filename: null, task_markdown: raw.slice(0,500), taskId: null, error: 'No task blocks found' } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        200
+      ],
+      "id": "node-parse-write",
+      "name": "Parse + Write Task Files"
+    },
+    {
+      "parameters": {
+        "prompt": "=You are a senior software architect reviewing a task spec for horAIzon 3.0.\n\nRate it 1-10. Reply ONLY with valid JSON (no markdown fences, no extra text):\n{\"score\": 8, \"verdict\": \"pass\", \"reason\": \"Well-scoped and clear.\"}\n\nRules:\n- verdict = \"pass\" when score >= 7\n- verdict = \"fail\" when score < 7\n\nTASK TO REVIEW:\n{{ $json.task_markdown }}",
+        "messages": {
+          "messageValues": []
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        880,
+        200
+      ],
+      "id": "node-reviewer-chain",
+      "name": "Reviewer LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5-coder:7b",
+        "options": {
+          "temperature": 0.1,
+          "numCtx": 4096
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmOllama",
+      "typeVersion": 1,
+      "position": [
+        880,
+        380
+      ],
+      "id": "node-reviewer-ollama",
+      "name": "Ollama — Reviewer"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs'), path = require('path');\nconst raw = $input.first().json.text || '{}';\nconst prev = $('Parse + Write Task Files').first().json;\nlet review = { score: 0, verdict: 'fail', reason: 'Parse error' };\ntry { review = JSON.parse(raw.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim()); } catch(e) { review.reason = 'Unparseable: ' + raw.slice(0,100); }\nreturn [{ json: { ...review, filename: prev.filename, task_markdown: prev.task_markdown, taskId: prev.taskId, passed: review.verdict === 'pass' && (review.score||0) >= 7 } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        200
+      ],
+      "id": "node-parse-review",
+      "name": "Parse Review"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.passed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        200
+      ],
+      "id": "node-route",
+      "name": "Pass or Fail?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs'), path = require('path');\nconst REPO = 'c:\\\\horaizon-3.0';\nconst PROPOSED = path.join(REPO, '_architecture', 'tasks', 'proposed');\nconst ACTIVE   = path.join(REPO, '_architecture', 'tasks', 'active');\nconst src = path.join(PROPOSED, $json.filename);\nconst dst = path.join(ACTIVE, $json.filename);\nif (fs.existsSync(src)) fs.renameSync(src, dst);\nreturn [{ json: { promoted: $json.filename, score: $json.score } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        100
+      ],
+      "id": "node-promote",
+      "name": "Promote to Active"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs'), path = require('path');\nconst REPO = 'c:\\\\horaizon-3.0';\nconst PROPOSED = path.join(REPO, '_architecture', 'tasks', 'proposed');\nconst REVIEW   = path.join(REPO, '_architecture', 'tasks', 'review_needed');\nfs.mkdirSync(REVIEW, { recursive: true });\nif ($json.filename) {\n  const src = path.join(PROPOSED, $json.filename);\n  if (fs.existsSync(src)) {\n    const content = fs.readFileSync(src, 'utf8');\n    fs.writeFileSync(path.join(REVIEW, $json.filename), content + `\\n\\n---\\n## Reviewer Rejection\\nScore: ${$json.score}/10\\nReason: ${$json.reason}`, 'utf8');\n    fs.unlinkSync(src);\n  }\n}\nreturn [{ json: { flagged: $json.filename, reason: $json.reason } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        320
+      ],
+      "id": "node-flag",
+      "name": "Flag for Review"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs'), path = require('path');\nconst REPO = 'c:\\\\horaizon-3.0';\nconst ACTIVE = path.join(REPO, '_architecture', 'tasks', 'active');\nconst tasks = fs.readdirSync(ACTIVE).filter(f => f.match(/^TASK-\\d+.*\\.md$/));\nreturn tasks.map(filename => {\n  const content = fs.readFileSync(path.join(ACTIVE, filename), 'utf8');\n  const taskId = filename.split('_')[0];\n  const MANUAL = new Set(['TASK-001','TASK-007']);\n  const isDone = content.includes('[x] Done');\n  return { json: { filename, taskId, content, skip: MANUAL.has(taskId) || isDone } };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        200
+      ],
+      "id": "node-load-tasks",
+      "name": "Load Active Tasks"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "id": "skip",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        200
+      ],
+      "id": "node-skip-check",
+      "name": "Skip Manual Tasks?"
+    },
+    {
+      "parameters": {
+        "text": "={{ 'Execute this task completely. Repo root: c:\\\\horaizon-3.0\\n\\n' + $(\"Loop Over Tasks\").item.json.content + '\\n\\nWhen done: use run_command to run git add -A then git commit with message: feat: complete ' + $(\"Loop Over Tasks\").item.json.taskId }}",
+        "options": {
+          "systemMessage": "You are an expert software engineer working on horAIzon 3.0. The repo root is c:\\horaizon-3.0. Use your tools to read existing files for context, write new or modified code files, run verification commands (cargo check, flutter analyze), and finally commit your work. Do NOT skip steps. Do NOT ask questions — implement everything."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        2200,
+        200
+      ],
+      "id": "node-executor-agent",
+      "name": "Executor AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5-coder:7b",
+        "options": {
+          "temperature": 0.1,
+          "numCtx": 8192
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmOllama",
+      "typeVersion": 1,
+      "position": [
+        2200,
+        420
+      ],
+      "id": "node-executor-ollama",
+      "name": "Ollama — Executor"
+    },
+    {
+      "parameters": {
+        "name": "read_file",
+        "description": "Read any file in the horAIzon repo. Input JSON: {\"path\": \"relative/path/from/repo/root\"}",
+        "jsCode": "const fs = require('fs'), path = require('path');\nconst input = JSON.parse(query);\nconst fullPath = path.join('c:\\\\horaizon-3.0', input.path);\nif (!fs.existsSync(fullPath)) return 'FILE NOT FOUND: ' + input.path;\nreturn fs.readFileSync(fullPath, 'utf8').slice(0, 8000);"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        2000,
+        420
+      ],
+      "id": "tool-read",
+      "name": "Tool: Read File"
+    },
+    {
+      "parameters": {
+        "name": "write_file",
+        "description": "Write or overwrite a file in the horAIzon repo. Input JSON: {\"path\": \"relative/path\", \"content\": \"file content here\"}",
+        "jsCode": "const fs = require('fs'), path = require('path');\nconst input = JSON.parse(query);\nconst fullPath = path.join('c:\\\\horaizon-3.0', input.path);\nfs.mkdirSync(path.dirname(fullPath), { recursive: true });\nfs.writeFileSync(fullPath, input.content, 'utf8');\nreturn 'Written: ' + input.path + ' (' + input.content.length + ' chars)';"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        420
+      ],
+      "id": "tool-write",
+      "name": "Tool: Write File"
+    },
+    {
+      "parameters": {
+        "name": "run_command",
+        "description": "Run a shell command in the repo root (cargo check, flutter analyze, git add, git commit, etc). Input JSON: {\"command\": \"cargo check\"}",
+        "jsCode": "const { execSync } = require('child_process');\nconst input = JSON.parse(query);\ntry {\n  const out = execSync(input.command, { cwd: 'c:\\\\horaizon-3.0', timeout: 120000, encoding: 'utf8' });\n  return 'EXIT 0:\\n' + out.slice(0, 3000);\n} catch(e) {\n  return 'EXIT ' + (e.status||1) + ':\\n' + (e.stdout||'') + '\\n' + (e.stderr||'').slice(0,2000);\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        2400,
+        420
+      ],
+      "id": "tool-cmd",
+      "name": "Tool: Run Command"
+    },
+    {
+      "parameters": {
+        "name": "list_directory",
+        "description": "List files in a directory of the horAIzon repo. Input JSON: {\"path\": \"relative/dir/path\"}",
+        "jsCode": "const fs = require('fs'), path = require('path');\nconst input = JSON.parse(query);\nconst fullPath = path.join('c:\\\\horaizon-3.0', input.path);\nif (!fs.existsSync(fullPath)) return 'DIR NOT FOUND: ' + input.path;\nreturn fs.readdirSync(fullPath).join('\\n');"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        2600,
+        420
+      ],
+      "id": "tool-ls",
+      "name": "Tool: List Directory"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fs = require('fs'), path = require('path');\nconst REPO = 'c:\\\\horaizon-3.0';\nconst ACTIVE   = path.join(REPO, '_architecture', 'tasks', 'active');\nconst ARCHIVED = path.join(REPO, '_architecture', 'tasks', 'archived');\nfs.mkdirSync(ARCHIVED, { recursive: true });\nconst taskFile = $('Loop Over Tasks').item.json.filename;\nconst taskPath = path.join(ACTIVE, taskFile);\nif (fs.existsSync(taskPath)) {\n  let content = fs.readFileSync(taskPath, 'utf8');\n  content = content.replace('[ ] Not started', '[x] Done').replace('[/] In progress', '[x] Done');\n  fs.writeFileSync(path.join(ARCHIVED, taskFile), content, 'utf8');\n  fs.unlinkSync(taskPath);\n}\nreturn [{ json: { archived: taskFile, agentOutput: $input.first().json.output } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        200
+      ],
+      "id": "node-archive",
+      "name": "Archive Completed Task"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1792,
+        16
+      ],
+      "id": "loop-over-topics",
+      "name": "Loop Over Topics"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        32,
+        16
+      ],
+      "id": "loop-over-tasks",
+      "name": "Loop Over Tasks"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Loop Over Tasks').item.json.taskId || 'default' }}",
+        "contextWindowLength": 20
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        368,
+        420
+      ],
+      "id": "task-session-memory",
+      "name": "Task Session Memory"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Load Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Context": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama — Planner": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Planner LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Planner LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Parse + Write Task Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse + Write Task Files": {
+      "main": [
+        [
+          {
+            "node": "Reviewer LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama — Reviewer": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Reviewer LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reviewer LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Parse Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Review": {
+      "main": [
+        [
+          {
+            "node": "Pass or Fail?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass or Fail?": {
+      "main": [
+        [
+          {
+            "node": "Promote to Active",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Flag for Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Promote to Active": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Flag for Review": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Active Tasks": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Manual Tasks?": {
+      "main": [
+        [
+          {
+            "node": "Executor AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama — Executor": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Executor AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Read File": {
+      "ai_tool": [
+        [
+          {
+            "node": "Executor AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Write File": {
+      "ai_tool": [
+        [
+          {
+            "node": "Executor AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: Run Command": {
+      "ai_tool": [
+        [
+          {
+            "node": "Executor AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool: List Directory": {
+      "ai_tool": [
+        [
+          {
+            "node": "Executor AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Executor AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Archive Completed Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Topics": {
+      "main": [
+        [
+          {
+            "node": "Planner LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Load Active Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Tasks": {
+      "main": [
+        [
+          {
+            "node": "Skip Manual Tasks?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Archive Completed Task": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Task Session Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Executor AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "95636551-aff0-4e32-98d2-d68910575a20",
+  "meta": {
+    "instanceId": "008d5f2c7b8a9598b8c275b93d72a1b8103fa4e83f8e5461ef345781404b610d"
+  },
+  "nodeGroups": [],
+  "tags": [
+    {
+      "updatedAt": "2026-07-22T10:46:17.903Z",
+      "createdAt": "2026-07-22T10:46:17.903Z",
+      "id": "D6rSq8zn3WJzkoiB",
+      "name": "overnight"
+    },
+    {
+      "updatedAt": "2026-07-22T10:46:17.886Z",
+      "createdAt": "2026-07-22T10:46:17.886Z",
+      "id": "aB3c4IBMwuFQnfYC",
+      "name": "horaizon"
+    }
+  ]
+}

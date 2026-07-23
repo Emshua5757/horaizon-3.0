@@ -1,0 +1,19 @@
+# horAIzon 3.0 — .gitattributes
+# Normalize line endings to LF in the repo regardless of OS
+
+* text=auto eol=lf
+
+# Binary files — no line ending normalization
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.gguf binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+*.pyc binary
+*.zip binary
+*.tar.gz binary
