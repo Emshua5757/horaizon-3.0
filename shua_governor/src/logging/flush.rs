@@ -83,6 +83,7 @@ fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
 }
 
 /// Query logs from SQLite LTM database with rich filter criteria
+#[allow(clippy::too_many_arguments)]
 pub fn query_logs_from_db(
     db_path: &str,
     min_level: Option<u8>,
@@ -170,13 +171,7 @@ pub fn query_logs_from_db(
         })
     })?;
 
-    let mut entries = Vec::new();
-    for r in rows {
-        if let Ok(entry) = r {
-            entries.push(entry);
-        }
-    }
-
+    let entries = rows.flatten().collect();
     Ok((total, entries))
 }
 

@@ -72,7 +72,7 @@ async fn handle_connection(
     // Forward outbound frames to WebSocket
     let send_task = tokio::spawn(async move {
         while let Some(bytes) = rx.recv().await {
-            if ws_tx.send(Message::Binary(bytes.into())).await.is_err() {
+            if ws_tx.send(Message::Binary(bytes)).await.is_err() {
                 break;
             }
         }
