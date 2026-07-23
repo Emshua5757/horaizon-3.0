@@ -6,7 +6,7 @@ use crate::broker::frame::{HbpFrame, MsgType};
 use crate::logging::broadcaster::LogBroadcaster;
 use crate::logging::entry::{LogEntry, MODULE_FLUTTER};
 use crate::logging::filter::LogFilter;
-use crate::logging::flush::{query_logs_from_db, resolved_db_path};
+use crate::logging::flush::{query_logs_from_db, resolved_db_path, LogQueryParams};
 
 /// Query request DTO for `governor.logs.query`
 #[derive(serde::Deserialize)]
@@ -149,17 +149,19 @@ impl Dispatcher {
                 });
 
                 let db_path = resolved_db_path();
-                match query_logs_from_db(
-                    &db_path,
-                    req.min_level,
-                    req.module,
-                    req.subsystem.as_deref(),
-                    req.start_ts,
-                    req.end_ts,
-                    req.trace_id.as_deref(),
-                    req.limit.unwrap_or(50),
-                    req.offset.unwrap_or(0),
-                ) {
+                let params = LogQueryParams {
+                    db_path: &db_path,
+                    min_level: req.min_level,
+                    module: req.module,
+                    subsystem: req.subsystem.as_deref(),
+                    start_ts: req.start_ts,
+                    end_ts: req.end_ts,
+                    trace_id: req.trace_id.as_deref(),
+                    limit: req.limit.unwrap_or(50),
+                    offset: req.offset.unwrap_or(0),
+                };
+
+                match query_logs_from_db(params) {
                     Ok((total, entries)) => {
                         let res = serde_json::json!({
                             "total": total,

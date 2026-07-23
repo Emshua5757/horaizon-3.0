@@ -82,45 +82,48 @@ fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
     )
 }
 
+/// Query parameters for SQLite LTM log searches
+#[derive(Debug, Default)]
+pub struct LogQueryParams<'a> {
+    pub db_path: &'a str,
+    pub min_level: Option<u8>,
+    pub module: Option<u8>,
+    pub subsystem: Option<&'a str>,
+    pub start_ts: Option<u64>,
+    pub end_ts: Option<u64>,
+    pub trace_id: Option<&'a str>,
+    pub limit: usize,
+    pub offset: usize,
+}
+
 /// Query logs from SQLite LTM database with rich filter criteria
-#[allow(clippy::too_many_arguments)]
-pub fn query_logs_from_db(
-    db_path: &str,
-    min_level: Option<u8>,
-    module: Option<u8>,
-    subsystem: Option<&str>,
-    start_ts: Option<u64>,
-    end_ts: Option<u64>,
-    trace_id: Option<&str>,
-    limit: usize,
-    offset: usize,
-) -> Result<(usize, Vec<LogEntry>)> {
-    let conn = Connection::open(db_path)?;
+pub fn query_logs_from_db(params: LogQueryParams<'_>) -> Result<(usize, Vec<LogEntry>)> {
+    let conn = Connection::open(params.db_path)?;
     
     let mut where_clause = Vec::new();
     let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
-    if let Some(lvl) = min_level {
+    if let Some(lvl) = params.min_level {
         where_clause.push(format!("level >= ?{}", params_vec.len() + 1));
         params_vec.push(Box::new(lvl as i64));
     }
-    if let Some(m) = module {
+    if let Some(m) = params.module {
         where_clause.push(format!("module = ?{}", params_vec.len() + 1));
         params_vec.push(Box::new(m as i64));
     }
-    if let Some(sub) = subsystem {
+    if let Some(sub) = params.subsystem {
         where_clause.push(format!("subsystem = ?{}", params_vec.len() + 1));
         params_vec.push(Box::new(sub.to_string()));
     }
-    if let Some(st) = start_ts {
+    if let Some(st) = params.start_ts {
         where_clause.push(format!("ts >= ?{}", params_vec.len() + 1));
         params_vec.push(Box::new(st as i64));
     }
-    if let Some(et) = end_ts {
+    if let Some(et) = params.end_ts {
         where_clause.push(format!("ts <= ?{}", params_vec.len() + 1));
         params_vec.push(Box::new(et as i64));
     }
-    if let Some(tid) = trace_id {
+    if let Some(tid) = params.trace_id {
         where_clause.push(format!("trace_id = ?{}", params_vec.len() + 1));
         params_vec.push(Box::new(tid.to_string()));
     }
@@ -136,11 +139,11 @@ pub fn query_logs_from_db(
     let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
     let total: usize = count_stmt.query_row(&params_refs[..], |r| r.get(0))?;
 
-    let lim = limit.min(200);
+    let lim = params.limit.min(200);
     let query_sql = format!(
         "SELECT ts, level, module, subsystem, msg, tags, custom_tags, telemetry, trace_id
          FROM activity_log {} ORDER BY ts DESC LIMIT {} OFFSET {}",
-        where_str, lim, offset
+        where_str, lim, params.offset
     );
 
     let mut stmt = conn.prepare(&query_sql)?;
