@@ -182,7 +182,7 @@ class SentimentEvent {
 
 }
 
-/// Module process description returned in governor.status
+/// Module process description and live telemetry returned in governor.status
 class ModuleEntry {
   /// Module namespace string e.g. shua.resume
   final String name;
@@ -190,20 +190,35 @@ class ModuleEntry {
   final ModuleState state;
   /// OS Process ID if running or sleeping
   final int? pid;
-  /// Current RSS memory usage in megabytes
+  /// Current CPU load percentage
+  final double? cpuPercent;
+  /// Current RSS/cgroup memory usage in megabytes
   final double? ramMb;
-  /// Uptime in seconds
+  /// Configured memory ceiling limit in megabytes
+  final int? ramLimitMb;
+  /// Total process uptime in seconds
   final int? uptimeS;
+  /// True if module process health check is passing
+  final bool healthOk;
+  /// Number of auto-restarts following crashes
+  final int restartCount;
+  /// Most recent crash or exit reason description
+  final String? lastError;
 
-  const ModuleEntry({required this.name, required this.state, required this.pid, required this.ramMb, required this.uptimeS});
+  const ModuleEntry({required this.name, required this.state, required this.pid, required this.cpuPercent, required this.ramMb, required this.ramLimitMb, required this.uptimeS, required this.healthOk, required this.restartCount, required this.lastError});
 
   factory ModuleEntry.fromMap(Map<String, dynamic> m) {
     return ModuleEntry(
       name: m['name'] as String,
       state: ModuleState.fromInt(m['state'] as int),
       pid: m['pid'] as int?,
+      cpuPercent: m['cpu_percent'] as double?,
       ramMb: m['ram_mb'] as double?,
+      ramLimitMb: m['ram_limit_mb'] as int?,
       uptimeS: m['uptime_s'] as int?,
+      healthOk: m['health_ok'] as bool,
+      restartCount: m['restart_count'] as int,
+      lastError: m['last_error'] as String?,
     );
   }
 
@@ -211,8 +226,13 @@ class ModuleEntry {
     'name': name,
     'state': state.value,
     'pid': pid,
+    'cpu_percent': cpuPercent,
     'ram_mb': ramMb,
+    'ram_limit_mb': ramLimitMb,
     'uptime_s': uptimeS,
+    'health_ok': healthOk,
+    'restart_count': restartCount,
+    'last_error': lastError,
   };
 
 }

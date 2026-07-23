@@ -87,7 +87,7 @@ pub struct SentimentEvent {
     pub label: String,
 }
 
-/// Module process description returned in governor.status
+/// Module process description and live telemetry returned in governor.status
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModuleEntry {
     /// Index 1: Module namespace string e.g. shua.resume
@@ -97,12 +97,25 @@ pub struct ModuleEntry {
     /// Index 3: OS Process ID if running or sleeping
     #[serde(default)]
     pub pid: Option<u32>,
-    /// Index 4: Current RSS memory usage in megabytes
+    /// Index 4: Current CPU load percentage
+    #[serde(default)]
+    pub cpu_percent: Option<f32>,
+    /// Index 5: Current RSS/cgroup memory usage in megabytes
     #[serde(default)]
     pub ram_mb: Option<f32>,
-    /// Index 5: Uptime in seconds
+    /// Index 6: Configured memory ceiling limit in megabytes
     #[serde(default)]
-    pub uptime_s: Option<u32>,
+    pub ram_limit_mb: Option<u32>,
+    /// Index 7: Total process uptime in seconds
+    #[serde(default)]
+    pub uptime_s: Option<u64>,
+    /// Index 8: True if module process health check is passing
+    pub health_ok: bool,
+    /// Index 9: Number of auto-restarts following crashes
+    pub restart_count: u32,
+    /// Index 10: Most recent crash or exit reason description
+    #[serde(default)]
+    pub last_error: Option<String>,
 }
 
 /// Current Ollama subsystem state

@@ -8,6 +8,7 @@ mod ollama;
 mod registry;
 
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use broker::{dispatcher::Dispatcher, server::BrokerServer};
@@ -16,6 +17,7 @@ use logging::broadcaster::LogBroadcaster;
 use logging::entry::LogEntry;
 use logging::flush::{flush_loop, resolved_important_log_path};
 use logging::listener::start_log_ipc_listener;
+use registry::{ModuleEntry, ProcessManager};
 use tokio::sync::{broadcast, mpsc};
 use tracing::info;
 use tracing_subscriber::layer::SubscriberExt;
@@ -67,15 +69,53 @@ async fn main() -> anyhow::Result<()> {
     // 5. Start IPC log listener (UDS on Linux + TCP 5001 loopback)
     start_log_ipc_listener(log_tx.clone()).await;
 
-    // 6. Initialize WebSocket Log Broadcaster
+    // 6. Initialize ProcessManager & Register Default Modules
+    let process_manager = Arc::new(ProcessManager::new());
+    process_manager
+        .register(ModuleEntry::new(
+            "shua.resume",
+            PathBuf::from("/usr/local/bin/shua_resume"),
+            true,
+            Some(128),
+        ))
+        .await;
+
+    process_manager
+        .register(ModuleEntry::new(
+            "shua.diary",
+            PathBuf::from("/usr/local/bin/shua_diary"),
+            true,
+            Some(256),
+        ))
+        .await;
+
+    process_manager
+        .register(ModuleEntry::new(
+            "shua.code_visualizer",
+            PathBuf::from("/usr/local/bin/shua_code_visualizer"),
+            false,
+            Some(128),
+        ))
+        .await;
+
+    info!(
+        subsystem = "governor_main",
+        "ProcessManager initialized with default microservice entries"
+    );
+
+    // 7. Initialize WebSocket Log Broadcaster
     let log_broadcaster = Arc::new(LogBroadcaster::new());
     let log_broadcaster_clone = Arc::clone(&log_broadcaster);
     tokio::spawn(async move {
         log_broadcaster_clone.run_broadcast_loop(log_broadcast_rx).await;
     });
 
-    // 7. Initialize HBP v2 Dispatcher & Broker Server
-    let dispatcher = Arc::new(Dispatcher::new(log_tx.clone(), Arc::clone(&log_broadcaster)));
+    // 8. Initialize HBP v2 Dispatcher & Broker Server
+    let dispatcher = Arc::new(Dispatcher::new(
+        log_tx.clone(),
+        Arc::clone(&log_broadcaster),
+        Arc::clone(&process_manager),
+    ));
     let broker = BrokerServer::new(Arc::clone(&dispatcher));
 
     let addr: SocketAddr = "0.0.0.0:7700".parse()?;

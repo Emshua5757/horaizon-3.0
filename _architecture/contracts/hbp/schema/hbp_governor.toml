@@ -41,7 +41,7 @@ value = 4
 
 [[structs]]
 name        = "ModuleEntry"
-description = "Module process description returned in governor.status"
+description = "Module process description and live telemetry returned in governor.status"
 [[structs.fields]]
 index       = 1
 name        = "name"
@@ -59,14 +59,39 @@ type        = "u32?"
 description = "OS Process ID if running or sleeping"
 [[structs.fields]]
 index       = 4
-name        = "ram_mb"
+name        = "cpu_percent"
 type        = "f32?"
-description = "Current RSS memory usage in megabytes"
+description = "Current CPU load percentage"
 [[structs.fields]]
 index       = 5
-name        = "uptime_s"
+name        = "ram_mb"
+type        = "f32?"
+description = "Current RSS/cgroup memory usage in megabytes"
+[[structs.fields]]
+index       = 6
+name        = "ram_limit_mb"
 type        = "u32?"
-description = "Uptime in seconds"
+description = "Configured memory ceiling limit in megabytes"
+[[structs.fields]]
+index       = 7
+name        = "uptime_s"
+type        = "u64?"
+description = "Total process uptime in seconds"
+[[structs.fields]]
+index       = 8
+name        = "health_ok"
+type        = "bool"
+description = "True if module process health check is passing"
+[[structs.fields]]
+index       = 9
+name        = "restart_count"
+type        = "u32"
+description = "Number of auto-restarts following crashes"
+[[structs.fields]]
+index       = 10
+name        = "last_error"
+type        = "str?"
+description = "Most recent crash or exit reason description"
 
 [[structs]]
 name        = "OllamaInfo"

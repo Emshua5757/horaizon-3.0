@@ -113,15 +113,20 @@ Server-pushed sentiment analysis event
 | `3` | `label` | `str` |  |  |
 
 ### `ModuleEntry`
-Module process description returned in governor.status
+Module process description and live telemetry returned in governor.status
 
 | Index | Field Name | Type | Description | Notes |
 | :--- | :--- | :--- | :--- | :--- |
 | `1` | `name` | `str` | Module namespace string e.g. shua.resume |  |
 | `2` | `state` | `ModuleState` | Current process state |  |
 | `3` | `pid` | `u32?` | OS Process ID if running or sleeping |  |
-| `4` | `ram_mb` | `f32?` | Current RSS memory usage in megabytes |  |
-| `5` | `uptime_s` | `u32?` | Uptime in seconds |  |
+| `4` | `cpu_percent` | `f32?` | Current CPU load percentage |  |
+| `5` | `ram_mb` | `f32?` | Current RSS/cgroup memory usage in megabytes |  |
+| `6` | `ram_limit_mb` | `u32?` | Configured memory ceiling limit in megabytes |  |
+| `7` | `uptime_s` | `u64?` | Total process uptime in seconds |  |
+| `8` | `health_ok` | `bool` | True if module process health check is passing |  |
+| `9` | `restart_count` | `u32` | Number of auto-restarts following crashes |  |
+| `10` | `last_error` | `str?` | Most recent crash or exit reason description |  |
 
 ### `OllamaInfo`
 Current Ollama subsystem state
