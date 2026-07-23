@@ -2,7 +2,7 @@
 
 | Field | Value |
 | :--- | :--- |
-| **Status** | [ ] Not started |
+| **Status** | [x] Completed |
 | **Phase** | Phase 1 — Pre-coding prerequisite |
 | **Type** | Manual (human) + AI-assisted |
 | **Blocks** | TASK-007 (Governor deploy), all Pi5 work |
@@ -190,14 +190,14 @@ sudo ufw reload
 
 ## Acceptance Criteria
 
-- [ ] `ssh horaizon-pi5` connects without password from MSI laptop
-- [ ] `ssh horaizon-pi5` also works from within Tailscale network
-- [ ] No horAIzon 2.0 processes running (`ps aux | grep shua` shows nothing relevant)
-- [ ] `/opt/horaizon/` directory exists and is owned by `shua`
-- [ ] `/etc/horaizon/governor/` directory exists
-- [ ] `ollama pull qwen2.5:1.5b` completed successfully
-- [ ] Port 7700 is free (`ss -tlnp | grep 7700` returns empty)
-- [ ] cgroups v2 controllers are visible
+- [x] `ssh horaizon-pi5` connects without password from MSI laptop
+- [x] `ssh horaizon-pi5` also works from within Tailscale network
+- [x] No horAIzon 2.0 processes running (`ps aux | grep shua` shows nothing relevant)
+- [x] `/opt/horaizon/` directory exists and is owned by `shua`
+- [x] `/etc/horaizon/governor/` directory exists
+- [x] `ollama pull qwen2.5:1.5b` completed successfully
+- [x] Port 7700 is free (`ss -tlnp | grep 7700` returns empty)
+- [x] cgroups v2 controllers are visible
 
 ---
 
