@@ -302,24 +302,15 @@ ram_limit_mb = 512
 
 ## Structured Logging
 
-All logs emit as structured JSON via `tracing`:
+## Structured Logging & Telemetry
 
-```json
-{
-  "timestamp": "2026-07-21T11:00:00.000Z",
-  "level": "INFO",
-  "module": "shua.governor",
-  "subsystem": "ollama_lifecycle",
-  "message": "Model loaded",
-  "fields": {
-    "model": "qwen2.5:1.5b",
-    "ram_mb": 980,
-    "duration_ms": 1240
-  }
-}
-```
+All logs across `shua_governor`, microservices, AI inference, and Flutter clients are ingested, filtered, and persisted via the centralized logging subsystem defined in `_architecture/contracts/hbp/hbp_logging_spec.md`.
 
-Logs are streamed to connected clients via `governor.logs` EVENT frames in real time.
+- **IPC Ingress**: UDS (`/tmp/horaizon_logs.sock`) & TCP Loopback (`127.0.0.1:5001`).
+- **Client Ingress & Egress**: WebSocket HBP v2 `governor.log.emit`, `governor.logs.subscribe`, `governor.logs.query`, and `governor.log_event` frames.
+- **SQLite LTM**: All logs stored in `activity.db` with indexed lookup and 7-day auto-purge.
+- **Audit File**: Actionable high-severity events (`ERROR`, `FATAL`, `TAG_IMPORTANT`, `TAG_SECURITY`) appended to `important.log` (10MB rotation). Transient `WARN` logs are excluded from disk file noise.
+- **Server-Side Filter**: `LogBroadcaster` evaluates client `LogFilter` (`min_level`, `modules`, `tag_mask`) in $\mathcal{O}(1)$ time before WebSocket broadcast.
 
 ---
 

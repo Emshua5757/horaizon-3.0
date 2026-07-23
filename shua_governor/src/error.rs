@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+#[allow(dead_code)]
 #[derive(Debug, Error)]
 pub enum AppError {
     #[error("IO error: {0}")]
@@ -27,4 +28,5 @@ pub enum AppError {
     Process(String),
 }
 
+#[allow(dead_code)]
 pub type Result<T> = std::result::Result<T, AppError>;
