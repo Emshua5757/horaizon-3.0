@@ -1,0 +1,50 @@
+# =============================================================================
+# horAIzon 3.0 — Central Governor Configuration File
+# Target: /etc/horaizon/governor/config.toml
+# =============================================================================
+
+[governor]
+port               = 7700
+log_level          = "info"
+timezone           = "Asia/Manila"
+offload_device_url = ""
+log_retention_days = 7
+
+[dream_loop]
+enabled = true
+cron    = "0 18 * * *"    # 02:00 Asia/Manila = 18:00 UTC
+
+[ollama]
+binary     = "/usr/bin/ollama"
+host       = "http://127.0.0.1:11434"
+ram_cap_mb = 4096
+
+[[ollama.models]]
+name       = "qwen2.5:1.5b"
+ram_mb     = 980
+role       = "primary_dialogue"
+keep_alive = -1
+
+[[ollama.models]]
+name       = "llama3.2:3b"
+ram_mb     = 2000
+role       = "text_generator"
+keep_alive = -1
+
+[[modules.entry]]
+name         = "shua.resume"
+binary       = "/usr/local/bin/shua_resume"
+auto_start   = true
+ram_limit_mb = 128
+
+[[modules.entry]]
+name         = "shua.diary"
+binary       = "/usr/local/bin/shua_diary"
+auto_start   = true
+ram_limit_mb = 256
+
+[[modules.entry]]
+name         = "shua.code_visualizer"
+binary       = "/usr/local/bin/shua_code_visualizer"
+auto_start   = false
+ram_limit_mb = 128

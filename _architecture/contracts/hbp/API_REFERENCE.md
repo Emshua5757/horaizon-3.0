@@ -185,6 +185,20 @@ No description provided.
 | `3` | `reply` | `str` |  |  |
 | `4` | `duration_ms` | `u32` |  |  |
 
+### `GovernorConfigDto`
+System configuration settings payload returned/updated via governor.config.*
+
+| Index | Field Name | Type | Description | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| `1` | `port` | `u32` | HBP WebSocket broker server port (default 7700) |  |
+| `2` | `log_level` | `str` | Global log verbosity level (trace, debug, info, warn, error) |  |
+| `3` | `timezone` | `str` | System timezone string (e.g. Asia/Manila) |  |
+| `4` | `offload_device_url` | `str?` | Optional laptop node URL for heavy AI offloading |  |
+| `5` | `ollama_ram_cap_mb` | `u32` | Ollama model RAM ceiling cap in megabytes |  |
+| `6` | `dream_loop_enabled` | `bool` | Nightly 02:00 AM maintenance dream loop toggle |  |
+| `7` | `dream_loop_cron` | `str` | Dream loop cron schedule expression |  |
+| `8` | `log_retention_days` | `u32` | SQLite log database retention period in days |  |
+
 ### `LogFilter`
 Client WebSocket subscription filter for live log events
 
@@ -270,6 +284,8 @@ Response payload for resume.compile
 | `shua.governor.status` | `RPC` | ✅ | *(none)* | `GovernorStatusResponse` | Fetch lifecycle status of all supervised modules and Ollama |
 | `shua.governor.module.wake` | `RPC` | ✅ | `ModuleWakeRequest` | *(none)* | Send SIGCONT to wake a sleeping module process |
 | `shua.governor.module.sleep` | `RPC` | ✅ | `ModuleWakeRequest` | *(none)* | Send SIGSTOP to freeze a running module process |
+| `shua.governor.config.get` | `RPC` | ✅ | *(none)* | `GovernorConfigDto` | Fetch current Governor system configuration settings |
+| `shua.governor.config.update` | `RPC` | ✅ | `GovernorConfigDto` | `GovernorConfigDto` | Update Governor system configuration settings and persist to config.toml |
 | `shua.governor.ollama.load` | `RPC` | ✅ | `OllamaLoadRequest` | `OllamaLoadResponse` | Load a named Ollama model, evicting any previously loaded model |
 | `shua.governor.ollama.evict` | `RPC` | ✅ | *(none)* | *(none)* | Evict the currently loaded Ollama model (keep_alive: 0) |
 | `shua.governor.ai.route` | `RPC` | ✅ | `AiRouteRequest` | `AiRouteResponse` | Route a prompt through the intent classifier and get an AI reply |

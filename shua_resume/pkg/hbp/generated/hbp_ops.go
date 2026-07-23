@@ -43,6 +43,10 @@ const (
 	ShuaGovernorModuleWake = "shua.governor.module.wake"
 	// Send SIGSTOP to freeze a running module process
 	ShuaGovernorModuleSleep = "shua.governor.module.sleep"
+	// Fetch current Governor system configuration settings
+	ShuaGovernorConfigGet = "shua.governor.config.get"
+	// Update Governor system configuration settings and persist to config.toml
+	ShuaGovernorConfigUpdate = "shua.governor.config.update"
 	// Load a named Ollama model, evicting any previously loaded model
 	ShuaGovernorOllamaLoad = "shua.governor.ollama.load"
 	// Evict the currently loaded Ollama model (keep_alive: 0)

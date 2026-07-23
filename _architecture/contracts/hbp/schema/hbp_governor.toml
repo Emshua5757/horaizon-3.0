@@ -185,6 +185,50 @@ index       = 4
 name        = "duration_ms"
 type        = "u32"
 
+[[structs]]
+name        = "GovernorConfigDto"
+description = "System configuration settings payload returned/updated via governor.config.*"
+[[structs.fields]]
+index       = 1
+name        = "port"
+type        = "u32"
+description = "HBP WebSocket broker server port (default 7700)"
+[[structs.fields]]
+index       = 2
+name        = "log_level"
+type        = "str"
+description = "Global log verbosity level (trace, debug, info, warn, error)"
+[[structs.fields]]
+index       = 3
+name        = "timezone"
+type        = "str"
+description = "System timezone string (e.g. Asia/Manila)"
+[[structs.fields]]
+index       = 4
+name        = "offload_device_url"
+type        = "str?"
+description = "Optional laptop node URL for heavy AI offloading"
+[[structs.fields]]
+index       = 5
+name        = "ollama_ram_cap_mb"
+type        = "u32"
+description = "Ollama model RAM ceiling cap in megabytes"
+[[structs.fields]]
+index       = 6
+name        = "dream_loop_enabled"
+type        = "bool"
+description = "Nightly 02:00 AM maintenance dream loop toggle"
+[[structs.fields]]
+index       = 7
+name        = "dream_loop_cron"
+type        = "str"
+description = "Dream loop cron schedule expression"
+[[structs.fields]]
+index       = 8
+name        = "log_retention_days"
+type        = "u32"
+description = "SQLite log database retention period in days"
+
 # ---------------------------------------------------------------------------
 # Governor Operations
 # ---------------------------------------------------------------------------
@@ -215,6 +259,24 @@ requires_auth   = true
 description     = "Send SIGSTOP to freeze a running module process"
 request_struct  = "ModuleWakeRequest"
 response_struct = ""
+
+[[operations]]
+module          = "shua.governor"
+name            = "config.get"
+type            = "rpc"
+requires_auth   = true
+description     = "Fetch current Governor system configuration settings"
+request_struct  = ""
+response_struct = "GovernorConfigDto"
+
+[[operations]]
+module          = "shua.governor"
+name            = "config.update"
+type            = "rpc"
+requires_auth   = true
+description     = "Update Governor system configuration settings and persist to config.toml"
+request_struct  = "GovernorConfigDto"
+response_struct = "GovernorConfigDto"
 
 [[operations]]
 module          = "shua.governor"

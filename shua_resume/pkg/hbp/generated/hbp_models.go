@@ -139,6 +139,26 @@ type AiRouteResponse struct {
 	DurationMs uint32 `msgpack:"duration_ms"`
 }
 
+// System configuration settings payload returned/updated via governor.config.*
+type GovernorConfigDto struct {
+	// HBP WebSocket broker server port (default 7700)
+	Port uint32 `msgpack:"port"`
+	// Global log verbosity level (trace, debug, info, warn, error)
+	LogLevel string `msgpack:"log_level"`
+	// System timezone string (e.g. Asia/Manila)
+	Timezone string `msgpack:"timezone"`
+	// Optional laptop node URL for heavy AI offloading
+	OffloadDeviceUrl *string `msgpack:"offload_device_url"`
+	// Ollama model RAM ceiling cap in megabytes
+	OllamaRamCapMb uint32 `msgpack:"ollama_ram_cap_mb"`
+	// Nightly 02:00 AM maintenance dream loop toggle
+	DreamLoopEnabled bool `msgpack:"dream_loop_enabled"`
+	// Dream loop cron schedule expression
+	DreamLoopCron string `msgpack:"dream_loop_cron"`
+	// SQLite log database retention period in days
+	LogRetentionDays uint32 `msgpack:"log_retention_days"`
+}
+
 // Client WebSocket subscription filter for live log events
 type LogFilter struct {
 	// Minimum log level (1=TRACE..5=ERROR)
