@@ -32,6 +32,7 @@ Cargo.lock          # Keep if this is a binary crate; remove line if library
 # ─── Python (tools/) ────────────────────────────────────────
 __pycache__/
 **/__pycache__/
+*/__pycache__/
 *.py[cod]
 *.pyo
 *.pyd
