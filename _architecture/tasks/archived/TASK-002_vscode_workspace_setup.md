@@ -2,7 +2,7 @@
 
 | Field | Value |
 | :--- | :--- |
-| **Status** | [ ] Not started |
+| **Status** | [x] Completed |
 | **Phase** | Phase 1 — Pre-coding prerequisite |
 | **Type** | AI-executable |
 | **Blocks** | Nothing — but should be done before coding begins |
@@ -198,12 +198,12 @@ python -m tools.sync_contracts --dry-run
 
 ## Acceptance Criteria
 
-- [ ] `.vscode/settings.json` exists and is valid JSON
-- [ ] `.vscode/extensions.json` exists with all recommended extensions listed
-- [ ] `.gitignore` exists at repo root with all sections present
-- [ ] `python tools/toggle_view.py --reset` runs without error
-- [ ] `python tools/toggle_view.py --focus client_flutter` runs without error and hides other folders
-- [ ] `python -m tools.sync_contracts --dry-run` runs without error and shows all 5 language outputs
+- [x] `.vscode/settings.json` exists and is valid JSON
+- [x] `.vscode/extensions.json` exists with all recommended extensions listed
+- [x] `.gitignore` exists at repo root with all sections present
+- [x] `python tools/toggle_view.py --reset` runs without error
+- [x] `python tools/toggle_view.py --focus client_flutter` runs without error and hides other folders
+- [x] `python -m tools.sync_contracts --dry-run` runs without error and shows all 5 language outputs
 
 ---
 

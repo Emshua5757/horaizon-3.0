@@ -1,0 +1,16 @@
+{
+  "recommendations": [
+    "Dart-Code.dart-code",
+    "Dart-Code.flutter",
+    "rust-lang.rust-analyzer",
+    "golang.go",
+    "ms-python.python",
+    "esbenp.prettier-vscode",
+    "tamasfe.even-better-toml",
+    "ms-vscode-remote.remote-ssh",
+    "ms-vscode.remote-explorer",
+    "usernamehw.errorlens",
+    "gruntfuggly.todo-tree",
+    "github.copilot"
+  ]
+}
