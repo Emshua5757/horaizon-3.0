@@ -1,0 +1,219 @@
+# =============================================================================
+# HBP v2 — Governor Module Schema
+# Process Supervision, Ollama Lifecycle, AI Intent Router
+# =============================================================================
+
+[[enums]]
+name        = "ModuleState"
+description = "Lifecycle state of a managed shua module process"
+[[enums.variants]]
+name = "Running"
+value = 1
+[[enums.variants]]
+name = "Sleeping"
+value = 2
+[[enums.variants]]
+name = "Stopped"
+value = 3
+[[enums.variants]]
+name = "Unknown"
+value = 4
+
+[[enums]]
+name        = "IntentClass"
+description = "AI router intent classification result"
+[[enums.variants]]
+name = "FactualPrecision"
+value = 1
+[[enums.variants]]
+name = "ReflectiveDialogue"
+value = 2
+[[enums.variants]]
+name = "CodeAst"
+value = 3
+[[enums.variants]]
+name = "CopilotCommand"
+value = 4
+
+# ---------------------------------------------------------------------------
+# Structs
+# ---------------------------------------------------------------------------
+
+[[structs]]
+name        = "ModuleEntry"
+description = "Module process description returned in governor.status"
+[[structs.fields]]
+index       = 1
+name        = "name"
+type        = "str"
+description = "Module namespace string e.g. shua.resume"
+[[structs.fields]]
+index       = 2
+name        = "state"
+type        = "ModuleState"
+description = "Current process state"
+[[structs.fields]]
+index       = 3
+name        = "pid"
+type        = "u32?"
+description = "OS Process ID if running or sleeping"
+[[structs.fields]]
+index       = 4
+name        = "ram_mb"
+type        = "f32?"
+description = "Current RSS memory usage in megabytes"
+[[structs.fields]]
+index       = 5
+name        = "uptime_s"
+type        = "u32?"
+description = "Uptime in seconds"
+
+[[structs]]
+name        = "OllamaInfo"
+description = "Current Ollama subsystem state"
+[[structs.fields]]
+index       = 1
+name        = "loaded_model"
+type        = "str?"
+description = "Currently loaded model name or null"
+[[structs.fields]]
+index       = 2
+name        = "ram_mb"
+type        = "f32?"
+description = "VRAM/RAM footprint of loaded model in MB"
+
+[[structs]]
+name        = "GovernorStatusResponse"
+description = "Response payload for governor.status"
+[[structs.fields]]
+index       = 1
+name        = "modules"
+type        = "ModuleEntry[]"
+description = "Array of all registered module states"
+[[structs.fields]]
+index       = 2
+name        = "ollama"
+type        = "OllamaInfo"
+description = "Ollama lifecycle state"
+
+[[structs]]
+name        = "OllamaLoadRequest"
+description = "Request payload for governor.ollama.load"
+[[structs.fields]]
+index       = 1
+name        = "model"
+type        = "str"
+description = "Ollama model name e.g. qwen2.5:1.5b"
+
+[[structs]]
+name        = "OllamaLoadResponse"
+[[structs.fields]]
+index       = 1
+name        = "loaded_model"
+type        = "str"
+[[structs.fields]]
+index       = 2
+name        = "ram_mb"
+type        = "f32"
+[[structs.fields]]
+index       = 3
+name        = "duration_ms"
+type        = "u32"
+
+[[structs]]
+name        = "ModuleWakeRequest"
+[[structs.fields]]
+index       = 1
+name        = "module"
+type        = "str"
+description = "Module namespace to wake e.g. shua.resume"
+
+[[structs]]
+name        = "AiRouteRequest"
+[[structs.fields]]
+index       = 1
+name        = "prompt"
+type        = "str"
+description = "User input prompt text"
+[[structs.fields]]
+index       = 2
+name        = "context_hint"
+type        = "str?"
+description = "Optional module domain hint e.g. diary"
+
+[[structs]]
+name        = "AiRouteResponse"
+[[structs.fields]]
+index       = 1
+name        = "model_used"
+type        = "str"
+[[structs.fields]]
+index       = 2
+name        = "intent"
+type        = "IntentClass"
+[[structs.fields]]
+index       = 3
+name        = "reply"
+type        = "str"
+[[structs.fields]]
+index       = 4
+name        = "duration_ms"
+type        = "u32"
+
+# ---------------------------------------------------------------------------
+# Governor Operations
+# ---------------------------------------------------------------------------
+
+[[operations]]
+module          = "shua.governor"
+name            = "status"
+type            = "rpc"
+requires_auth   = true
+description     = "Fetch lifecycle status of all supervised modules and Ollama"
+request_struct  = ""
+response_struct = "GovernorStatusResponse"
+
+[[operations]]
+module          = "shua.governor"
+name            = "module.wake"
+type            = "rpc"
+requires_auth   = true
+description     = "Send SIGCONT to wake a sleeping module process"
+request_struct  = "ModuleWakeRequest"
+response_struct = ""
+
+[[operations]]
+module          = "shua.governor"
+name            = "module.sleep"
+type            = "rpc"
+requires_auth   = true
+description     = "Send SIGSTOP to freeze a running module process"
+request_struct  = "ModuleWakeRequest"
+response_struct = ""
+
+[[operations]]
+module          = "shua.governor"
+name            = "ollama.load"
+type            = "rpc"
+requires_auth   = true
+description     = "Load a named Ollama model, evicting any previously loaded model"
+request_struct  = "OllamaLoadRequest"
+response_struct = "OllamaLoadResponse"
+
+[[operations]]
+module          = "shua.governor"
+name            = "ollama.evict"
+type            = "rpc"
+requires_auth   = true
+description     = "Evict the currently loaded Ollama model (keep_alive: 0)"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.governor"
+name            = "ai.route"
+type            = "rpc"
+requires_auth   = true
+description     = "Route a prompt through the intent classifier and get an AI reply"
+request_struct  = "AiRouteRequest"
+response_struct = "AiRouteResponse"

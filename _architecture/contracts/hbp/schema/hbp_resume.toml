@@ -1,0 +1,97 @@
+# =============================================================================
+# HBP v2 — shua.resume Module Schema (Go)
+# PDF Compilation, Resume Matrix CRUD, AI Tailoring
+# =============================================================================
+
+[[structs]]
+name        = "ResumeCompileRequest"
+description = "Request payload for resume.compile"
+[[structs.fields]]
+index       = 1
+name        = "matrix_id"
+type        = "str"
+description = "ID of resume matrix to compile"
+[[structs.fields]]
+index       = 2
+name        = "template"
+type        = "str"
+description = "Typst template name"
+[[structs.fields]]
+index       = 3
+name        = "job_desc"
+type        = "str?"
+description = "Optional job description text for AI tailoring"
+[[structs.fields]]
+index       = 4
+name        = "tailor"
+type        = "bool"
+description = "Apply AI keyword tailoring filter"
+[[structs.fields]]
+index       = 5
+name        = "ai_enhance"
+type        = "bool"
+description = "Apply full Ollama enhancement"
+
+[[structs]]
+name        = "ResumeCompileResponse"
+description = "Response payload for resume.compile"
+[[structs.fields]]
+index       = 1
+name        = "exhibit_id"
+type        = "str"
+description = "CAS content-addressed ID of generated PDF"
+[[structs.fields]]
+index       = 2
+name        = "pdf_url"
+type        = "str"
+description = "Accessible HTTP URL on Pi5"
+[[structs.fields]]
+index       = 3
+name        = "duration_ms"
+type        = "u32"
+description = "Compilation time in milliseconds"
+[[structs.fields]]
+index       = 4
+name        = "tailor_score"
+type        = "f32?"
+description = "Jaccard similarity score if tailored"
+
+# ---------------------------------------------------------------------------
+# Operations
+# ---------------------------------------------------------------------------
+
+[[operations]]
+module          = "shua.resume"
+name            = "compile"
+type            = "rpc"
+requires_auth   = true
+description     = "Compile a Typst PDF with optional AI tailoring"
+request_struct  = "ResumeCompileRequest"
+response_struct = "ResumeCompileResponse"
+
+[[operations]]
+module          = "shua.resume"
+name            = "matrix.get"
+type            = "rpc"
+requires_auth   = true
+description     = "Fetch the current resume matrix"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.resume"
+name            = "history.list"
+type            = "rpc"
+requires_auth   = true
+description     = "List past PDF compilations"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.resume"
+name            = "templates.list"
+type            = "rpc"
+requires_auth   = true
+description     = "List available Typst templates"
+request_struct  = ""
+response_struct = ""

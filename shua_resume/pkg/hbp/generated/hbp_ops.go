@@ -7,50 +7,6 @@ package hbp
 
 // HBP v2 operation key constants.
 const (
-	// Heartbeat check
-	ShuaGovernorPing = "shua.governor.ping"
-	// Returns all module process states and Ollama info
-	ShuaGovernorStatus = "shua.governor.status"
-	// SIGCONT a suspended module
-	ShuaGovernorModuleWake = "shua.governor.module.wake"
-	// SIGSTOP a running module
-	ShuaGovernorModuleSleep = "shua.governor.module.sleep"
-	// Load a named Ollama model into RAM
-	ShuaGovernorOllamaLoad = "shua.governor.ollama.load"
-	// Evict the currently loaded Ollama model
-	ShuaGovernorOllamaEvict = "shua.governor.ollama.evict"
-	// Route a prompt through the intent classifier and get an AI reply
-	ShuaGovernorAiRoute = "shua.governor.ai.route"
-	// Subscribe or update WebSocket log stream filter
-	ShuaGovernorLogsSubscribe = "shua.governor.logs.subscribe"
-	// Ingest client log event into Governor
-	ShuaGovernorLogEmit = "shua.governor.log.emit"
-	// Query historical logs from SQLite LTM
-	ShuaGovernorLogsQuery = "shua.governor.logs.query"
-	// Server-pushed live log event to subscribed WebSocket clients
-	ShuaGovernorLogEvent = "shua.governor.log_event"
-	// Compile a Typst PDF with optional AI tailoring
-	ShuaResumeCompile = "shua.resume.compile"
-	// Fetch the current resume matrix
-	ShuaResumeMatrixGet = "shua.resume.matrix.get"
-	// List past PDF compilations
-	ShuaResumeHistoryList = "shua.resume.history.list"
-	// List available Typst templates
-	ShuaResumeTemplatesList = "shua.resume.templates.list"
-	// Paginated diary entry list
-	ShuaDiaryEntryList = "shua.diary.entry.list"
-	// Create a new diary entry
-	ShuaDiaryEntryCreate = "shua.diary.entry.create"
-	// Delete a diary entry and all its blocks
-	ShuaDiaryEntryDelete = "shua.diary.entry.delete"
-	// Upsert a diary block (debounced)
-	ShuaDiaryBlockSave = "shua.diary.block.save"
-	// Delete a diary block
-	ShuaDiaryBlockDelete = "shua.diary.block.delete"
-	// Server-pushed sentiment score after a block save
-	ShuaDiarySentimentScore = "shua.diary.sentiment.score"
-	// Elevate a diary entry to the Global Identity Matrix
-	ShuaDiaryMemoryElevate = "shua.diary.memory.elevate"
 	// Trigger a full repo AST scan
 	ShuaCodeVisualizerScan = "shua.code_visualizer.scan"
 	// Return the latest topology export without re-scanning
@@ -61,12 +17,60 @@ const (
 	ShuaCodeVisualizerWatchStop = "shua.code_visualizer.watch.stop"
 	// Server-pushed incremental topology delta on file change
 	ShuaCodeVisualizerChanged = "shua.code_visualizer.changed"
+	// Heartbeat check — server responds with PONG frame
+	ShuaGovernorPing = "shua.governor.ping"
+	// Paginated diary entry list
+	ShuaDiaryEntryList = "shua.diary.entry.list"
+	// Single entry with all blocks
+	ShuaDiaryEntryGet = "shua.diary.entry.get"
+	// Create a new diary entry
+	ShuaDiaryEntryCreate = "shua.diary.entry.create"
+	// Delete a diary entry
+	ShuaDiaryEntryDelete = "shua.diary.entry.delete"
+	// Upsert a block (debounced)
+	ShuaDiaryBlockSave = "shua.diary.block.save"
+	// Reorder blocks with LexoRank
+	ShuaDiaryBlockReorder = "shua.diary.block.reorder"
+	// Delete a diary block
+	ShuaDiaryBlockDelete = "shua.diary.block.delete"
+	// Server-pushed sentiment score after a block save
+	ShuaDiarySentimentScore = "shua.diary.sentiment.score"
+	// Elevate a diary entry to the Global Identity Matrix
+	ShuaDiaryMemoryElevate = "shua.diary.memory.elevate"
+	// Fetch lifecycle status of all supervised modules and Ollama
+	ShuaGovernorStatus = "shua.governor.status"
+	// Send SIGCONT to wake a sleeping module process
+	ShuaGovernorModuleWake = "shua.governor.module.wake"
+	// Send SIGSTOP to freeze a running module process
+	ShuaGovernorModuleSleep = "shua.governor.module.sleep"
+	// Load a named Ollama model, evicting any previously loaded model
+	ShuaGovernorOllamaLoad = "shua.governor.ollama.load"
+	// Evict the currently loaded Ollama model (keep_alive: 0)
+	ShuaGovernorOllamaEvict = "shua.governor.ollama.evict"
+	// Route a prompt through the intent classifier and get an AI reply
+	ShuaGovernorAiRoute = "shua.governor.ai.route"
+	// Subscribe or update WebSocket live log stream filter
+	ShuaGovernorLogsSubscribe = "shua.governor.logs.subscribe"
+	// Ingest client diagnostic log event into Governor
+	ShuaGovernorLogEmit = "shua.governor.log.emit"
+	// Query historical logs from SQLite LTM database
+	ShuaGovernorLogsQuery = "shua.governor.logs.query"
+	// Server-pushed live log event frame to subscribed WebSocket clients
+	ShuaGovernorLogEvent = "shua.governor.log_event"
+	// Compile a Typst PDF with optional AI tailoring
+	ShuaResumeCompile = "shua.resume.compile"
+	// Fetch the current resume matrix
+	ShuaResumeMatrixGet = "shua.resume.matrix.get"
+	// List past PDF compilations
+	ShuaResumeHistoryList = "shua.resume.history.list"
+	// List available Typst templates
+	ShuaResumeTemplatesList = "shua.resume.templates.list"
 )
 
 // HBP v2 module namespace constants.
 const (
-	ShuaGovernor = "shua.governor"
-	ShuaResume = "shua.resume"
-	ShuaDiary = "shua.diary"
 	ShuaCodeVisualizer = "shua.code_visualizer"
+	ShuaGovernor = "shua.governor"
+	ShuaDiary = "shua.diary"
+	ShuaResume = "shua.resume"
 )

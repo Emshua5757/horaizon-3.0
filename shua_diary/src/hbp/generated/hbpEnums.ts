@@ -15,22 +15,34 @@ export const MessageType = {
 
 export type MessageType = 1 | 2 | 3 | 4 | 5 | 6;
 
-/** Lifecycle state of a managed shua module process */
-export const ModuleState = {
-  Running: 'running',
-  Sleeping: 'sleeping',
-  Stopped: 'stopped',
-  Unknown: 'unknown',
+/** High-level category for structured HbpError payloads */
+export const ErrorCategory = {
+  Transport: 1,
+  AuthSecurity: 2,
+  RpcRouting: 3,
+  Database: 4,
+  ResourceExhaustion: 5,
+  Internal: 6,
 } as const;
 
-export type ModuleState = 'running' | 'sleeping' | 'stopped' | 'unknown';
+export type ErrorCategory = 1 | 2 | 3 | 4 | 5 | 6;
+
+/** Lifecycle state of a managed shua module process */
+export const ModuleState = {
+  Running: 1,
+  Sleeping: 2,
+  Stopped: 3,
+  Unknown: 4,
+} as const;
+
+export type ModuleState = 1 | 2 | 3 | 4;
 
 /** AI router intent classification result */
 export const IntentClass = {
-  FactualPrecision: 'factualprecision',
-  ReflectiveDialogue: 'reflectivedialogue',
-  CodeAst: 'codeast',
-  CopilotCommand: 'copilotcommand',
+  FactualPrecision: 1,
+  ReflectiveDialogue: 2,
+  CodeAst: 3,
+  CopilotCommand: 4,
 } as const;
 
-export type IntentClass = 'factualprecision' | 'reflectivedialogue' | 'codeast' | 'copilotcommand';
+export type IntentClass = 1 | 2 | 3 | 4;

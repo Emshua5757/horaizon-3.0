@@ -1,0 +1,104 @@
+# =============================================================================
+# HBP v2 — shua.diary Module Schema (TypeScript/Node)
+# Block Editor, JBC Copilot, Sentiment, Global Memory Elevator
+# =============================================================================
+
+[[structs]]
+name        = "SentimentEvent"
+description = "Server-pushed sentiment analysis event"
+[[structs.fields]]
+index       = 1
+name        = "entry_id"
+type        = "str"
+[[structs.fields]]
+index       = 2
+name        = "score"
+type        = "f32"
+[[structs.fields]]
+index       = 3
+name        = "label"
+type        = "str"
+
+# ---------------------------------------------------------------------------
+# Operations
+# ---------------------------------------------------------------------------
+
+[[operations]]
+module          = "shua.diary"
+name            = "entry.list"
+type            = "rpc"
+requires_auth   = true
+description     = "Paginated diary entry list"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "entry.get"
+type            = "rpc"
+requires_auth   = true
+description     = "Single entry with all blocks"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "entry.create"
+type            = "rpc"
+requires_auth   = true
+description     = "Create a new diary entry"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "entry.delete"
+type            = "rpc"
+requires_auth   = true
+description     = "Delete a diary entry"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "block.save"
+type            = "rpc"
+requires_auth   = true
+description     = "Upsert a block (debounced)"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "block.reorder"
+type            = "rpc"
+requires_auth   = true
+description     = "Reorder blocks with LexoRank"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "block.delete"
+type            = "rpc"
+requires_auth   = true
+description     = "Delete a diary block"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "sentiment.score"
+type            = "event"
+requires_auth   = true
+description     = "Server-pushed sentiment score after a block save"
+event_struct    = "SentimentEvent"
+
+[[operations]]
+module          = "shua.diary"
+name            = "memory.elevate"
+type            = "rpc"
+requires_auth   = true
+description     = "Elevate a diary entry to the Global Identity Matrix"
+request_struct  = ""
+response_struct = ""

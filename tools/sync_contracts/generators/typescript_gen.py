@@ -18,16 +18,22 @@ class TypeScriptGenerator(BaseGenerator):
     file_extension = ".ts"
 
     TYPE_MAP = {
-        "u8":   "number",
-        "u32":  "number",
-        "u64":  "number",   # note: bigint if you need exact 64-bit — keep simple for now
-        "f32":  "number",
-        "bool": "boolean",
-        "str":  "string",
+        "u8":        "number",
+        "u16":       "number",
+        "u32":       "number",
+        "u64":       "number",
+        "f32":       "number",
+        "bool":      "boolean",
+        "str":       "string",
+        "timestamp": "number",
+        "uuid":      "string",
     }
 
     def wrap_array(self, inner: str) -> str:
         return f"{inner}[]"
+
+    def wrap_map(self, key_type: str, val_type: str) -> str:
+        return f"Record<{key_type}, {val_type}>"
 
     def wrap_optional(self, inner: str) -> str:
         return f"{inner} | null"

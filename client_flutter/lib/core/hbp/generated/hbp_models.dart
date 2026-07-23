@@ -7,6 +7,79 @@
 
 import 'hbp_enums.dart';
 
+/// Full AST topology graph payload
+class TopologyExportResponse {
+  final List<String> nodes;
+  final List<String> edges;
+
+  const TopologyExportResponse({required this.nodes, required this.edges});
+
+  factory TopologyExportResponse.fromMap(Map<String, dynamic> m) {
+    return TopologyExportResponse(
+      nodes: m['nodes'] as List<String>,
+      edges: m['edges'] as List<String>,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'nodes': nodes,
+    'edges': edges,
+  };
+
+}
+
+/// Incremental code delta push on file change
+class TopologyDeltaEvent {
+  final String filePath;
+  final String changeType;
+
+  const TopologyDeltaEvent({required this.filePath, required this.changeType});
+
+  factory TopologyDeltaEvent.fromMap(Map<String, dynamic> m) {
+    return TopologyDeltaEvent(
+      filePath: m['file_path'] as String,
+      changeType: m['change_type'] as String,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'file_path': filePath,
+    'change_type': changeType,
+  };
+
+}
+
+/// Standardized structured error payload for HBP v2 responses
+class HbpError {
+  /// Standard error code (e.g. 400 bad request, 404 not found, 500 internal)
+  final int code;
+  /// Error category enum code
+  final ErrorCategory category;
+  /// Human-readable error description
+  final String message;
+  /// Optional context details key-value map
+  final Map<String, String>? details;
+
+  const HbpError({required this.code, required this.category, required this.message, required this.details});
+
+  factory HbpError.fromMap(Map<String, dynamic> m) {
+    return HbpError(
+      code: m['code'] as int,
+      category: ErrorCategory.fromInt(m['category'] as int),
+      message: m['message'] as String,
+      details: m['details'] as Map<String, String>?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'code': code,
+    'category': category.value,
+    'message': message,
+    'details': details,
+  };
+
+}
+
 /// Universal HBP v2 message envelope — every message uses this outer shape
 class HbpFrame {
   /// Protocol version, always 2
@@ -19,12 +92,12 @@ class HbpFrame {
   final String mod;
   /// Operation name e.g. compile
   final String op;
-  /// Unix timestamp in milliseconds (UTC)
+  /// Timestamp of creation (UTC)
   final int ts;
   /// Payload bytes — msgpack-encoded operation body. Empty string for PING/PONG.
   final String p;
-  /// null on success. Error string on failure. Present only on RESPONSE and ERROR frames.
-  final String? err;
+  /// null on success. Structured error object on failure.
+  final HbpError? err;
 
   const HbpFrame({required this.v, required this.t, required this.id, required this.mod, required this.op, required this.ts, required this.p, required this.err});
 
@@ -37,7 +110,7 @@ class HbpFrame {
       op: m['op'] as String,
       ts: m['ts'] as int,
       p: m['p'] as String,
-      err: m['err'] as String?,
+      err: m['err'] != null ? HbpError.fromMap(m['err'] as Map<String, dynamic>) : null,
     );
   }
 
@@ -49,18 +122,77 @@ class HbpFrame {
     'op': op,
     'ts': ts,
     'p': p,
-    'err': err,
+    'err': err?.toMap(),
   };
 
 }
 
-/// State of a single managed module process
+/// Standardized pagination metadata wrapper
+class PaginationMeta {
+  /// Total matching items count
+  final int totalItems;
+  /// True if additional pages exist
+  final bool hasMore;
+  /// Current page index (0-indexed)
+  final int page;
+  /// Items per page
+  final int pageSize;
+
+  const PaginationMeta({required this.totalItems, required this.hasMore, required this.page, required this.pageSize});
+
+  factory PaginationMeta.fromMap(Map<String, dynamic> m) {
+    return PaginationMeta(
+      totalItems: m['total_items'] as int,
+      hasMore: m['has_more'] as bool,
+      page: m['page'] as int,
+      pageSize: m['page_size'] as int,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'total_items': totalItems,
+    'has_more': hasMore,
+    'page': page,
+    'page_size': pageSize,
+  };
+
+}
+
+/// Server-pushed sentiment analysis event
+class SentimentEvent {
+  final String entryId;
+  final double score;
+  final String label;
+
+  const SentimentEvent({required this.entryId, required this.score, required this.label});
+
+  factory SentimentEvent.fromMap(Map<String, dynamic> m) {
+    return SentimentEvent(
+      entryId: m['entry_id'] as String,
+      score: m['score'] as double,
+      label: m['label'] as String,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'entry_id': entryId,
+    'score': score,
+    'label': label,
+  };
+
+}
+
+/// Module process description returned in governor.status
 class ModuleEntry {
-  /// Module namespace e.g. shua.resume
+  /// Module namespace string e.g. shua.resume
   final String name;
+  /// Current process state
   final ModuleState state;
+  /// OS Process ID if running or sleeping
   final int? pid;
+  /// Current RSS memory usage in megabytes
   final double? ramMb;
+  /// Uptime in seconds
   final int? uptimeS;
 
   const ModuleEntry({required this.name, required this.state, required this.pid, required this.ramMb, required this.uptimeS});
@@ -77,7 +209,7 @@ class ModuleEntry {
 
   Map<String, dynamic> toMap() => {
     'name': name,
-    'state': state.name,
+    'state': state.value,
     'pid': pid,
     'ram_mb': ramMb,
     'uptime_s': uptimeS,
@@ -85,10 +217,11 @@ class ModuleEntry {
 
 }
 
-/// Current Ollama runtime state
+/// Current Ollama subsystem state
 class OllamaInfo {
-  /// Name of the currently loaded model, or null
+  /// Currently loaded model name or null
   final String? loadedModel;
+  /// VRAM/RAM footprint of loaded model in MB
   final double? ramMb;
 
   const OllamaInfo({required this.loadedModel, required this.ramMb});
@@ -109,7 +242,9 @@ class OllamaInfo {
 
 /// Response payload for governor.status
 class GovernorStatusResponse {
+  /// Array of all registered module states
   final List<ModuleEntry> modules;
+  /// Ollama lifecycle state
   final OllamaInfo ollama;
 
   const GovernorStatusResponse({required this.modules, required this.ollama});
@@ -189,8 +324,9 @@ class ModuleWakeRequest {
 }
 
 class AiRouteRequest {
+  /// User input prompt text
   final String prompt;
-  /// Optional hint: diary | code | resume | general
+  /// Optional module domain hint e.g. diary
   final String? contextHint;
 
   const AiRouteRequest({required this.prompt, required this.contextHint});
@@ -210,35 +346,172 @@ class AiRouteRequest {
 }
 
 class AiRouteResponse {
-  final IntentClass intent;
   final String modelUsed;
+  final IntentClass intent;
   final String reply;
+  final int durationMs;
 
-  const AiRouteResponse({required this.intent, required this.modelUsed, required this.reply});
+  const AiRouteResponse({required this.modelUsed, required this.intent, required this.reply, required this.durationMs});
 
   factory AiRouteResponse.fromMap(Map<String, dynamic> m) {
     return AiRouteResponse(
-      intent: IntentClass.fromInt(m['intent'] as int),
       modelUsed: m['model_used'] as String,
+      intent: IntentClass.fromInt(m['intent'] as int),
       reply: m['reply'] as String,
+      durationMs: m['duration_ms'] as int,
     );
   }
 
   Map<String, dynamic> toMap() => {
-    'intent': intent.name,
     'model_used': modelUsed,
+    'intent': intent.value,
     'reply': reply,
+    'duration_ms': durationMs,
   };
 
 }
 
+/// Client WebSocket subscription filter for live log events
+class LogFilter {
+  /// Minimum log level (1=TRACE..5=ERROR)
+  final int? minLevel;
+  /// List of module namespaces to filter
+  final List<String>? modules;
+  /// Tag bitmask filter
+  final int? tagMask;
+
+  const LogFilter({required this.minLevel, required this.modules, required this.tagMask});
+
+  factory LogFilter.fromMap(Map<String, dynamic> m) {
+    return LogFilter(
+      minLevel: m['min_level'] as int?,
+      modules: m['modules'] as List<String>,
+      tagMask: m['tag_mask'] as int?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'min_level': minLevel,
+    'modules': modules,
+    'tag_mask': tagMask,
+  };
+
+}
+
+/// Centralized log event entry payload
+class LogEntryDto {
+  /// Timestamp of creation (UTC)
+  final int ts;
+  /// Log level (1=TRACE..5=ERROR)
+  final int level;
+  /// Module ID
+  final int module;
+  /// Subsystem component name
+  final String subsystem;
+  /// Log message text
+  final String msg;
+  /// Tag bitmask
+  final int tags;
+  /// Optional transaction trace ID
+  final String? traceId;
+
+  const LogEntryDto({required this.ts, required this.level, required this.module, required this.subsystem, required this.msg, required this.tags, required this.traceId});
+
+  factory LogEntryDto.fromMap(Map<String, dynamic> m) {
+    return LogEntryDto(
+      ts: m['ts'] as int,
+      level: m['level'] as int,
+      module: m['module'] as int,
+      subsystem: m['subsystem'] as String,
+      msg: m['msg'] as String,
+      tags: m['tags'] as int,
+      traceId: m['trace_id'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'ts': ts,
+    'level': level,
+    'module': module,
+    'subsystem': subsystem,
+    'msg': msg,
+    'tags': tags,
+    'trace_id': traceId,
+  };
+
+}
+
+/// Request payload for governor.logs.query
+class LogQueryRequestDto {
+  final int? minLevel;
+  final int? module;
+  final String? subsystem;
+  final int? startTs;
+  final int? endTs;
+  final String? traceId;
+  final int? limit;
+  final int? offset;
+
+  const LogQueryRequestDto({required this.minLevel, required this.module, required this.subsystem, required this.startTs, required this.endTs, required this.traceId, required this.limit, required this.offset});
+
+  factory LogQueryRequestDto.fromMap(Map<String, dynamic> m) {
+    return LogQueryRequestDto(
+      minLevel: m['min_level'] as int?,
+      module: m['module'] as int?,
+      subsystem: m['subsystem'] as String?,
+      startTs: m['start_ts'] as int?,
+      endTs: m['end_ts'] as int?,
+      traceId: m['trace_id'] as String?,
+      limit: m['limit'] as int?,
+      offset: m['offset'] as int?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'min_level': minLevel,
+    'module': module,
+    'subsystem': subsystem,
+    'start_ts': startTs,
+    'end_ts': endTs,
+    'trace_id': traceId,
+    'limit': limit,
+    'offset': offset,
+  };
+
+}
+
+/// Response payload for governor.logs.query
+class LogQueryResponseDto {
+  final int total;
+  final List<LogEntryDto> entries;
+
+  const LogQueryResponseDto({required this.total, required this.entries});
+
+  factory LogQueryResponseDto.fromMap(Map<String, dynamic> m) {
+    return LogQueryResponseDto(
+      total: m['total'] as int,
+      entries: (m['entries'] as List).map((e) => LogEntryDto.fromMap(e as Map<String, dynamic>)).toList(),
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'total': total,
+    'entries': entries.map((e) => e.toMap()).toList(),
+  };
+
+}
+
+/// Request payload for resume.compile
 class ResumeCompileRequest {
+  /// ID of resume matrix to compile
   final String matrixId;
   /// Typst template name
   final String template;
-  /// Optional job description for AI tailoring
+  /// Optional job description text for AI tailoring
   final String? jobDesc;
+  /// Apply AI keyword tailoring filter
   final bool tailor;
+  /// Apply full Ollama enhancement
   final bool aiEnhance;
 
   const ResumeCompileRequest({required this.matrixId, required this.template, required this.jobDesc, required this.tailor, required this.aiEnhance});
@@ -263,12 +536,15 @@ class ResumeCompileRequest {
 
 }
 
+/// Response payload for resume.compile
 class ResumeCompileResponse {
-  /// CAS content-addressed ID of the PDF
+  /// CAS content-addressed ID of generated PDF
   final String exhibitId;
+  /// Accessible HTTP URL on Pi5
   final String pdfUrl;
+  /// Compilation time in milliseconds
   final int durationMs;
-  /// Jaccard similarity score if tailored, else null
+  /// Jaccard similarity score if tailored
   final double? tailorScore;
 
   const ResumeCompileResponse({required this.exhibitId, required this.pdfUrl, required this.durationMs, required this.tailorScore});
@@ -287,160 +563,6 @@ class ResumeCompileResponse {
     'pdf_url': pdfUrl,
     'duration_ms': durationMs,
     'tailor_score': tailorScore,
-  };
-
-}
-
-class DiaryBlockSaveRequest {
-  final String entryId;
-  final String blockId;
-  /// paragraph | heading1 | heading2 | code | quote | callout | moodTracker | aiSummary
-  final String blockType;
-  final String content;
-  /// LexoRank string
-  final String sortOrder;
-
-  const DiaryBlockSaveRequest({required this.entryId, required this.blockId, required this.blockType, required this.content, required this.sortOrder});
-
-  factory DiaryBlockSaveRequest.fromMap(Map<String, dynamic> m) {
-    return DiaryBlockSaveRequest(
-      entryId: m['entry_id'] as String,
-      blockId: m['block_id'] as String,
-      blockType: m['block_type'] as String,
-      content: m['content'] as String,
-      sortOrder: m['sort_order'] as String,
-    );
-  }
-
-  Map<String, dynamic> toMap() => {
-    'entry_id': entryId,
-    'block_id': blockId,
-    'block_type': blockType,
-    'content': content,
-    'sort_order': sortOrder,
-  };
-
-}
-
-/// Lightweight entry metadata for list views
-class DiaryEntryMeta {
-  final String id;
-  final String title;
-  final double? moodScore;
-  /// Unix ms
-  final int createdAt;
-  final int updatedAt;
-
-  const DiaryEntryMeta({required this.id, required this.title, required this.moodScore, required this.createdAt, required this.updatedAt});
-
-  factory DiaryEntryMeta.fromMap(Map<String, dynamic> m) {
-    return DiaryEntryMeta(
-      id: m['id'] as String,
-      title: m['title'] as String,
-      moodScore: m['mood_score'] as double?,
-      createdAt: m['created_at'] as int,
-      updatedAt: m['updated_at'] as int,
-    );
-  }
-
-  Map<String, dynamic> toMap() => {
-    'id': id,
-    'title': title,
-    'mood_score': moodScore,
-    'created_at': createdAt,
-    'updated_at': updatedAt,
-  };
-
-}
-
-class DiaryEntryListResponse {
-  final List<DiaryEntryMeta> entries;
-  final int total;
-
-  const DiaryEntryListResponse({required this.entries, required this.total});
-
-  factory DiaryEntryListResponse.fromMap(Map<String, dynamic> m) {
-    return DiaryEntryListResponse(
-      entries: (m['entries'] as List).map((e) => DiaryEntryMeta.fromMap(e as Map<String, dynamic>)).toList(),
-      total: m['total'] as int,
-    );
-  }
-
-  Map<String, dynamic> toMap() => {
-    'entries': entries.map((e) => e.toMap()).toList(),
-    'total': total,
-  };
-
-}
-
-/// Server-pushed sentiment score after a block save
-class SentimentEvent {
-  final String entryId;
-  /// 0.0 = very negative, 1.0 = very positive
-  final double score;
-  /// Positive | Neutral | Negative | Sensitive
-  final String label;
-
-  const SentimentEvent({required this.entryId, required this.score, required this.label});
-
-  factory SentimentEvent.fromMap(Map<String, dynamic> m) {
-    return SentimentEvent(
-      entryId: m['entry_id'] as String,
-      score: m['score'] as double,
-      label: m['label'] as String,
-    );
-  }
-
-  Map<String, dynamic> toMap() => {
-    'entry_id': entryId,
-    'score': score,
-    'label': label,
-  };
-
-}
-
-class TopologyExportResponse {
-  /// Unix ms of last scan
-  final int generatedAt;
-  final int fileCount;
-  /// Full topology JSON payload
-  final String topologyJson;
-
-  const TopologyExportResponse({required this.generatedAt, required this.fileCount, required this.topologyJson});
-
-  factory TopologyExportResponse.fromMap(Map<String, dynamic> m) {
-    return TopologyExportResponse(
-      generatedAt: m['generated_at'] as int,
-      fileCount: m['file_count'] as int,
-      topologyJson: m['topology_json'] as String,
-    );
-  }
-
-  Map<String, dynamic> toMap() => {
-    'generated_at': generatedAt,
-    'file_count': fileCount,
-    'topology_json': topologyJson,
-  };
-
-}
-
-/// Pushed when a file changes during watch mode
-class TopologyDeltaEvent {
-  final String changedFile;
-  final String deltaJson;
-
-  const TopologyDeltaEvent({required this.changedFile, required this.deltaJson});
-
-  factory TopologyDeltaEvent.fromMap(Map<String, dynamic> m) {
-    return TopologyDeltaEvent(
-      changedFile: m['changed_file'] as String,
-      deltaJson: m['delta_json'] as String,
-    );
-  }
-
-  Map<String, dynamic> toMap() => {
-    'changed_file': changedFile,
-    'delta_json': deltaJson,
   };
 
 }

@@ -23,18 +23,52 @@ enum MessageType {
   }
 }
 
+/// High-level category for structured HbpError payloads
+enum ErrorCategory {
+  Transport(1),
+  AuthSecurity(2),
+  RpcRouting(3),
+  Database(4),
+  ResourceExhaustion(5),
+  Internal(6),
+
+  const ErrorCategory(this.value);
+  final int value;
+
+  static ErrorCategory fromInt(int v) {
+    return ErrorCategory.values.firstWhere((e) => e.value == v,
+        orElse: () => throw ArgumentError('Unknown ErrorCategory: $v'));
+  }
+}
+
 /// Lifecycle state of a managed shua module process
 enum ModuleState {
-  Running,
-  Sleeping,
-  Stopped,
-  Unknown,
+  Running(1),
+  Sleeping(2),
+  Stopped(3),
+  Unknown(4),
+
+  const ModuleState(this.value);
+  final int value;
+
+  static ModuleState fromInt(int v) {
+    return ModuleState.values.firstWhere((e) => e.value == v,
+        orElse: () => throw ArgumentError('Unknown ModuleState: $v'));
+  }
 }
 
 /// AI router intent classification result
 enum IntentClass {
-  FactualPrecision,
-  ReflectiveDialogue,
-  CodeAst,
-  CopilotCommand,
+  FactualPrecision(1),
+  ReflectiveDialogue(2),
+  CodeAst(3),
+  CopilotCommand(4),
+
+  const IntentClass(this.value);
+  final int value;
+
+  static IntentClass fromInt(int v) {
+    return IntentClass.values.firstWhere((e) => e.value == v,
+        orElse: () => throw ArgumentError('Unknown IntentClass: $v'));
+  }
 }

@@ -5,6 +5,30 @@
 
 import type { MessageType, ModuleState, IntentClass } from './hbpEnums';
 
+/** Full AST topology graph payload */
+export interface TopologyExportResponse {
+  nodes: string[];
+  edges: string[];
+}
+
+/** Incremental code delta push on file change */
+export interface TopologyDeltaEvent {
+  file_path: string;
+  change_type: string;
+}
+
+/** Standardized structured error payload for HBP v2 responses */
+export interface HbpError {
+  /** Standard error code (e.g. 400 bad request, 404 not found, 500 internal) */
+  code: number;
+  /** Error category enum code */
+  category: ErrorCategory;
+  /** Human-readable error description */
+  message: string;
+  /** Optional context details key-value map */
+  details?: Record<string, string>;
+}
+
 /** Universal HBP v2 message envelope — every message uses this outer shape */
 export interface HbpFrame {
   /** Protocol version, always 2 */
@@ -17,34 +41,60 @@ export interface HbpFrame {
   mod: string;
   /** Operation name e.g. compile */
   op: string;
-  /** Unix timestamp in milliseconds (UTC) */
+  /** Timestamp of creation (UTC) */
   ts: number;
   /** Payload bytes — msgpack-encoded operation body. Empty string for PING/PONG. */
   p: string;
-  /** null on success. Error string on failure. Present only on RESPONSE and ERROR frames. */
-  err?: string;
+  /** null on success. Structured error object on failure. */
+  err?: HbpError;
 }
 
-/** State of a single managed module process */
+/** Standardized pagination metadata wrapper */
+export interface PaginationMeta {
+  /** Total matching items count */
+  total_items: number;
+  /** True if additional pages exist */
+  has_more: boolean;
+  /** Current page index (0-indexed) */
+  page: number;
+  /** Items per page */
+  page_size: number;
+}
+
+/** Server-pushed sentiment analysis event */
+export interface SentimentEvent {
+  entry_id: string;
+  score: number;
+  label: string;
+}
+
+/** Module process description returned in governor.status */
 export interface ModuleEntry {
-  /** Module namespace e.g. shua.resume */
+  /** Module namespace string e.g. shua.resume */
   name: string;
+  /** Current process state */
   state: ModuleState;
+  /** OS Process ID if running or sleeping */
   pid?: number;
+  /** Current RSS memory usage in megabytes */
   ram_mb?: number;
+  /** Uptime in seconds */
   uptime_s?: number;
 }
 
-/** Current Ollama runtime state */
+/** Current Ollama subsystem state */
 export interface OllamaInfo {
-  /** Name of the currently loaded model, or null */
+  /** Currently loaded model name or null */
   loaded_model?: string;
+  /** VRAM/RAM footprint of loaded model in MB */
   ram_mb?: number;
 }
 
 /** Response payload for governor.status */
 export interface GovernorStatusResponse {
+  /** Array of all registered module states */
   modules: ModuleEntry[];
+  /** Ollama lifecycle state */
   ollama: OllamaInfo;
 }
 
@@ -66,80 +116,87 @@ export interface ModuleWakeRequest {
 }
 
 export interface AiRouteRequest {
+  /** User input prompt text */
   prompt: string;
-  /** Optional hint: diary | code | resume | general */
+  /** Optional module domain hint e.g. diary */
   context_hint?: string;
 }
 
 export interface AiRouteResponse {
-  intent: IntentClass;
   model_used: string;
+  intent: IntentClass;
   reply: string;
+  duration_ms: number;
 }
 
+/** Client WebSocket subscription filter for live log events */
+export interface LogFilter {
+  /** Minimum log level (1=TRACE..5=ERROR) */
+  min_level?: number;
+  /** List of module namespaces to filter */
+  modules?: string[];
+  /** Tag bitmask filter */
+  tag_mask?: number;
+}
+
+/** Centralized log event entry payload */
+export interface LogEntryDto {
+  /** Timestamp of creation (UTC) */
+  ts: number;
+  /** Log level (1=TRACE..5=ERROR) */
+  level: number;
+  /** Module ID */
+  module: number;
+  /** Subsystem component name */
+  subsystem: string;
+  /** Log message text */
+  msg: string;
+  /** Tag bitmask */
+  tags: number;
+  /** Optional transaction trace ID */
+  trace_id?: string;
+}
+
+/** Request payload for governor.logs.query */
+export interface LogQueryRequestDto {
+  min_level?: number;
+  module?: number;
+  subsystem?: string;
+  start_ts?: number;
+  end_ts?: number;
+  trace_id?: string;
+  limit?: number;
+  offset?: number;
+}
+
+/** Response payload for governor.logs.query */
+export interface LogQueryResponseDto {
+  total: number;
+  entries: LogEntryDto[];
+}
+
+/** Request payload for resume.compile */
 export interface ResumeCompileRequest {
+  /** ID of resume matrix to compile */
   matrix_id: string;
   /** Typst template name */
   template: string;
-  /** Optional job description for AI tailoring */
+  /** Optional job description text for AI tailoring */
   job_desc?: string;
+  /** Apply AI keyword tailoring filter */
   tailor: boolean;
+  /** Apply full Ollama enhancement */
   ai_enhance: boolean;
 }
 
+/** Response payload for resume.compile */
 export interface ResumeCompileResponse {
-  /** CAS content-addressed ID of the PDF */
+  /** CAS content-addressed ID of generated PDF */
   exhibit_id: string;
+  /** Accessible HTTP URL on Pi5 */
   pdf_url: string;
+  /** Compilation time in milliseconds */
   duration_ms: number;
-  /** Jaccard similarity score if tailored, else null */
+  /** Jaccard similarity score if tailored */
   tailor_score?: number;
-}
-
-export interface DiaryBlockSaveRequest {
-  entry_id: string;
-  block_id: string;
-  /** paragraph | heading1 | heading2 | code | quote | callout | moodTracker | aiSummary */
-  block_type: string;
-  content: string;
-  /** LexoRank string */
-  sort_order: string;
-}
-
-/** Lightweight entry metadata for list views */
-export interface DiaryEntryMeta {
-  id: string;
-  title: string;
-  mood_score?: number;
-  /** Unix ms */
-  created_at: number;
-  updated_at: number;
-}
-
-export interface DiaryEntryListResponse {
-  entries: DiaryEntryMeta[];
-  total: number;
-}
-
-/** Server-pushed sentiment score after a block save */
-export interface SentimentEvent {
-  entry_id: string;
-  /** 0.0 = very negative, 1.0 = very positive */
-  score: number;
-  /** Positive | Neutral | Negative | Sensitive */
-  label: string;
-}
-
-export interface TopologyExportResponse {
-  /** Unix ms of last scan */
-  generated_at: number;
-  file_count: number;
-  /** Full topology JSON payload */
-  topology_json: string;
-}
-
-/** Pushed when a file changes during watch mode */
-export interface TopologyDeltaEvent {
-  changed_file: string;
-  delta_json: string;
 }

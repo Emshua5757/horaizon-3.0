@@ -1,0 +1,173 @@
+# =============================================================================
+# HBP v2 — Core Envelope, Protocols & Shared DTOs
+# Single Source of Truth Schema Module
+# =============================================================================
+
+[protocol]
+version     = 2
+port        = 7700
+description = "horAIzon Binary Protocol v2 — data-only, bidirectional RPC over WebSocket + MessagePack"
+
+[output]
+dart       = "client_flutter/lib/core/hbp/generated"
+rust       = "shua_governor/src/broker/generated"
+go         = "shua_resume/pkg/hbp/generated"
+typescript = "shua_diary/src/hbp/generated"
+python     = "tools/sync_contracts/generated/python"
+
+# ---------------------------------------------------------------------------
+# Enums
+# ---------------------------------------------------------------------------
+
+[[enums]]
+name        = "MessageType"
+description = "Outer frame message type code"
+[[enums.variants]]
+name  = "Request"
+value = 1
+[[enums.variants]]
+name  = "Response"
+value = 2
+[[enums.variants]]
+name  = "Event"
+value = 3
+[[enums.variants]]
+name  = "Ping"
+value = 4
+[[enums.variants]]
+name  = "Pong"
+value = 5
+[[enums.variants]]
+name  = "Error"
+value = 6
+
+[[enums]]
+name        = "ErrorCategory"
+description = "High-level category for structured HbpError payloads"
+[[enums.variants]]
+name  = "Transport"
+value = 1
+[[enums.variants]]
+name  = "AuthSecurity"
+value = 2
+[[enums.variants]]
+name  = "RpcRouting"
+value = 3
+[[enums.variants]]
+name  = "Database"
+value = 4
+[[enums.variants]]
+name  = "ResourceExhaustion"
+value = 5
+[[enums.variants]]
+name  = "Internal"
+value = 6
+
+# ---------------------------------------------------------------------------
+# Structs
+# ---------------------------------------------------------------------------
+
+[[structs]]
+name        = "HbpError"
+description = "Standardized structured error payload for HBP v2 responses"
+[[structs.fields]]
+index       = 1
+name        = "code"
+type        = "u16"
+description = "Standard error code (e.g. 400 bad request, 404 not found, 500 internal)"
+[[structs.fields]]
+index       = 2
+name        = "category"
+type        = "ErrorCategory"
+description = "Error category enum code"
+[[structs.fields]]
+index       = 3
+name        = "message"
+type        = "str"
+description = "Human-readable error description"
+[[structs.fields]]
+index       = 4
+name        = "details"
+type        = "map<str, str>?"
+description = "Optional context details key-value map"
+
+[[structs]]
+name        = "HbpFrame"
+description = "Universal HBP v2 message envelope — every message uses this outer shape"
+[[structs.fields]]
+index       = 1
+name        = "v"
+type        = "u8"
+description = "Protocol version, always 2"
+[[structs.fields]]
+index       = 2
+name        = "t"
+type        = "MessageType"
+description = "Message type code"
+[[structs.fields]]
+index       = 3
+name        = "id"
+type        = "uuid"
+description = "Transaction ID — UUID v4. RESPONSE echoes REQUEST id. EVENT generates its own."
+[[structs.fields]]
+index       = 4
+name        = "mod"
+type        = "str"
+description = "Module namespace e.g. shua.resume"
+[[structs.fields]]
+index       = 5
+name        = "op"
+type        = "str"
+description = "Operation name e.g. compile"
+[[structs.fields]]
+index       = 6
+name        = "ts"
+type        = "timestamp"
+description = "Timestamp of creation (UTC)"
+[[structs.fields]]
+index       = 7
+name        = "p"
+type        = "str"
+description = "Payload bytes — msgpack-encoded operation body. Empty string for PING/PONG."
+[[structs.fields]]
+index       = 8
+name        = "err"
+type        = "HbpError?"
+description = "null on success. Structured error object on failure."
+
+[[structs]]
+name        = "PaginationMeta"
+description = "Standardized pagination metadata wrapper"
+[[structs.fields]]
+index       = 1
+name        = "total_items"
+type        = "u32"
+description = "Total matching items count"
+[[structs.fields]]
+index       = 2
+name        = "has_more"
+type        = "bool"
+description = "True if additional pages exist"
+[[structs.fields]]
+index       = 3
+name        = "page"
+type        = "u32"
+description = "Current page index (0-indexed)"
+[[structs.fields]]
+index       = 4
+name        = "page_size"
+type        = "u32"
+description = "Items per page"
+
+# ---------------------------------------------------------------------------
+# Core Operations
+# ---------------------------------------------------------------------------
+
+[[operations]]
+module          = "shua.governor"
+name            = "ping"
+type            = "rpc"
+requires_auth   = false
+description     = "Heartbeat check — server responds with PONG frame"
+request_struct  = ""
+response_struct = ""
