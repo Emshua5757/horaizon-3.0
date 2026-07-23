@@ -172,7 +172,7 @@ class SentimentEvent:
             'label': self.label,
         }
 
-# Module process description returned in governor.status
+# Module process description and live telemetry returned in governor.status
 @dataclass
 class ModuleEntry:
     # Module namespace string e.g. shua.resume
@@ -181,10 +181,20 @@ class ModuleEntry:
     state: ModuleState
     # OS Process ID if running or sleeping
     pid: Optional[int] = None
-    # Current RSS memory usage in megabytes
+    # Current CPU load percentage
+    cpu_percent: Optional[float] = None
+    # Current RSS/cgroup memory usage in megabytes
     ram_mb: Optional[float] = None
-    # Uptime in seconds
+    # Configured memory ceiling limit in megabytes
+    ram_limit_mb: Optional[int] = None
+    # Total process uptime in seconds
     uptime_s: Optional[int] = None
+    # True if module process health check is passing
+    health_ok: bool
+    # Number of auto-restarts following crashes
+    restart_count: int
+    # Most recent crash or exit reason description
+    last_error: Optional[str] = None
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> 'ModuleEntry':
@@ -192,8 +202,13 @@ class ModuleEntry:
             name=d['name']
             state=ModuleState(d['state'])
             pid=d.get('pid')
+            cpu_percent=d.get('cpu_percent')
             ram_mb=d.get('ram_mb')
+            ram_limit_mb=d.get('ram_limit_mb')
             uptime_s=d.get('uptime_s')
+            health_ok=d['health_ok']
+            restart_count=d['restart_count']
+            last_error=d.get('last_error')
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -201,8 +216,13 @@ class ModuleEntry:
             'name': self.name,
             'state': self.state.value,
             'pid': self.pid,
+            'cpu_percent': self.cpu_percent,
             'ram_mb': self.ram_mb,
+            'ram_limit_mb': self.ram_limit_mb,
             'uptime_s': self.uptime_s,
+            'health_ok': self.health_ok,
+            'restart_count': self.restart_count,
+            'last_error': self.last_error,
         }
 
 # Current Ollama subsystem state

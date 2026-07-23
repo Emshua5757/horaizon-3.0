@@ -68,7 +68,7 @@ type SentimentEvent struct {
 	Label string `msgpack:"label"`
 }
 
-// Module process description returned in governor.status
+// Module process description and live telemetry returned in governor.status
 type ModuleEntry struct {
 	// Module namespace string e.g. shua.resume
 	Name string `msgpack:"name"`
@@ -76,10 +76,20 @@ type ModuleEntry struct {
 	State ModuleState `msgpack:"state"`
 	// OS Process ID if running or sleeping
 	Pid *uint32 `msgpack:"pid"`
-	// Current RSS memory usage in megabytes
+	// Current CPU load percentage
+	CpuPercent *float32 `msgpack:"cpu_percent"`
+	// Current RSS/cgroup memory usage in megabytes
 	RamMb *float32 `msgpack:"ram_mb"`
-	// Uptime in seconds
-	UptimeS *uint32 `msgpack:"uptime_s"`
+	// Configured memory ceiling limit in megabytes
+	RamLimitMb *uint32 `msgpack:"ram_limit_mb"`
+	// Total process uptime in seconds
+	UptimeS *uint64 `msgpack:"uptime_s"`
+	// True if module process health check is passing
+	HealthOk bool `msgpack:"health_ok"`
+	// Number of auto-restarts following crashes
+	RestartCount uint32 `msgpack:"restart_count"`
+	// Most recent crash or exit reason description
+	LastError *string `msgpack:"last_error"`
 }
 
 // Current Ollama subsystem state

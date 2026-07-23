@@ -68,7 +68,7 @@ export interface SentimentEvent {
   label: string;
 }
 
-/** Module process description returned in governor.status */
+/** Module process description and live telemetry returned in governor.status */
 export interface ModuleEntry {
   /** Module namespace string e.g. shua.resume */
   name: string;
@@ -76,10 +76,20 @@ export interface ModuleEntry {
   state: ModuleState;
   /** OS Process ID if running or sleeping */
   pid?: number;
-  /** Current RSS memory usage in megabytes */
+  /** Current CPU load percentage */
+  cpu_percent?: number;
+  /** Current RSS/cgroup memory usage in megabytes */
   ram_mb?: number;
-  /** Uptime in seconds */
+  /** Configured memory ceiling limit in megabytes */
+  ram_limit_mb?: number;
+  /** Total process uptime in seconds */
   uptime_s?: number;
+  /** True if module process health check is passing */
+  health_ok: boolean;
+  /** Number of auto-restarts following crashes */
+  restart_count: number;
+  /** Most recent crash or exit reason description */
+  last_error?: string;
 }
 
 /** Current Ollama subsystem state */

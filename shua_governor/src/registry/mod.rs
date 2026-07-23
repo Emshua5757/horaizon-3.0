@@ -1,4 +1,9 @@
-// Process registry + cgroups v2 — implemented in TASK-005
+pub mod cgroup_manager;
 pub mod module_entry;
 pub mod process_manager;
-pub mod cgroup_manager;
+
+#[allow(unused_imports)]
+pub use cgroup_manager::CgroupManager;
+#[allow(unused_imports)]
+pub use module_entry::{ModuleEntry, ModuleState};
+pub use process_manager::ProcessManager;

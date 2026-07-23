@@ -7,6 +7,7 @@ use crate::logging::broadcaster::LogBroadcaster;
 use crate::logging::entry::{LogEntry, MODULE_FLUTTER};
 use crate::logging::filter::LogFilter;
 use crate::logging::flush::{query_logs_from_db, resolved_db_path, LogQueryParams};
+use crate::registry::process_manager::ProcessManager;
 
 /// Query request DTO for `governor.logs.query`
 #[derive(serde::Deserialize)]
@@ -32,17 +33,29 @@ pub struct ClientLogEmitRequest {
     pub trace_id: Option<String>,
 }
 
+/// Module operation payload DTO for `module.wake` and `module.sleep`
+#[derive(serde::Deserialize)]
+pub struct ModuleOpRequest {
+    pub module: String,
+}
+
 /// The dispatcher routes incoming HBP frames to the correct handler.
 pub struct Dispatcher {
     log_tx: Sender<LogEntry>,
     log_broadcaster: Arc<LogBroadcaster>,
+    process_manager: Arc<ProcessManager>,
 }
 
 impl Dispatcher {
-    pub fn new(log_tx: Sender<LogEntry>, log_broadcaster: Arc<LogBroadcaster>) -> Self {
+    pub fn new(
+        log_tx: Sender<LogEntry>,
+        log_broadcaster: Arc<LogBroadcaster>,
+        process_manager: Arc<ProcessManager>,
+    ) -> Self {
         Self {
             log_tx,
             log_broadcaster,
+            process_manager,
         }
     }
 
@@ -63,13 +76,13 @@ impl Dispatcher {
             frame_mod = %frame.mod_,
             op = %frame.op,
             tx_id = %frame.id,
-            "Dispatching frame"
+            "Dispatching HBP frame"
         );
 
         match frame.mod_.as_str() {
             "shua.governor" => self.handle_governor(frame, client_tx).await,
             other => {
-                warn!(subsystem = "dispatcher", module = other, "Unknown module");
+                warn!(subsystem = "dispatcher", module = other, "Unknown target module");
                 Some(HbpFrame::error_response(
                     &frame.id,
                     &frame.mod_,
@@ -89,12 +102,63 @@ impl Dispatcher {
             "ping" => Some(HbpFrame::pong()),
 
             "status" => {
-                let stub = serde_json::json!({
-                    "modules": [],
+                let modules = self.process_manager.status_snapshot().await;
+                let payload_data = serde_json::json!({
+                    "modules": modules,
                     "ollama": { "loaded_model": null, "ram_mb": null }
                 });
-                let payload = HbpFrame::encode_payload(&stub).unwrap_or_default();
+                let payload = HbpFrame::encode_payload(&payload_data).unwrap_or_default();
                 Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+            }
+
+            "module.wake" | "governor.module.wake" => {
+                if let Ok(req) = frame.decode_payload::<ModuleOpRequest>() {
+                    match self.process_manager.wake(&req.module).await {
+                        Ok(_) => {
+                            let res = serde_json::json!({ "status": "woken", "module": req.module });
+                            let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
+                            Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                        }
+                        Err(e) => Some(HbpFrame::error_response(
+                            &frame.id,
+                            &frame.mod_,
+                            &frame.op,
+                            &format!("ERR_MODULE_WAKE: {e}"),
+                        )),
+                    }
+                } else {
+                    Some(HbpFrame::error_response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        "ERR_MALFORMED_PAYLOAD",
+                    ))
+                }
+            }
+
+            "module.sleep" | "governor.module.sleep" => {
+                if let Ok(req) = frame.decode_payload::<ModuleOpRequest>() {
+                    match self.process_manager.sleep(&req.module).await {
+                        Ok(_) => {
+                            let res = serde_json::json!({ "status": "sleeping", "module": req.module });
+                            let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
+                            Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                        }
+                        Err(e) => Some(HbpFrame::error_response(
+                            &frame.id,
+                            &frame.mod_,
+                            &frame.op,
+                            &format!("ERR_MODULE_SLEEP: {e}"),
+                        )),
+                    }
+                } else {
+                    Some(HbpFrame::error_response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        "ERR_MALFORMED_PAYLOAD",
+                    ))
+                }
             }
 
             "governor.logs.subscribe" | "logs.subscribe" => {
@@ -180,7 +244,7 @@ impl Dispatcher {
             }
 
             other => {
-                warn!(subsystem = "dispatcher", op = other, "Unknown governor op");
+                warn!(subsystem = "dispatcher", op = other, "Unknown governor operation");
                 Some(HbpFrame::error_response(
                     &frame.id,
                     &frame.mod_,
