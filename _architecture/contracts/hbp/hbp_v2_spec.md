@@ -126,6 +126,10 @@ shua.crypto.*          ← Python: portfolio aggregator
 | `governor.ollama.load` | C→S | Load a named Ollama model |
 | `governor.ollama.evict` | C→S | Evict current Ollama model (keep_alive: 0) |
 | `governor.ai.route` | C→S | Route a prompt through the intent classifier |
+| `governor.logs.subscribe` | C→S | Subscribe/filter live WebSocket log stream |
+| `governor.log.emit` | C→S | Ingest client log event into Governor |
+| `governor.logs.query` | C→S | Query historical logs from SQLite LTM |
+| `governor.log_event` | S→C EVENT | Push live log event to subscribed WebSocket client |
 
 ### `shua.resume`
 
@@ -272,6 +276,7 @@ lib/
 
 ## References
 
+- `_architecture/contracts/hbp/hbp_logging_spec.md` — Centralized logging protocol & IPC wire spec
 - `ADR-001_native_over_sdui.md` — decision that eliminated SDUI-4 payload encoding
 - `_architecture/reference/shua_governor.md` — 2.0 Governor topology
 - `_architecture/reference/shua_diary.md` — 2.0 Diary SDUI orchestrator (for migration reference)
