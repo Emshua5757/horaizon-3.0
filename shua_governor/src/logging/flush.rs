@@ -16,9 +16,7 @@ use std::path::Path;
 use tokio::sync::mpsc;
 use tokio::time::{timeout, Duration, Instant};
 
-use crate::logging::entry::{
-    LogEntry, LEVEL_ERROR, TAG_IMPORTANT, TAG_SECURITY,
-};
+use crate::logging::entry::{LogEntry, LEVEL_ERROR, TAG_IMPORTANT, TAG_SECURITY};
 
 const BATCH_HIGH_WATER_MARK: usize = 1024;
 const FLUSH_INTERVAL_MS: u64 = 500;
@@ -99,7 +97,7 @@ pub struct LogQueryParams<'a> {
 /// Query logs from SQLite LTM database with rich filter criteria
 pub fn query_logs_from_db(params: LogQueryParams<'_>) -> Result<(usize, Vec<LogEntry>)> {
     let conn = Connection::open(params.db_path)?;
-    
+
     let mut where_clause = Vec::new();
     let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
@@ -238,7 +236,11 @@ pub async fn flush_loop(
             let tx = match conn.transaction() {
                 Ok(t) => t,
                 Err(e) => {
-                    tracing::error!(subsystem = "log_flush", "Failed to begin transaction: {}", e);
+                    tracing::error!(
+                        subsystem = "log_flush",
+                        "Failed to begin transaction: {}",
+                        e
+                    );
                     continue;
                 }
             };

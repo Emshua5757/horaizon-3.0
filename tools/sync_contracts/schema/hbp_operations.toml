@@ -401,6 +401,37 @@ description     = "Route a prompt through the intent classifier and get an AI re
 request_struct  = "AiRouteRequest"
 response_struct = "AiRouteResponse"
 
+[[operations]]
+module          = "shua.governor"
+name            = "logs.subscribe"
+direction       = "request_response"
+description     = "Subscribe or update WebSocket log stream filter"
+request_struct  = "LogFilter"
+response_struct = ""
+
+[[operations]]
+module          = "shua.governor"
+name            = "log.emit"
+direction       = "request_response"
+description     = "Ingest client log event into Governor"
+request_struct  = "LogEntryDto"
+response_struct = ""
+
+[[operations]]
+module          = "shua.governor"
+name            = "logs.query"
+direction       = "request_response"
+description     = "Query historical logs from SQLite LTM"
+request_struct  = "LogQueryRequestDto"
+response_struct = "LogQueryResponseDto"
+
+[[operations]]
+module          = "shua.governor"
+name            = "log_event"
+direction       = "event_only"
+description     = "Server-pushed live log event to subscribed WebSocket clients"
+event_struct    = "LogEntryDto"
+
 # --- shua.resume ---
 
 [[operations]]
