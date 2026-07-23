@@ -5,7 +5,7 @@
 | Week | 01 of Phase 1 |
 | Date | 2026-07-24 |
 | Phase | Phase 1 — Governor + Flutter Client |
-| Goal | Architecture scaffold + HBP broker + Telemetry + Schema Engine + Process Registry |
+| Goal | Full architecture scaffold + HBP broker + Telemetry + Schema Engine + Process Registry + AI Router |
 
 ---
 
@@ -21,6 +21,7 @@
 | **TASK-004** | Governor HBP v2 broker & Centralized Telemetry Pipeline | `task/TASK-004-logging` | ✅ Completed & Merged (`--no-ff`) |
 | **TASK-004B** | Modular HBP Schema Engine, Protobuf-Style Indexing & Tooling | `task/TASK-004B-schema-modularization` | ✅ Completed & Merged (`--no-ff`) |
 | **TASK-005** | Governor Process Registry, cgroups v2 Manager & Telemetry Controls | `task/TASK-005-process-registry` | ✅ Completed & Merged (`--no-ff`) |
+| **TASK-006** | Ollama Lifecycle Manager, AI Intent Router & Dream Loop Scheduler | `task/TASK-006-ollama-ai-dreamloop` | ✅ Completed & Merged (`--no-ff`) |
 
 ---
 
@@ -44,21 +45,23 @@
    - `ProcessManager`: Async process supervisor (`Arc<RwLock<HashMap<String, ModuleEntry>>>`) controlling process startup, `SIGSTOP` freeze, `SIGCONT` wake, and `/proc` status probing.
    - `CgroupManager`: Enforces Linux cgroups v2 RAM limits (`memory.max`) and attaches PIDs (`cgroup.procs`) with cross-platform dev stubs.
    - Extended `ModuleEntry` telemetry (`cpu_percent`, `ram_mb`, `ram_limit_mb`, `uptime_s`, `health_ok`, `restart_count`, `last_error`).
-   - Real dispatcher routing for `governor.status`, `governor.module.wake`, and `governor.module.sleep`.
-   - 0 compiler warnings, 8/8 unit tests passing.
+
+4. **AI Infrastructure & Dream Loop (`shua_governor/src/ollama/`, `src/ai_router/`, `src/dream_loop/`)**:
+   - `OllamaLifecycle`: Model registry, 4GB RAM cap enforcement, one-model-at-a-time rule (`load`, `evict`).
+   - `IntentClassifier`: Keyword heuristic intent classification with support for local Pi 5 vs laptop offload node URLs.
+   - `DreamLoopScheduler`: Nightly 02:00 Asia/Manila (18:00 UTC) cron scheduler executing log auto-pruning with Phase 3 stub placeholders.
+   - 0 compiler warnings, 9/9 unit tests passing.
 
 ---
 
 ## Task Execution Pipeline
 
 ```
-TASK-001 → TASK-002 → TASK-003 → TASK-004 → TASK-004B → TASK-005 ✅ DONE
-                                                             ↓
-                                                         TASK-006  ← NEXT
-                                                             ↓
-                                                         TASK-007  ← Governor Complete
-                                                         
-TASK-008 → TASK-009 → TASK-010 → TASK-011 → TASK-012               ← Flutter Client
+TASK-001 → TASK-002 → TASK-003 → TASK-004 → TASK-004B → TASK-005 → TASK-006 ✅ DONE
+                                                                       ↓
+                                                                   TASK-007  ← Governor Complete
+                                                                   
+TASK-008 → TASK-009 → TASK-010 → TASK-011 → TASK-012                         ← Flutter Client
 ```
 
 ---
