@@ -12,9 +12,15 @@
 
 ---
 
-## Context
+## Context & Architectural Directives
 
 Bootstrap the `client_flutter` Flutter project from scratch. This task covers: `flutter create`, `pubspec.yaml` with all Phase 1 dependencies, folder structure aligned with the spec, `analysis_options.yaml`, and platform-specific config for Windows and Android.
+
+> [!IMPORTANT]
+> **NO SDUI. NO LOCAL DRIFT DATABASE.**
+> - **ADR-001 Native UI**: All UI is 100% native Flutter Dart widgets. Zero SDUI engine, zero `SduiSocketManager`, zero `SduiStateVault`, zero `SduiTransport`.
+> - **Online-Only Architecture**: No client-side Drift/SQLite database (`LocalDatabase`), no offline sync queues (`ShuaSyncQueue`), no Lamport clock columns. Pi 5 is the single source of truth at all times.
+> - Communication is strictly typed MessagePack over WebSocket (HBP v2) using Riverpod providers.
 
 Read `_architecture/specs/client_flutter/client_flutter_spec.md` before implementing.
 
@@ -73,8 +79,17 @@ dependencies:
   # WebSocket
   web_socket_channel: ^3.0.1
 
-  # Local persistence
+  # Local persistence (user preferences only: theme, host IP, etc. — NO DB)
   shared_preferences: ^2.3.1
+
+  # Biometric authentication (Face ID / Touch ID / Fingerprint fallback)
+  local_auth: ^2.2.0
+
+  # mDNS Pi 5 discovery on LAN
+  multicast_dns: ^0.3.2+3
+
+  # Material You Android dynamic color
+  dynamic_color: ^1.7.0
 
   # UUID generation
   uuid: ^4.4.0
@@ -85,7 +100,7 @@ dependencies:
   # Material color utilities (HCT theme)
   material_color_utilities: ^0.11.1
 
-  # Icons
+  # Icons & SVG
   flutter_svg: ^2.0.10+1
 
 dev_dependencies:
@@ -141,7 +156,7 @@ New-Item -ItemType Directory -Force client_flutter/assets/fonts
 
 ---
 
-## Step 4: Create the full folder structure
+## Step 4: Create the full native folder structure
 
 ```powershell
 cd client_flutter
@@ -151,7 +166,9 @@ New-Item -ItemType Directory -Force `
   lib/core/hbp,`
   lib/core/hbp/generated,`
   lib/core/config,`
-  lib/core/theme
+  lib/core/theme,`
+  lib/core/auth,`
+  lib/core/logging
 
 # Features — Phase 1
 New-Item -ItemType Directory -Force `
@@ -163,6 +180,8 @@ New-Item -ItemType Directory -Force `
 New-Item -ItemType Directory -Force `
   lib/features/resume,`
   lib/features/diary,`
+  lib/features/diary/widgets,`
+  lib/features/diary/widgets/blocks,`
   lib/features/code_visualizer
 
 # Shared
@@ -214,13 +233,13 @@ Create a placeholder `// TODO` file in each feature directory:
 **`lib/features/diary/diary_screen.dart`**
 ```dart
 // TODO: Implemented in Phase 3
-// See _architecture/specs/shua_diary/shua_diary_spec.md
+// See TASK-019_flutter_diary_screen_and_block_library.md
 ```
 
 **`lib/features/code_visualizer/code_topology_screen.dart`**
 ```dart
 // TODO: Implemented in Phase 2
-// See _architecture/specs/shua_code_visualizer/
+// See TASK-016
 ```
 
 ---
@@ -298,10 +317,11 @@ flutter run -d windows    # blank dark screen with "horAIzon 3.0" text
 ## Acceptance Criteria
 
 - [ ] `flutter create` succeeded — project exists at `client_flutter/`
-- [ ] `pubspec.yaml` has all dependencies including `go_router`, `flutter_riverpod`, `messagepack`, `web_socket_channel`
+- [ ] Zero SDUI, zero local Drift database dependencies
+- [ ] `pubspec.yaml` has `dynamic_color`, `local_auth`, `multicast_dns`, `go_router`, `flutter_riverpod`, `messagepack`, `web_socket_channel`
 - [ ] `flutter pub get` succeeds with no dependency conflicts
 - [ ] All font files exist in `assets/fonts/`
-- [ ] All feature directory stubs exist
+- [ ] All feature directory stubs exist (including native diary block folder)
 - [ ] `flutter analyze` — 0 errors
 - [ ] `flutter run -d windows` — app launches on Windows
 - [ ] Android minimum SDK set to 26
@@ -311,3 +331,4 @@ flutter run -d windows    # blank dark screen with "horAIzon 3.0" text
 ## References
 
 - `_architecture/specs/client_flutter/client_flutter_spec.md` — technology stack, folder structure
+- `_architecture/decisions/ADR-001_native_over_sdui.md` — native over SDUI directive

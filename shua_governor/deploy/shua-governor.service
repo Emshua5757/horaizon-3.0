@@ -5,10 +5,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=horaizon
-Group=horaizon
-WorkingDirectory=/opt/horaizon/shua_governor
-ExecStart=/opt/horaizon/shua_governor/shua_governor --config /etc/horaizon/governor/config.toml
+User=shua
+Group=shua
+WorkingDirectory=/opt/horaizon/governor
+ExecStart=/opt/horaizon/governor/shua_governor --config /etc/horaizon/governor/config.toml
 Restart=always
 RestartSec=3s
 LimitNOFILE=65536

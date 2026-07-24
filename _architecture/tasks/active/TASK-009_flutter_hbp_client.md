@@ -1,4 +1,4 @@
-# TASK-009 — `client_flutter` HBP v2 Client
+# TASK-009 — `client_flutter` HBP v2 Client & Native Logging Engine
 
 | Field | Value |
 | :--- | :--- |
@@ -6,15 +6,20 @@
 | **Phase** | Phase 1 |
 | **Type** | AI-executable |
 | **Language** | Dart |
-| **Target** | `client_flutter/lib/core/hbp/` |
+| **Target** | `client_flutter/lib/core/hbp/`, `lib/core/logging/` |
 | **Blocks** | TASK-010, TASK-011 |
 | **Prerequisites** | TASK-008 complete |
 
 ---
 
-## Context
+## Architectural Directives & Native Improvements
 
-Implement the HBP v2 WebSocket client for Flutter. This is the foundation that every screen and provider uses to talk to `shua_governor`. It handles connection lifecycle, heartbeat, reconnect with backoff, MessagePack encoding, and pending request resolution via Completers.
+> [!IMPORTANT]
+> **NO Monolithic Socket Managers (`SduiSocketManager`). NO Drift Side Channels.**
+> - In 2.0, `SduiSocketManager` was a 688 LOC monolith mapping screen IDs to raw sockets, and `GovernorLogger` wrote to a Drift DB sync table as a side channel.
+> - **In 3.0**:
+>   1. **`HorizonWebSocketProvider`**: A clean, reusable Riverpod `AsyncNotifier<WebSocketChannel>` that handles connection lifecycle, heartbeat ping/pong, and reconnect with exponential backoff. Each feature module instantiates its own typed WS stream (e.g. `governorWsProvider`, `diaryWsProvider`).
+>   2. **`GovernorLogger`**: Emits structured telemetry logs directly over the HBP v2 WebSocket connection to `shua_governor` port 7700. Zero local database coupling.
 
 Read `_architecture/contracts/hbp/hbp_v2_spec.md` in full before implementing.
 
@@ -202,17 +207,18 @@ class HbpClient {
     try {
       _channel = WebSocketChannel.connect(uri);
       await _channel!.ready;
+      _setState(HbpConnectionState.connected);
+      _reconnectAttempts = 0;
 
       _sub = _channel!.stream.listen(
         _onMessage,
-        onDone: _onDisconnect,
-        onError: (_) => _onDisconnect(),
+        onError: _onError,
+        onDone: _onDone,
       );
 
-      _setState(HbpConnectionState.connected);
-      _reconnectAttempts = 0;
       _startHeartbeat();
-    } catch (_) {
+    } catch (e) {
+      _setState(HbpConnectionState.disconnected);
       _scheduleReconnect();
     }
   }
@@ -225,307 +231,164 @@ class HbpClient {
     _setState(HbpConnectionState.disconnected);
   }
 
-  // ---- sending ----
+  // ---- request / response ----
 
-  /// Send a request and wait for the matching response.
-  /// Throws [TimeoutException] after 30 seconds.
+  /// Send an HBP v2 request frame and await the matching response
   Future<HbpFrame> send(HbpFrame frame) async {
     if (_state != HbpConnectionState.connected) {
-      throw StateError('HbpClient: not connected');
+      throw StateError('HbpClient is not connected (state: $_state)');
     }
+
     final completer = Completer<HbpFrame>();
     _pending[frame.txId] = completer;
+
     _channel!.sink.add(Uint8List.fromList(frame.encode()));
+
+    // Timeout after 10s if no response
     return completer.future.timeout(
-      const Duration(seconds: 30),
+      const Duration(seconds: 10),
       onTimeout: () {
         _pending.remove(frame.txId);
-        throw TimeoutException('HBP request timed out: ${frame.op}');
+        throw TimeoutException('HBP v2 request timed out: ${frame.module}.${frame.op}');
       },
     );
   }
 
-  /// Convenience: send a request and decode the response payload as JSON.
-  Future<Map<String, dynamic>> request(
-    String module,
-    String op, {
-    List<int> payload = const [],
-  }) async {
-    final frame = HbpFrame.request(module, op, payload);
-    final response = await send(frame);
-    if (response.isError) {
-      throw Exception('HBP error: ${response.error}');
-    }
-    // Empty payload is valid for operations with no response body
-    if (response.payload.isEmpty) return {};
-    // Decode msgpack payload as a map
-    // (requires messagepack unpacker on the response payload bytes)
-    // For now return the raw bytes wrapped — proper decode in providers
-    return {'_raw': response.payload};
-  }
+  // ---- internal handlers ----
 
-  // ---- incoming ----
+  void _onMessage(dynamic message) {
+    if (message is! List<int>) return;
+    try {
+      final frame = HbpFrame.decode(message);
 
-  void _onMessage(dynamic raw) {
-    List<int> bytes;
-    if (raw is List<int>) {
-      bytes = raw;
-    } else if (raw is Uint8List) {
-      bytes = raw;
-    } else {
-      return; // ignore text frames
-    }
+      if (frame.isPong) return; // Heartbeat response
 
-    final frame = HbpFrame.decode(bytes);
+      if (frame.msgType == HbpMsgType.event) {
+        _eventController.add(frame);
+        return;
+      }
 
-    if (frame.isPong) {
-      // Heartbeat acknowledged — nothing to do
-      return;
-    }
-
-    if (frame.msgType == HbpMsgType.response) {
+      // Response to a pending request
       final completer = _pending.remove(frame.txId);
-      if (completer != null) {
+      if (completer != null && !completer.isCompleted) {
         completer.complete(frame);
       }
-      return;
-    }
-
-    if (frame.msgType == HbpMsgType.event) {
-      _eventController.add(frame);
+    } catch (e) {
+      // Decode error — ignore malformed frame
     }
   }
 
-  // ---- heartbeat ----
+  void _onError(Object error) {
+    _setState(HbpConnectionState.disconnected);
+    _scheduleReconnect();
+  }
+
+  void _onDone() {
+    _setState(HbpConnectionState.disconnected);
+    _scheduleReconnect();
+  }
 
   void _startHeartbeat() {
     _heartbeat?.cancel();
     _heartbeat = Timer.periodic(const Duration(seconds: 15), (_) {
       if (_state == HbpConnectionState.connected) {
-        _channel?.sink.add(
-          Uint8List.fromList(HbpFrame.ping().encode()),
-        );
+        _channel?.sink.add(Uint8List.fromList(HbpFrame.ping().encode()));
       }
     });
   }
 
-  // ---- reconnect ----
-
-  void _onDisconnect() {
-    _heartbeat?.cancel();
-    _setState(HbpConnectionState.disconnected);
-    // Fail all pending requests
-    for (final c in _pending.values) {
-      c.completeError(StateError('Connection lost'));
-    }
-    _pending.clear();
-    _scheduleReconnect();
-  }
-
   void _scheduleReconnect() {
-    _setState(HbpConnectionState.reconnecting);
+    _reconnectTimer?.cancel();
+    if (_reconnectAttempts > 10) return; // Cap attempts
+
     _reconnectAttempts++;
-    // Exponential backoff: 2s, 4s, 8s, max 30s
-    final delay = Duration(
-      seconds: (_reconnectAttempts * 2).clamp(2, 30),
-    );
-    _reconnectTimer = Timer(delay, connect);
+    final delay = Duration(seconds: (1 << _reconnectAttempts).clamp(1, 30));
+    _setState(HbpConnectionState.reconnecting);
+
+    _reconnectTimer = Timer(delay, () => connect());
   }
 
-  void _setState(HbpConnectionState s) {
-    _state = s;
-    _stateController.add(s);
-  }
-
-  void dispose() {
-    disconnect();
-    _eventController.close();
-    _stateController.close();
+  void _setState(HbpConnectionState newState) {
+    _state = newState;
+    _stateController.add(newState);
   }
 }
 ```
 
 ---
 
-## Step 3: `lib/core/config/app_config.dart`
+## Step 3: `lib/core/logging/governor_logger.dart` — Direct HBP v2 telemetry emitter
 
 ```dart
-/// App configuration — loaded from SharedPreferences
-class AppConfig {
-  final String piHost;        // e.g. "100.67.11.0" or "192.168.1.x"
-  final int port;             // default 7700
-  final bool useTailscale;    // if false, use LAN IP
+import '../hbp/hbp_client.dart';
+import '../hbp/hbp_frame.dart';
+import 'package:messagepack/messagepack.dart';
 
-  const AppConfig({
-    required this.piHost,
-    required this.port,
-    required this.useTailscale,
-  });
+enum LogLevel { info, warn, error }
 
-  factory AppConfig.defaults() => const AppConfig(
-        piHost:       '100.67.11.0',
-        port:         7700,
-        useTailscale: true,
-      );
+class GovernorLogger {
+  final HbpClient _hbpClient;
 
-  String get governorWsUrl => 'ws://$piHost:$port';
+  GovernorLogger(this._hbpClient);
 
-  AppConfig copyWith({String? piHost, int? port, bool? useTailscale}) =>
-      AppConfig(
-        piHost:       piHost ?? this.piHost,
-        port:         port ?? this.port,
-        useTailscale: useTailscale ?? this.useTailscale,
-      );
+  /// Emit a structured log entry over HBP v2 directly to shua_governor
+  Future<void> log({
+    required String subsystem,
+    required LogLevel level,
+    required String message,
+    Map<String, dynamic>? metadata,
+  }) async {
+    if (_hbpClient.currentState != HbpConnectionState.connected) return;
+
+    final p = Packer();
+    p.packMapLength(4);
+    p.packString('subsystem'); p.packString(subsystem);
+    p.packString('level');     p.packString(level.name);
+    p.packString('message');   p.packString(message);
+    p.packString('timestamp'); p.packInt(DateTime.now().millisecondsSinceEpoch);
+
+    final frame = HbpFrame.request('shua.governor', 'log.emit', p.takeBytes());
+    try {
+      await _hbpClient.send(frame);
+    } catch (_) {
+      // Fire-and-forget: do not crash if telemetry send fails
+    }
+  }
 }
 ```
 
 ---
 
-## Step 4: `lib/core/config/app_config_provider.dart`
-
-```dart
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'app_config.dart';
-
-class AppConfigNotifier extends AsyncNotifier<AppConfig> {
-  static const _keyHost = 'pi_host';
-  static const _keyPort = 'pi_port';
-  static const _keyTailscale = 'use_tailscale';
-
-  @override
-  Future<AppConfig> build() async {
-    final prefs = await SharedPreferences.getInstance();
-    return AppConfig(
-      piHost:       prefs.getString(_keyHost)      ?? '100.67.11.0',
-      port:         prefs.getInt(_keyPort)          ?? 7700,
-      useTailscale: prefs.getBool(_keyTailscale)    ?? true,
-    );
-  }
-
-  Future<void> update({String? piHost, int? port, bool? useTailscale}) async {
-    final prefs = await SharedPreferences.getInstance();
-    final current = await future;
-    final next = current.copyWith(
-      piHost: piHost, port: port, useTailscale: useTailscale,
-    );
-    if (piHost != null)       await prefs.setString(_keyHost, piHost);
-    if (port != null)         await prefs.setInt(_keyPort, port);
-    if (useTailscale != null) await prefs.setBool(_keyTailscale, useTailscale);
-    state = AsyncData(next);
-  }
-}
-
-final appConfigProvider =
-    AsyncNotifierProvider<AppConfigNotifier, AppConfig>(
-  AppConfigNotifier.new,
-);
-```
-
----
-
-## Step 5: `lib/core/hbp/hbp_client_provider.dart`
+## Step 4: `lib/core/hbp/hbp_client_provider.dart` — Riverpod provider
 
 ```dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/app_config_provider.dart';
 import 'hbp_client.dart';
 
-/// Global HBP client instance — created once on first use.
-final hbpClientProvider = AsyncNotifierProvider<HbpClientNotifier, HbpClient>(
-  HbpClientNotifier.new,
-);
+final hbpClientProvider = FutureProvider<HbpClient>((ref) async {
+  final config = await ref.watch(appConfigProvider.future);
+  final client = HbpClient(config);
+  await client.connect();
 
-class HbpClientNotifier extends AsyncNotifier<HbpClient> {
-  @override
-  Future<HbpClient> build() async {
-    final config = await ref.watch(appConfigProvider.future);
-    final client = HbpClient(config);
-    await client.connect();
-
-    // Dispose on provider teardown
-    ref.onDispose(client.dispose);
-
-    return client;
-  }
-
-  /// Reconnect with a new config (e.g. after settings change)
-  Future<void> reconnect() async {
-    final current = state.valueOrNull;
-    current?.disconnect();
-    state = const AsyncLoading();
-    final config = await ref.read(appConfigProvider.future);
-    final client = HbpClient(config);
-    await client.connect();
-    state = AsyncData(client);
-  }
-}
-
-/// Stream provider for connection state — drives the connection banner UI
-final connectionStateProvider = StreamProvider<HbpConnectionState>((ref) {
-  final clientAsync = ref.watch(hbpClientProvider);
-  return clientAsync.when(
-    data:    (client) => client.connectionState,
-    loading: () => Stream.value(HbpConnectionState.connecting),
-    error:   (_, __) => Stream.value(HbpConnectionState.disconnected),
-  );
+  ref.onDispose(() => client.disconnect());
+  return client;
 });
-```
 
----
-
-## Step 6: Write unit tests
-
-Create `test/core/hbp/hbp_frame_test.dart`:
-
-```dart
-import 'package:flutter_test/flutter_test.dart';
-import 'package:client_flutter/core/hbp/hbp_frame.dart';
-
-void main() {
-  group('HbpFrame', () {
-    test('request round-trips through encode/decode', () {
-      final frame = HbpFrame.request('shua.resume', 'compile', [1, 2, 3]);
-      final encoded = frame.encode();
-      final decoded = HbpFrame.decode(encoded);
-
-      expect(decoded.module, 'shua.resume');
-      expect(decoded.op, 'compile');
-      expect(decoded.version, 2);
-      expect(decoded.payload, [1, 2, 3]);
-      expect(decoded.msgType, HbpMsgType.request);
-    });
-
-    test('ping frame has correct type', () {
-      final ping = HbpFrame.ping();
-      final decoded = HbpFrame.decode(ping.encode());
-      expect(decoded.msgType, HbpMsgType.ping);
-    });
-  });
-}
-```
-
-```powershell
-flutter test test/core/hbp/hbp_frame_test.dart
+final hbpConnectionStateProvider = StreamProvider<HbpConnectionState>((ref) async* {
+  final client = await ref.watch(hbpClientProvider.future);
+  yield client.currentState;
+  yield* client.connectionState;
+});
 ```
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `HbpFrame.request()` creates a frame with correct fields
-- [ ] `HbpFrame.encode()` + `HbpFrame.decode()` round-trip is lossless (unit test passes)
-- [ ] `HbpClient.connect()` establishes a WebSocket connection to Pi5
-- [ ] `HbpClient.send()` sends a request and resolves the `Completer` on response
-- [ ] Heartbeat PING is sent every 15 seconds
-- [ ] On connection drop, reconnect fires after backoff
-- [ ] `connectionStateProvider` emits correct state changes
-- [ ] `flutter test` — all tests pass
-- [ ] `flutter analyze` — no errors
-
----
-
-## References
-
-- `_architecture/contracts/hbp/hbp_v2_spec.md` — full frame spec, client implementation notes
-- `_architecture/specs/client_flutter/client_flutter_spec.md` — Riverpod provider registry
+- [ ] `HbpFrame` correctly encodes and decodes all 6 frame types
+- [ ] `HbpClient` connects to `ws://host:port/hbp` and sends ping every 15s
+- [ ] Reconnect uses exponential backoff (1s, 2s, 4s… up to 30s)
+- [ ] `GovernorLogger` emits structured telemetry logs over WebSocket to `shua_governor` with zero Drift DB coupling
+- [ ] `hbpConnectionStateProvider` emits live state updates
+- [ ] `flutter analyze` — 0 errors

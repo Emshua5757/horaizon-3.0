@@ -12,13 +12,19 @@
 
 ---
 
-## Context
+## Context & Native Improvements
 
-Implement the Dashboard screen (module status grid + Ollama badge) and all three Governor screens (Status, Ollama, Logs). These are the primary Phase 1 UI surfaces — they talk to `shua_governor` via HBP v2 and display real-time data.
+Implement the native Dashboard screen (module launch card grid + live Ollama badge), responsive `AdaptiveShell`, and all three Governor screens (Status, Ollama, Logs).
+
+> [!NOTE]
+> **Native Upgrades in 3.0**:
+> 1. **Native `ModuleLaunchScreen`**: Replaces the 2.0 SDUI dashboard renderer. Renders a native `GridView` of module cards (`Diary`, `Code Visualizer`, `Terminal`, `Settings`) with animated card press effects and status badges.
+> 2. **Responsive `AdaptiveShell`**: Uses `NavigationRail` on tablet/desktop (width ≥ 640px) and `NavigationBar` on mobile phones.
+> 3. **Reverse Telemetry Feed in `GovernorLogsScreen`**: Pi 5 `warn!` and `error!` logs emitted from Rust `shua_governor` stream over WebSocket and populate the terminal log list in real-time.
 
 ---
 
-## Part A — Governor Provider
+## Part A — Governor Status Provider
 
 ### Step A1: `lib/features/governor/governor_provider.dart`
 
@@ -168,466 +174,123 @@ extension on Stream {
 
 ---
 
-## Part B — GovernorStatusScreen
-
-### Step B1: `lib/features/governor/governor_status_screen.dart`
-
-```dart
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'governor_provider.dart';
-
-class GovernorStatusScreen extends ConsumerWidget {
-  const GovernorStatusScreen({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final statusAsync = ref.watch(governorStatusProvider);
-    final notifier    = ref.read(governorStatusProvider.notifier);
-    final theme       = Theme.of(context);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Governor Status'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: notifier.refresh,
-          ),
-        ],
-      ),
-      body: statusAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-        data: (status) => ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // Ollama card
-            _OllamaCard(status: status),
-            const SizedBox(height: 16),
-            // Module cards
-            ...status.modules.map(
-              (m) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _ModuleCard(
-                  module: m,
-                  onWake:  () => notifier.wakeModule(m.name),
-                  onSleep: () => notifier.sleepModule(m.name),
-                ),
-              ),
-            ),
-            if (status.modules.isEmpty)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Text('No modules registered'),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _OllamaCard extends StatelessWidget {
-  final GovernorStatus status;
-  const _OllamaCard({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(Icons.psychology_outlined,
-                color: theme.colorScheme.primary, size: 32),
-            const SizedBox(width: 16),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Ollama', style: theme.textTheme.titleMedium),
-                Text(
-                  status.loadedModel ?? 'No model loaded',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: status.loadedModel != null
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.outline,
-                  ),
-                ),
-                if (status.ollamaRamMb != null)
-                  Text(
-                    '${status.ollamaRamMb!.toStringAsFixed(0)} MB',
-                    style: theme.textTheme.bodySmall,
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ModuleCard extends StatelessWidget {
-  final ModuleStatus module;
-  final VoidCallback onWake;
-  final VoidCallback onSleep;
-
-  const _ModuleCard({
-    required this.module,
-    required this.onWake,
-    required this.onSleep,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final (color, icon, label) = switch (module.state) {
-      ModuleState.running  => (Colors.green, Icons.play_circle_outline,   'Running'),
-      ModuleState.sleeping => (Colors.amber, Icons.pause_circle_outline,  'Sleeping'),
-      ModuleState.stopped  => (Colors.grey,  Icons.stop_circle_outlined,  'Stopped'),
-      ModuleState.unknown  => (Colors.red,   Icons.help_outline,          'Unknown'),
-    };
-    return Card(
-      child: ListTile(
-        leading: Icon(icon, color: color),
-        title:   Text(module.name),
-        subtitle: Text(
-          [
-            label,
-            if (module.pid != null) 'PID ${module.pid}',
-            if (module.ramMb != null) '${module.ramMb!.toStringAsFixed(0)} MB',
-          ].join(' · '),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (module.state == ModuleState.sleeping)
-              IconButton(
-                icon: const Icon(Icons.play_arrow),
-                tooltip: 'Wake',
-                onPressed: onWake,
-              ),
-            if (module.state == ModuleState.running)
-              IconButton(
-                icon: const Icon(Icons.pause),
-                tooltip: 'Sleep',
-                onPressed: onSleep,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-```
-
----
-
-## Part C — GovernorOllamaScreen
-
-### Step C1: `lib/features/governor/governor_ollama_screen.dart`
-
-```dart
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'governor_provider.dart';
-
-const _availableModels = [
-  ('qwen2.5:1.5b',     '~980 MB',  'Primary dialogue'),
-  ('llama3.2:3b',      '~2.0 GB',  'Text generator'),
-  ('nomic-embed-text', '~270 MB',  'Embeddings'),
-];
-
-class GovernorOllamaScreen extends ConsumerWidget {
-  const GovernorOllamaScreen({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final statusAsync = ref.watch(governorStatusProvider);
-    final notifier    = ref.read(governorStatusProvider.notifier);
-    final theme       = Theme.of(context);
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Ollama — Model Manager')),
-      body: statusAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-        data: (status) => ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // Current status banner
-            Card(
-              color: theme.colorScheme.primaryContainer,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Icon(Icons.memory,
-                        color: theme.colorScheme.onPrimaryContainer),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            status.loadedModel ?? 'No model loaded',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: theme.colorScheme.onPrimaryContainer,
-                            ),
-                          ),
-                          if (status.ollamaRamMb != null)
-                            Text(
-                              '${status.ollamaRamMb!.toStringAsFixed(0)} MB in use',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onPrimaryContainer,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    if (status.loadedModel != null)
-                      FilledButton.tonal(
-                        onPressed: notifier.evictModel,
-                        child: const Text('Evict'),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text('Available Models', style: theme.textTheme.titleSmall),
-            const SizedBox(height: 8),
-            ..._availableModels.map(
-              (m) => Card(
-                child: ListTile(
-                  title:    Text(m.$1),
-                  subtitle: Text('${m.$2} · ${m.$3}'),
-                  trailing: status.loadedModel == m.$1
-                      ? Chip(
-                          label: const Text('Loaded'),
-                          backgroundColor: theme.colorScheme.primaryContainer,
-                        )
-                      : FilledButton(
-                          onPressed: () => notifier.loadModel(m.$1),
-                          child: const Text('Load'),
-                        ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-```
-
----
-
-## Part D — GovernorLogsScreen (stub — real logs in Phase 2)
-
-### Step D1: `lib/features/governor/governor_logs_screen.dart`
-
-```dart
-import 'package:flutter/material.dart';
-
-class GovernorLogsScreen extends StatelessWidget {
-  const GovernorLogsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Governor Logs')),
-      body: const Center(
-        child: Text('Live log stream — Phase 2\n'
-            '(Requires shua_code_visualizer EVENT push integration)',
-            textAlign: TextAlign.center),
-      ),
-    );
-  }
-}
-```
-
----
-
-## Part E — DashboardScreen
-
-### Step E1: `lib/features/dashboard/dashboard_screen.dart`
+## Part B — Native DashboardScreen (`lib/features/dashboard/dashboard_screen.dart`)
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../governor/governor_provider.dart';
-import '../../core/hbp/hbp_client_provider.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final statusAsync    = ref.watch(governorStatusProvider);
-    final connState      = ref.watch(connectionStateProvider);
-    final theme          = Theme.of(context);
+    final statusAsync = ref.watch(governorStatusProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('horAIzon 3.0'),
         actions: [
-          // Connection indicator
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: connState.when(
-              data: (s) => Icon(
-                s == HbpConnectionState.connected
-                    ? Icons.wifi
-                    : Icons.wifi_off,
-                color: s == HbpConnectionState.connected
-                    ? Colors.green
-                    : theme.colorScheme.error,
-              ),
-              loading: () => const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              error: (_, __) => Icon(Icons.wifi_off,
-                  color: theme.colorScheme.error),
-            ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => context.go('/settings'),
           ),
         ],
       ),
-      body: statusAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.error_outline,
-                  color: theme.colorScheme.error, size: 48),
-              const SizedBox(height: 16),
-              Text('Cannot reach Governor\n$e',
-                  textAlign: TextAlign.center),
-            ],
-          ),
-        ),
-        data: (status) => SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Ollama status banner
-              _OllamaStatusBanner(status: status),
-              const SizedBox(height: 16),
-              // Module grid
-              Text('Modules', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 8),
-              if (status.modules.isEmpty)
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: Text('No modules registered yet')),
-                  ),
-                )
-              else
-                GridView.extent(
-                  shrinkWrap:    true,
-                  physics:       const NeverScrollableScrollPhysics(),
-                  maxCrossAxisExtent: 200,
-                  childAspectRatio:   1.2,
-                  mainAxisSpacing:    12,
-                  crossAxisSpacing:   12,
-                  children: status.modules
-                      .map((m) => _ModuleGridTile(module: m))
-                      .toList(),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Ollama status header card
+          statusAsync.when(
+            data: (status) => Card(
+              child: ListTile(
+                leading: const Icon(Icons.memory, color: Colors.emerald),
+                title: Text(status.loadedModel ?? 'No AI Model Loaded'),
+                subtitle: Text(status.ollamaRamMb != null
+                    ? '${status.ollamaRamMb!.toStringAsFixed(0)} MB RAM allocated'
+                    : 'Ollama Idle'),
+                trailing: TextButton(
+                  onPressed: () => context.go('/governor/ollama'),
+                  child: const Text('Manage'),
                 ),
+              ),
+            ),
+            loading: () => const LinearProgressIndicator(),
+            error: (err, _) => Text('Governor Error: $err'),
+          ),
+          const SizedBox(height: 24),
+          Text('Modules', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 12),
+          // Native grid of module cards
+          GridView.count(
+            crossAxisCount: MediaQuery.of(context).size.width > 600 ? 3 : 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            children: [
+              _ModuleTile(
+                title: 'Shua Diary',
+                icon: Icons.book_outlined,
+                color: Colors.amber,
+                onTap: () => context.go('/diary'),
+              ),
+              _ModuleTile(
+                title: 'Code Topology',
+                icon: Icons.account_tree_outlined,
+                color: Colors.cyan,
+                onTap: () => context.go('/code/topology'),
+              ),
+              _ModuleTile(
+                title: 'Governor Status',
+                icon: Icons.monitor_heart_outlined,
+                color: Colors.emerald,
+                onTap: () => context.go('/governor/status'),
+              ),
+              _ModuleTile(
+                title: 'System Logs',
+                icon: Icons.terminal_outlined,
+                color: Colors.purple,
+                onTap: () => context.go('/governor/logs'),
+              ),
             ],
           ),
-        ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go('/governor/status'),
-        icon: const Icon(Icons.tune),
-        label: const Text('Governor'),
+        ],
       ),
     );
   }
 }
 
-class _OllamaStatusBanner extends StatelessWidget {
-  final GovernorStatus status;
-  const _OllamaStatusBanner({required this.status});
+class _ModuleTile extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ModuleTile({
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            Icon(Icons.psychology_outlined,
-                color: theme.colorScheme.primary),
-            const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Ollama', style: theme.textTheme.labelLarge),
-                Text(
-                  status.loadedModel ?? 'Idle',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: status.loadedModel != null
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.outline,
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            TextButton(
-              onPressed: () => GoRouter.of(context).go('/governor/ollama'),
-              child: const Text('Manage'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ModuleGridTile extends StatelessWidget {
-  final ModuleStatus module;
-  const _ModuleGridTile({required this.module});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final (color, icon) = switch (module.state) {
-      ModuleState.running  => (Colors.green,  Icons.check_circle_outline),
-      ModuleState.sleeping => (Colors.amber,  Icons.pause_circle_outline),
-      ModuleState.stopped  => (Colors.grey,   Icons.stop_circle_outlined),
-      ModuleState.unknown  => (Colors.red,    Icons.help_outline),
-    };
-    final shortName = module.name.split('.').last;
-    return Card(
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => GoRouter.of(context).go('/governor/status'),
+        onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: color, size: 32),
-              const SizedBox(height: 8),
-              Text(shortName,
-                  style: theme.textTheme.labelMedium,
-                  textAlign: TextAlign.center),
+              Icon(icon, size: 40, color: color),
+              const SizedBox(height: 12),
+              Text(title, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleSmall),
             ],
           ),
         ),
@@ -639,22 +302,15 @@ class _ModuleGridTile extends StatelessWidget {
 
 ---
 
-## Acceptance Criteria
+## Part C — Governor Logs Screen (`lib/features/governor/governor_logs_screen.dart`)
 
-- [ ] `DashboardScreen` displays Ollama status banner and module grid from live `governor.status` data
-- [ ] Connection icon in AppBar reflects `HbpConnectionState` (green wifi / red wifi_off)
-- [ ] `GovernorStatusScreen` lists all registered modules with wake/sleep buttons
-- [ ] Wake button sends `governor.module.wake` HBP request and refreshes state
-- [ ] Sleep button sends `governor.module.sleep` HBP request and refreshes state
-- [ ] `GovernorOllamaScreen` shows loaded model and Load/Evict buttons
-- [ ] Load button sends `governor.ollama.load` HBP request
-- [ ] Evict button sends `governor.ollama.evict` HBP request
-- [ ] 30-second auto-refresh of `governorStatusProvider` works
-- [ ] `flutter analyze` — no errors on all new files
+Subscribes to live server-pushed EVENT telemetry logs over WebSocket.
 
 ---
 
-## References
+## Acceptance Criteria
 
-- `_architecture/specs/client_flutter/client_flutter_spec.md` — screen inventory, provider registry
-- `_architecture/contracts/hbp/hbp_v2_spec.md` — `governor.status`, `module.wake`, `ollama.load` schemas
+- [ ] Native `DashboardScreen` renders module tiles and Ollama status header
+- [ ] Responsive `AdaptiveShell` switches between `NavigationRail` (≥ 640px) and `NavigationBar`
+- [ ] `GovernorLogsScreen` streams live reverse-telemetry logs over HBP v2 WebSocket
+- [ ] `flutter analyze` — 0 errors

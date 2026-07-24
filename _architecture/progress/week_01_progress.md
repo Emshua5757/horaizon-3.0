@@ -4,8 +4,8 @@
 | :--- | :--- |
 | Week | 01 of Phase 1 |
 | Date | 2026-07-24 |
-| Phase | Phase 1 — Governor + Flutter Client |
-| Goal | Full architecture scaffold + HBP broker + Telemetry + Schema Engine + Process Registry + AI Router |
+| Phase | Phase 1 — Governor Complete (100%) + Flutter Client Preparation |
+| Goal | Full architecture scaffold + HBP broker + Telemetry + Schema Engine + Process Registry + AI Router + Config Systemd Deploy |
 
 ---
 
@@ -22,17 +22,17 @@
 | **TASK-004B** | Modular HBP Schema Engine, Protobuf-Style Indexing & Tooling | `task/TASK-004B-schema-modularization` | ✅ Completed & Merged (`--no-ff`) |
 | **TASK-005** | Governor Process Registry, cgroups v2 Manager & Telemetry Controls | `task/TASK-005-process-registry` | ✅ Completed & Merged (`--no-ff`) |
 | **TASK-006** | Ollama Lifecycle Manager, AI Intent Router & Dream Loop Scheduler | `task/TASK-006-ollama-ai-dreamloop` | ✅ Completed & Merged (`--no-ff`) |
+| **TASK-007** | Governor AppConfig Loader, Settings RPCs & Systemd Deployment Readiness | `task/TASK-007-governor-config` | ✅ Completed & Merged (`--no-ff`) |
 
 ---
 
-### Key Subsystems Delivered
+### Key Subsystems Delivered — Governor Backend (100% Complete) 🎉
 
 1. **HBP v2 Frame Broker & Telemetry Pipeline (`shua_governor/src/logging/`)**:
    - `LogFilter`: $O(1)$ stream filter evaluation for live WebSocket stream.
    - `LogBroadcaster`: Real-time WebSocket fan-out broadcasting (`log_event`).
    - SQLite WAL `activity.db` (7-day LTM auto-prune) + 10MB `important.log` file rotation for actionable high-severity events (`ERROR`, `FATAL`, `PANIC`, `TAG_SECURITY`).
    - Panic hook (`std::panic::set_hook`) catching crash dumps and writing to `important.log`.
-   - 0 compiler warnings, 7/7 unit tests passing.
 
 2. **Modular HBP Schema Engine & Code Generators (`tools/sync_contracts/`)**:
    - Master schemas moved to `_architecture/contracts/hbp/schema/*.toml` domain files.
@@ -50,18 +50,22 @@
    - `OllamaLifecycle`: Model registry, 4GB RAM cap enforcement, one-model-at-a-time rule (`load`, `evict`).
    - `IntentClassifier`: Keyword heuristic intent classification with support for local Pi 5 vs laptop offload node URLs.
    - `DreamLoopScheduler`: Nightly 02:00 Asia/Manila (18:00 UTC) cron scheduler executing log auto-pruning with Phase 3 stub placeholders.
-   - 0 compiler warnings, 9/9 unit tests passing.
+
+5. **Config Loader & Systemd Deployment Readiness (`shua_governor/src/config.rs`)**:
+   - `AppConfig`: Multi-path search hierarchy (`--config`, `/etc/horaizon/governor/config.toml`, `./config.toml`, and in-memory default fallback).
+   - Settings RPCs: `governor.config.get` and `governor.config.update` live persistence.
+   - Dynamic Boot Registration: Reads sub-modules and Ollama models from `config.toml` at boot without Rust re-compilation.
+   - Hardened `shua-governor.service` systemd unit file (`Restart=always`, `RestartSec=3s`, `LimitNOFILE=65536`).
+   - **0 compiler warnings, 9/9 unit tests passing**.
 
 ---
 
 ## Task Execution Pipeline
 
 ```
-TASK-001 → TASK-002 → TASK-003 → TASK-004 → TASK-004B → TASK-005 → TASK-006 ✅ DONE
-                                                                       ↓
-                                                                   TASK-007  ← Governor Complete
-                                                                   
-TASK-008 → TASK-009 → TASK-010 → TASK-011 → TASK-012                         ← Flutter Client
+TASK-001 → TASK-002 → TASK-003 → TASK-004 → TASK-004B → TASK-005 → TASK-006 → TASK-007 ✅ GOVERNOR BACKEND 100% COMPLETE!
+                                                                                ↓
+TASK-008 → TASK-009 → TASK-010 → TASK-011 → TASK-012                          ← Flutter Client UI (NEXT)
 ```
 
 ---
@@ -71,6 +75,6 @@ TASK-008 → TASK-009 → TASK-010 → TASK-011 → TASK-012                    
 | Type | Count |
 | :--- | :--- |
 | **Enums** | 4 (`MessageType`, `ErrorCategory`, `ModuleState`, `IntentClass`) |
-| **Structs** | 20 |
-| **Operations** | 29 across 6 modules |
+| **Structs** | 21 (added `GovernorConfigDto`) |
+| **Operations** | 31 across 6 modules (added `governor.config.get`, `governor.config.update`) |
 | **Language Targets** | 5 (Dart, Rust, Go, TypeScript, Python) + Markdown |

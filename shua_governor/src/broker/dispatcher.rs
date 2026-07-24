@@ -308,10 +308,7 @@ impl Dispatcher {
                     let start = std::time::Instant::now();
                     let intent = IntentClassifier::classify(&req.prompt, req.context_hint.as_deref());
 
-                    let offload_url = req.offload_device_url.as_deref().or_else(|| {
-                        // Use global offload URL if set
-                        None
-                    });
+                    let offload_url = req.offload_device_url.as_deref();
 
                     let budget = PromptBudget::for_intent(&intent, offload_url);
 

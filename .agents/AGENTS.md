@@ -7,3 +7,5 @@
 - **Weekly Progress Naming**: Name weekly progress files strictly by week index (`week_01_progress.md`, `week_02_progress.md`) without mid-week hardcoded dates in the filename.
 - **Task Archiving Policy**: Move completed task spec files from `_architecture/tasks/active/` to `_architecture/tasks/archived/` upon task completion and mark `Status: [x] Completed`.
 - **Centralized Telemetry Logging**: Always emit structured `tracing` logs (`info!`, `warn!`, `error!`) with subsystem attributes for all process state changes, RPC dispatching, and errors.
+- **Minimal & Purposeful Git Commits**: Do NOT create frequent micro-commits during planning, drafting, or minor edits. Combine incremental edits and commit only at major task milestones, task completion/merge, or when explicitly requested by the user to avoid cluttering GitHub profile activity.
+

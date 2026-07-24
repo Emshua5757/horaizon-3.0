@@ -97,6 +97,9 @@ secrets/
 .secrets/
 config/local.toml
 config/production.toml
+
+# ─── Reference Files (Large horAIzon 2.0 dumps) ─────────────
+_architecture/reference/
 # aider API keys
 .aider.conf.yml.local
 .env.aider

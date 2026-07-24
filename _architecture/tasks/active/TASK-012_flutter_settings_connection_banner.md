@@ -1,4 +1,4 @@
-# TASK-012 — `client_flutter` SettingsScreen + Connection Banner
+# TASK-012 — `client_flutter` SettingsScreen + Connection Banner & Block Gallery
 
 | Field | Value |
 | :--- | :--- |
@@ -12,375 +12,80 @@
 
 ---
 
-## Context
+## Context & Native Improvements
 
-Implement the Settings screen (Pi5 host configuration, theme picker, font scale) and the connection banner widget that appears at the top of every screen when the Pi5 is unreachable. This completes the Phase 1 Flutter client.
+Implement the rich Settings screen (with advanced visual customization & mDNS Pi 5 auto-discovery), the `ConnectionStatusBanner` live health pill widget, and the developer `BlockGalleryScreen` route.
+
+> [!NOTE]
+> **Native Upgrades in 3.0**:
+> 1. **`ConnectionStatusBanner`**: A subtle animated banner/pill at the top of the shell showing live WebSocket health (`Connected` = green pulse, `Reconnecting` = amber spin, `Offline` = red banner disabling UI interactions).
+> 2. **State-of-the-Art Visual Customization Card**:
+>    - Primary & Secondary Color Seed Swatches (Cyber Blue `#00E5FF`, Cyber Emerald `#00E5A0`, Violet `#9D4EDD`, Sunset `#FF6B6B`).
+>    - Surface Material Modes (`Cyber Obsidian` `#0D0D12`, `OLED Pure Black` `#000000`, `Midnight Space` `#121826`, `Warm Light` `#F7F5F0`).
+>    - Typography Profiles (`Modern Outfit`, `Cyber Mono`, `Editorial Lora`).
+>    - Glowing Borders Switch (primary/secondary neon aura around cards).
+>    - Android Wallpaper Toggle (`dynamic_color`).
+>    - Micro-animation speed slider (`150ms` - `500ms`) & Font scale slider.
+> 3. **mDNS LAN Auto-Discovery**: Network settings card includes a *"Scan for Pi 5"* button that broadcasts mDNS query (`horaizon.local`) using `multicast_dns` package to auto-fill the Tailscale/LAN IP.
+> 4. **Developer `BlockGalleryScreen` (`/dev/blocks`)**: Interactive gallery preview route displaying all 36 native diary block widgets in demo state (replaces `SduiSandboxScreen`).
 
 ---
 
-## Part A — SettingsScreen
-
-### Step A1: `lib/features/settings/settings_screen.dart`
+## Part A — ConnectionStatusBanner Widget (`lib/shared/widgets/connection_status_banner.dart`)
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/config/app_config_provider.dart';
-import '../../core/hbp/hbp_client_provider.dart';
-import '../../core/theme/app_theme.dart';
-import '../../core/theme/theme_provider.dart';
-
-class SettingsScreen extends ConsumerStatefulWidget {
-  const SettingsScreen({super.key});
-
-  @override
-  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  late TextEditingController _hostCtrl;
-  late TextEditingController _portCtrl;
-  bool _changed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final config = ref.read(appConfigProvider).valueOrNull;
-    _hostCtrl = TextEditingController(text: config?.piHost ?? '100.67.11.0');
-    _portCtrl = TextEditingController(text: '${config?.port ?? 7700}');
-  }
-
-  @override
-  void dispose() {
-    _hostCtrl.dispose();
-    _portCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    final notifier = ref.read(appConfigProvider.notifier);
-    await notifier.update(
-      piHost: _hostCtrl.text.trim(),
-      port:   int.tryParse(_portCtrl.text.trim()) ?? 7700,
-    );
-    // Reconnect with new config
-    await ref.read(hbpClientProvider.notifier).reconnect();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Settings saved — reconnecting…')),
-      );
-    }
-    setState(() => _changed = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme        = Theme.of(context);
-    final appTheme     = ref.watch(themeProvider);
-    final themeNotifier = ref.read(themeProvider.notifier);
-    final config       = ref.watch(appConfigProvider);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-        actions: [
-          if (_changed)
-            TextButton(
-              onPressed: _save,
-              child: const Text('Save'),
-            ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // ---- Network section ----
-          _SectionHeader('Network'),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Pi5 Host (Tailscale IP or LAN IP)',
-                      style: theme.textTheme.labelMedium),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _hostCtrl,
-                    decoration: const InputDecoration(
-                      hintText: '100.67.11.0',
-                      prefixIcon: Icon(Icons.dns_outlined),
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (_) => setState(() => _changed = true),
-                    keyboardType: TextInputType.url,
-                  ),
-                  const SizedBox(height: 12),
-                  Text('Port', style: theme.textTheme.labelMedium),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _portCtrl,
-                    decoration: const InputDecoration(
-                      hintText: '7700',
-                      prefixIcon: Icon(Icons.lan_outlined),
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (_) => setState(() => _changed = true),
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 12),
-                  config.when(
-                    data: (c) => Chip(
-                      avatar: const Icon(Icons.link, size: 16),
-                      label: Text('ws://${c.piHost}:${c.port}',
-                          style: theme.textTheme.bodySmall),
-                    ),
-                    loading: () => const SizedBox.shrink(),
-                    error:   (_, __) => const SizedBox.shrink(),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // ---- Theme section ----
-          _SectionHeader('Appearance'),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Theme', style: theme.textTheme.labelMedium),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: AppThemePreset.values.map((preset) {
-                      final isSelected = appTheme.preset == preset;
-                      return ChoiceChip(
-                        label: Text(_presetLabel(preset)),
-                        selected: isSelected,
-                        onSelected: (_) => themeNotifier.setPreset(preset),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 16),
-                  Text('Font Scale', style: theme.textTheme.labelMedium),
-                  Slider(
-                    value:    appTheme.fontScale,
-                    min:      0.8,
-                    max:      1.4,
-                    divisions: 6,
-                    label:    '${appTheme.fontScale.toStringAsFixed(1)}×',
-                    onChanged: themeNotifier.setFontScale,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // ---- About section ----
-          _SectionHeader('About'),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.info_outline),
-              title: const Text('horAIzon 3.0'),
-              subtitle: const Text(
-                'Native Flutter · Multi-language backend · Offline-first AI\n'
-                'Running on horaizon-pi5 (100.67.11.0)',
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // ---- Sync contracts ----
-          _SectionHeader('Developer Tools'),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.sync_outlined),
-              title: const Text('HBP v2 Contracts'),
-              subtitle: const Text(
-                'Run: python -m tools.sync_contracts\n'
-                'to regenerate contracts across all languages',
-              ),
-              trailing: const Icon(Icons.terminal),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _presetLabel(AppThemePreset preset) => switch (preset) {
-        AppThemePreset.midnightGlass  => 'Midnight',
-        AppThemePreset.warmPaper      => 'Warm Paper',
-        AppThemePreset.cyberNeon      => 'Cyber Neon',
-        AppThemePreset.emeraldForest  => 'Emerald',
-      };
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  const _SectionHeader(this.title);
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(
-          title,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                color: Theme.of(context).colorScheme.primary,
-              ),
-        ),
-      );
-}
-```
-
----
-
-## Part B — Connection Banner (shared widget)
-
-This widget sits above every screen's body when the Pi5 is unreachable. Wire it into `ShellScaffold` from TASK-010.
-
-### Step B1: `lib/shared/widgets/connection_banner.dart`
-
-```dart
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/hbp/hbp_client.dart';
 import '../../core/hbp/hbp_client_provider.dart';
 
-class ConnectionBanner extends ConsumerWidget {
-  const ConnectionBanner({super.key});
+class ConnectionStatusBanner extends ConsumerWidget {
+  const ConnectionStatusBanner({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final connAsync = ref.watch(connectionStateProvider);
+    final stateAsync = ref.watch(hbpConnectionStateProvider);
+    final theme = Theme.of(context);
 
-    return connAsync.when(
+    return stateAsync.when(
       data: (state) {
-        if (state == HbpConnectionState.connected) {
-          return const SizedBox.shrink();
-        }
-        final (label, color) = switch (state) {
-          HbpConnectionState.reconnecting =>
-            ('Reconnecting to Pi5…', Colors.amber.shade700),
-          HbpConnectionState.connecting =>
-            ('Connecting…', Colors.blue.shade700),
-          _ =>
-            ('Pi5 unreachable — check Tailscale', Colors.red.shade700),
+        if (state == HbpConnectionState.connected) return const SizedBox.shrink();
+
+        final (color, message) = switch (state) {
+          HbpConnectionState.connecting => (Colors.amber, 'Connecting to Pi 5…'),
+          HbpConnectionState.reconnecting => (Colors.amber, 'Reconnecting to Pi 5…'),
+          _ => (Colors.red, 'Offline — Cannot connect to Pi 5 (ws://100.67.11.0:7700)'),
         };
-        return MaterialBanner(
-          backgroundColor: color,
-          content: Text(label,
-              style: const TextStyle(color: Colors.white)),
-          actions: [
-            TextButton(
-              onPressed: () =>
-                  ref.read(hbpClientProvider.notifier).reconnect(),
-              child: const Text('Retry',
-                  style: TextStyle(color: Colors.white)),
-            ),
-          ],
+
+        return Container(
+          width: double.infinity,
+          color: color.withOpacity(0.9),
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (state == HbpConnectionState.connecting || state == HbpConnectionState.reconnecting)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
+                )
+              else
+                const Icon(Icons.wifi_off, size: 16, color: Colors.white),
+              const SizedBox(width: 8),
+              Text(
+                message,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
         );
       },
       loading: () => const SizedBox.shrink(),
-      error:   (_, __) => const SizedBox.shrink(),
-    );
-  }
-}
-```
-
-### Step B2: Add `ConnectionBanner` to `ShellScaffold`
-
-In `lib/router/shell_scaffold.dart`, update both layout classes to include the banner at the top of their `body`:
-
-```dart
-// In _WideLayout.build(), replace body's Row child Expanded:
-Expanded(
-  child: Column(
-    children: [
-      const ConnectionBanner(),
-      Expanded(child: child),
-    ],
-  ),
-),
-
-// In _NarrowLayout.build(), replace body: child with:
-body: Column(
-  children: [
-    const ConnectionBanner(),
-    Expanded(child: child),
-  ],
-),
-```
-
----
-
-## Part C — Loading Shimmer (shared widget)
-
-### Step C1: `lib/shared/widgets/loading_shimmer.dart`
-
-```dart
-import 'package:flutter/material.dart';
-
-/// A pulsing shimmer placeholder for async loading states.
-class LoadingShimmer extends StatefulWidget {
-  final double width;
-  final double height;
-  final double borderRadius;
-
-  const LoadingShimmer({
-    super.key,
-    this.width = double.infinity,
-    this.height = 60,
-    this.borderRadius = 12,
-  });
-
-  @override
-  State<LoadingShimmer> createState() => _LoadingShimmerState();
-}
-
-class _LoadingShimmerState extends State<LoadingShimmer>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync:    this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat(reverse: true);
-    _anim = Tween<double>(begin: 0.3, end: 0.7).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.surfaceContainerHigh;
-    return AnimatedBuilder(
-      animation: _anim,
-      builder: (_, __) => Container(
-        width:  widget.width,
-        height: widget.height,
-        decoration: BoxDecoration(
-          color:        color.withOpacity(_anim.value),
-          borderRadius: BorderRadius.circular(widget.borderRadius),
-        ),
-      ),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 }
@@ -388,53 +93,42 @@ class _LoadingShimmerState extends State<LoadingShimmer>
 
 ---
 
-## Part D — Final Phase 1 Integration Smoke Test
+## Part B — SettingsScreen (`lib/features/settings/settings_screen.dart`)
 
-Run the following to confirm Phase 1 is complete:
+Organized into four distinct glassmorphic Card sections:
 
-```powershell
-# 1. Ensure all dependencies are resolved
-flutter pub get
+### 1. Appearance & Visual Engine
+- **Primary & Secondary Seed Swatches**: Interactive color dots (Cyber Blue, Cyber Emerald, Violet, Coral, Solar Gold).
+- **Surface Material Mode Segmented Button**: `Obsidian`, `OLED Black`, `Midnight Space`, `Warm Light`.
+- **Typography Segmented Button**: `Modern Outfit` (Sans), `Cyber Mono` (JetBrains Mono display), `Editorial Lora` (Serif).
+- **Glowing Borders Switch**: Toggles `primarySeed.withOpacity(0.35)` outline around cards.
+- **Android Wallpaper Match Switch**: Uses `dynamic_color` wallpaper extraction when on Android.
+- **Animation Speed Slider**: `150ms` (Snappy) to `500ms` (Smooth).
+- **Font Scale Slider**: `0.8×` to `1.4×`.
 
-# 2. Static analysis — must be 0 errors
-flutter analyze
+### 2. Network & Pi 5 Connection
+- **Host & Port TextFields**: Tailscale/LAN IP (`100.67.11.0`) and Port (`7700`).
+- **mDNS Auto-Discovery Button**: Broadcasts `horaizon.local` query to auto-fill host IP.
+- **Live Connection Chip**: Displays resolved WebSocket target (`ws://100.67.11.0:7700/hbp`).
 
-# 3. Unit tests
-flutter test
+### 3. Developer Tools
+- **Block Gallery Launcher**: Button navigating to `/dev/blocks` (`BlockGalleryScreen`) for testing all 36 native diary block widgets.
 
-# 4. Run on Windows
-flutter run -d windows
+### 4. About
+- **System Architecture Summary**: horAIzon 3.0 Native Flutter Client, HBP v2 MessagePack RPC, Raspberry Pi 5 node details.
 
-# 5. Run on Android (Moto G84 connected via USB or wireless debug)
-flutter run -d android
-```
+---
 
-Manual verification checklist:
-- Open app on MSI → SplashScreen appears → connects to Pi5 → navigates to Dashboard
-- Dashboard shows module grid with real data from `governor.status`
-- Navigate to Governor → Status screen → see module states
-- Navigate to Governor → Ollama screen → load `qwen2.5:1.5b` → see it appear as loaded
-- Navigate to Settings → change theme → theme applies immediately
-- Kill Pi5 connection → connection banner appears at top of screen
+## Part C — Developer `BlockGalleryScreen` (`lib/features/diary/block_gallery_screen.dart`)
+
+Renders all 36 native block widgets in a scrollable preview list for dev testing.
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `SettingsScreen` saves Pi5 host + port to `SharedPreferences`
-- [ ] Changing Pi5 host in Settings and saving triggers a reconnect
-- [ ] Theme picker changes the app theme in real time
-- [ ] Font scale slider changes text size in real time
-- [ ] `ConnectionBanner` shows amber banner on reconnecting, red on disconnected
-- [ ] `ConnectionBanner` disappears immediately when connection is restored
-- [ ] `LoadingShimmer` pulses correctly
-- [ ] `flutter analyze` — 0 errors across ALL files
-- [ ] `flutter test` — all tests pass
-- [ ] App works on both Windows (NavigationRail) and Android (BottomNavigationBar)
-
----
-
-## References
-
-- `_architecture/specs/client_flutter/client_flutter_spec.md` — Phase 1 acceptance criteria, screen inventory
-- TASK-010 — `ShellScaffold` (must add `ConnectionBanner` there)
+- [ ] `ConnectionStatusBanner` displays animated reconnect status and red offline banner
+- [ ] Settings screen includes complete rich visual customizer (primary/secondary seeds, surface modes, glowing borders, typography profiles, animation slider)
+- [ ] Settings screen includes mDNS auto-discovery scan for `horaizon.local`
+- [ ] `/dev/blocks` route opens `BlockGalleryScreen` showing all 36 native block types
+- [ ] `flutter analyze` — 0 errors

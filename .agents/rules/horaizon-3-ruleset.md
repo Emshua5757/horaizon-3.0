@@ -30,3 +30,7 @@ description: horAIzon 3.0 Mandatory Engineering Ruleset
 
 ## 7. Centralized Telemetry & Logging Discipline
 - **Respect Centralized Logging**: All code across `shua_governor` and all microservices MUST emit structured telemetry logs (`info!`, `warn!`, `error!`) with explicit subsystem and module attributes. Never bypass or omit logging on state changes, RPC dispatching, errors, or process lifecycle events so all operational data flows into the central telemetry pipeline (`activity.db` & `important.log`).
+
+## 8. Minimal & Purposeful Git Commits
+- **Avoid Micro-Commit Clutter**: Do NOT run `git commit` for every minor edit, planning artifact, or task spec tweak during active discussions. Batch related modifications together and commit only at key milestones (e.g. task completion, feature branch merge) or when explicitly instructed by the user. This preserves clean repository history and prevents saturating GitHub profile contribution logs with low-value commits.
+
