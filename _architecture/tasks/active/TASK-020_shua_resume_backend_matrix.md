@@ -1,4 +1,4 @@
-# TASK-020 — `shua_resume` Go Microservice & Typst PDF Engine
+# TASK-020 — `shua_resume` Go Microservice, Typst Engine & MCP Server
 
 | Field | Value |
 | :--- | :--- |
@@ -8,24 +8,31 @@
 | **Language** | Go / SQLite / Typst |
 | **Target** | `shua_modules/shua_resume/` |
 | **Blocks** | TASK-021 |
-| **Prerequisites** | TASK-004 (HBP v2 Broker), TASK-006 (Ollama Lifecycle) |
+| **Prerequisites** | TASK-004 (HBP v2 Broker), TASK-006B (Governor MCP Router), `_architecture/contracts/mcp/mcp_master_spec.md` |
+| **References** | `_architecture/contracts/mcp/mcp_master_spec.md` |
 
 ---
 
-## Overview
+## Architectural Directives & MCP Contract Compliance
 
-Build the `shua_resume` Go microservice that manages a centralized Resume Matrix database, performs Jaccard similarity & LLM keyword tailoring against job descriptions, and compiles publication-quality resumes using Typst.
+> [!IMPORTANT]
+> **MCP Contract Compliance**: `shua_resume` implements the `resume_*` tools and `resume://` resources specified in `_architecture/contracts/mcp/mcp_master_spec.md`:
+> - Tools: `resume_tailor_jaccard`, `resume_compile_pdf`.
+> - Resources: `resume://preview/latest`.
+> - Registers MCP tool definitions with `shua_governor` via `governor.mcp.register` on boot.
 
 ---
 
 ## Key Modules & Specifications
 
 1. **Resume Matrix Database (`pkg/db/`)**:
-   - Work experience, project portfolio, technical skills, education, certifications.
-2. **AI Tailoring Engine (`pkg/ai/tailor.go`)**:
-   - Tokenization & Jaccard similarity scoring.
-   - LLM bullet point tailoring via `shua_governor` AI Intent Router (`governor.ai.route`).
-3. **Typst PDF Compiler (`pkg/pdf/builder.go`)**:
+   - Work experience, project portfolio, technical skills, education, certifications in SQLite.
+2. **AI Tailoring Engine & MCP Server (`pkg/mcp/server.go`)**:
+   - Implements `resume_tailor_jaccard` tool using Jaccard token similarity + Governor AI Router inference.
+   - Implements `resume_compile_pdf` tool.
+3. **Typst PDF Compiler & Raw Export Fallback (`pkg/pdf/builder.go`)**:
    - Dynamic Typst markup generation & local PDF rendering on Pi 5.
+   - **Fallback Policy**: If Typst compilation fails (missing Typst binary or syntax error), `shua_resume` automatically generates and returns a formatted Markdown/JSON raw exhibit payload (`ResumeMatrixDto`) so the user can copy/paste or view their tailored resume text immediately.
 4. **HBP v2 RPC Operations**:
    - `resume.matrix.get`, `resume.matrix.update`, `resume.tailor`, `resume.pdf.compile`.
+

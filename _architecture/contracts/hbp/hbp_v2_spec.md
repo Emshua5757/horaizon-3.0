@@ -78,7 +78,7 @@ Every HBP v2 message — regardless of type, module, or operation — uses the s
   "ts":  uint64,  // Unix timestamp in milliseconds (UTC)
   "p":   bytes,   // Payload — msgpack-encoded operation body
                   // Empty bytes (0x00) for PING/PONG
-  "err": str|nil  // null on success. Error string on failure.
+  "err": HbpError? // null on success. Structured error object on failure.
                   // Only present on RESPONSE and ERROR frames.
 }
 ```
@@ -94,7 +94,7 @@ Every HBP v2 message — regardless of type, module, or operation — uses the s
 | `op` | ✅ | ✅ (echo request op) | ✅ (event name) |
 | `ts` | ✅ | ✅ | ✅ |
 | `p` | ✅ | ✅ | ✅ |
-| `err` | ❌ (omit) | ✅ (null or string) | ❌ (omit) |
+| `err` | ❌ (omit) | ✅ (null or HbpError) | ❌ (omit) |
 
 ---
 

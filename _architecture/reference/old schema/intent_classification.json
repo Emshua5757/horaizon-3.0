@@ -1,0 +1,19 @@
+{
+  "intent_classification": {
+    "_comment": "Integer IDs for the LLM intent classifier output (qwen2.5:1.5b). Maps to n8n master router webhook target.",
+    "intents": {
+      "chat": 0,
+      "task": 1,
+      "reminder": 2,
+      "learn": 3,
+      "journal": 4,
+      "crypto": 5,
+      "research": 6,
+      "evolve": 7,
+      "memory_delete": 8,
+      "gym": 9,
+      "trading": 10,
+      "resume": 11
+    }
+  }
+}

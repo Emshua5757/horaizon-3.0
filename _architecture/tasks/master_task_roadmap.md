@@ -17,6 +17,7 @@ This roadmap enforces **ADR-001 (Native Flutter over SDUI)**: all UI screens are
 | **TASK-005** | `shua_governor` | Rust | Process Registry & Linux cgroups v2 Manager | [x] Completed |
 | **TASK-006** | `shua_governor` | Rust | Ollama Lifecycle, AI Router & Dream Loop Scheduler | [x] Completed |
 | **TASK-007** | `shua_governor` | Rust + bash | AppConfig Hierarchy & Systemd Daemonization on Pi 5 | [x] Completed |
+| **TASK-006B** | `shua_governor` | Rust | Central Governor MCP Tool Aggregator & Context Scope Router | [ ] Planned |
 | **TASK-008** | `client_flutter` | Dart / Flutter | Project Scaffold & Pubspec Dependency Graph | [ ] Next Up |
 | **TASK-009** | `client_flutter` | Dart / Flutter | Core HBP v2 Client, WebSocket Channel & MessagePack Codec | [ ] Planned |
 | **TASK-010** | `client_flutter` | Dart / Flutter | GoRouter, Splash Screen & Material 3 HCT Dark Theme | [ ] Planned |
@@ -42,7 +43,7 @@ This roadmap enforces **ADR-001 (Native Flutter over SDUI)**: all UI screens are
 | :--- | :--- | :--- | :--- | :--- |
 | **TASK-017** | `shua_diary` | **Node.js / TypeScript** (Express + WebSocket + better-sqlite3) | Clean Data API microservice, Pi 5 Deduplicated Media Vault & Governor HBP telemetry | [ ] Planned |
 | **TASK-018** | `shua_diary` | **Node.js / TypeScript** | Ollama AI assistant & entry analysis pipeline (Ollama-first, Gemini fallback) | [ ] Planned |
-| **TASK-019** | `client_flutter` | Dart / Flutter | Native Flutter Diary Screen & 37 Native Block Widgets Library | [ ] Planned |
+| **TASK-019** | `client_flutter` | Dart / Flutter | Native Flutter Diary Screen & 36 Native Block Widgets Library | [ ] Planned |
 
 ---
 

@@ -1,4 +1,4 @@
-# TASK-008 — `client_flutter` Project Scaffold + pubspec
+# TASK-008 — `client_flutter` Project Scaffold, pubspec, Custom Branding & Icons
 
 | Field | Value |
 | :--- | :--- |
@@ -14,7 +14,7 @@
 
 ## Context & Architectural Directives
 
-Bootstrap the `client_flutter` Flutter project from scratch. This task covers: `flutter create`, `pubspec.yaml` with all Phase 1 dependencies, folder structure aligned with the spec, `analysis_options.yaml`, and platform-specific config for Windows and Android.
+Bootstrap the `client_flutter` Flutter project from scratch. This task covers: `flutter create`, `pubspec.yaml` with all Phase 1 dependencies, folder structure aligned with the spec, `analysis_options.yaml`, platform-specific config for Windows and Android, custom app name ("horAIzon 3.0"), and launcher icon generation.
 
 > [!IMPORTANT]
 > **NO SDUI. NO LOCAL DRIFT DATABASE.**
@@ -107,10 +107,20 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.13.1
   riverpod_generator: ^2.4.3
   build_runner: ^2.4.11
   custom_lint: ^0.6.4
   riverpod_lint: ^2.3.13
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: false
+  image_path: "assets/icon/app_icon.png"
+  windows:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    icon_size: 48
 
 flutter:
   uses-material-design: true
@@ -134,6 +144,7 @@ flutter:
           weight: 700
   assets:
     - assets/fonts/
+    - assets/icon/
 ```
 
 Then run:
@@ -143,16 +154,19 @@ flutter pub get
 
 ---
 
-## Step 3: Download fonts
+## Step 3: Download fonts & icon assets
 
 Download from Google Fonts and place in `assets/fonts/`:
 - **Outfit**: Regular, SemiBold, Bold — https://fonts.google.com/specimen/Outfit
 - **Lora**: Regular, Italic — https://fonts.google.com/specimen/Lora
 - **JetBrains Mono**: Regular, Bold — https://fonts.google.com/specimen/JetBrains+Mono
 
+Create assets directories:
 ```powershell
 New-Item -ItemType Directory -Force client_flutter/assets/fonts
+New-Item -ItemType Directory -Force client_flutter/assets/icon
 ```
+Place the master 512x512 PNG app icon at `assets/icon/app_icon.png`.
 
 ---
 
@@ -289,8 +303,9 @@ class HoraizonApp extends StatelessWidget {
 
 ---
 
-## Step 9: Android — set minimum SDK
+## Step 9: Platform-Specific Configuration & Custom Branding
 
+### Step 9A: Android — set minimum SDK & App Name
 Edit `android/app/build.gradle`:
 ```gradle
 android {
@@ -302,6 +317,33 @@ android {
 }
 ```
 
+Edit `android/app/src/main/AndroidManifest.xml`:
+Change `android:label="client_flutter"` to `android:label="horAIzon 3.0"`.
+
+### Step 9B: Windows — set Window Title & Executable Metadata
+Edit `windows/runner/main.cpp`:
+Change:
+```cpp
+if (!window.Create(L"client_flutter", origin, size)) {
+```
+To:
+```cpp
+if (!window.Create(L"horAIzon 3.0", origin, size)) {
+```
+
+Edit `windows/runner/Runner.rc`:
+Update:
+```rc
+VALUE "FileDescription", "horAIzon 3.0" "\0"
+VALUE "ProductName", "horAIzon 3.0" "\0"
+```
+
+### Step 9C: Generate Custom App Launcher Icons
+Run:
+```powershell
+dart run flutter_launcher_icons
+```
+
 ---
 
 ## Step 10: Verify
@@ -309,7 +351,7 @@ android {
 ```powershell
 flutter pub get
 flutter analyze           # should pass with no errors
-flutter run -d windows    # blank dark screen with "horAIzon 3.0" text
+flutter run -d windows    # opens window titled "horAIzon 3.0"
 ```
 
 ---
@@ -318,17 +360,11 @@ flutter run -d windows    # blank dark screen with "horAIzon 3.0" text
 
 - [ ] `flutter create` succeeded — project exists at `client_flutter/`
 - [ ] Zero SDUI, zero local Drift database dependencies
-- [ ] `pubspec.yaml` has `dynamic_color`, `local_auth`, `multicast_dns`, `go_router`, `flutter_riverpod`, `messagepack`, `web_socket_channel`
-- [ ] `flutter pub get` succeeds with no dependency conflicts
+- [ ] `pubspec.yaml` configured with `flutter_launcher_icons` and all native dependencies
+- [ ] App display name set to `"horAIzon 3.0"` in `AndroidManifest.xml` and Windows `main.cpp`
+- [ ] Custom launcher icon generated via `dart run flutter_launcher_icons`
 - [ ] All font files exist in `assets/fonts/`
 - [ ] All feature directory stubs exist (including native diary block folder)
 - [ ] `flutter analyze` — 0 errors
-- [ ] `flutter run -d windows` — app launches on Windows
+- [ ] `flutter run -d windows` — app launches on Windows titled "horAIzon 3.0"
 - [ ] Android minimum SDK set to 26
-
----
-
-## References
-
-- `_architecture/specs/client_flutter/client_flutter_spec.md` — technology stack, folder structure
-- `_architecture/decisions/ADR-001_native_over_sdui.md` — native over SDUI directive

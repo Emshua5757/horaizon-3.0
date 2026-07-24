@@ -1,0 +1,168 @@
+{
+  "log_entry_contract": {
+    "_comment": "CANONICAL CROSS-LANGUAGE LOG ENTRY SCHEMA. This is the single source of truth for structured log events across all runtimes (Rust, TypeScript, Dart, Python). All emitters MUST conform to this schema before POSTing to POST /api/governor/log (RPC 740). sync_contracts.py generates typed LogEntry models in every language from this block.",
+    "_spec_ref": "_architecture/governor/centralized-logging-spec.md",
+    "_http_endpoint": "POST /api/governor/log",
+    "_storage_backend": "SQLite LTM \u2014 activity_log table, /var/lib/horaizon/logs/activity.log (NDJSON rotation at 10MB)",
+    "_ram_budget": "~1MB max \u2014 MPSC ring-buffer capped at 4096 entries \u00d7 256 bytes average",
+    "fields": {
+      "ts": {
+        "type": "u64",
+        "required": true,
+        "description": "Unix epoch milliseconds. Use monotonic wall clock (Date.now() in JS, DateTime.now().millisecondsSinceEpoch in Dart, SystemTime::UNIX_EPOCH.elapsed() in Rust). Do NOT use a local/adjusted clock.",
+        "example": 1751105521483
+      },
+      "level": {
+        "type": "string",
+        "required": true,
+        "enum": [
+          "TRACE",
+          "DEBUG",
+          "INFO",
+          "WARN",
+          "ERROR",
+          "CRITICAL"
+        ],
+        "_severity_order": "TRACE < DEBUG < INFO < WARN < ERROR < CRITICAL",
+        "description": "Log severity level. Must be one of the exact enum strings above \u2014 no lowercase, no abbreviations.",
+        "example": "INFO"
+      },
+      "module": {
+        "type": "string",
+        "required": true,
+        "description": "Source module identifier. Must exactly match the 'id' field in schemas/module_registry.json. Use 'client_flutter' for the Dart client.",
+        "allowed_values": [
+          "shua_governor",
+          "shua_diary",
+          "shua_analysis",
+          "shua_gym_vision",
+          "shua_crypto",
+          "client_flutter"
+        ],
+        "example": "shua_diary"
+      },
+      "subsystem": {
+        "type": "string",
+        "required": true,
+        "description": "Sub-component within the module. Use snake_case. Examples: 'proxy_handler', 'cgroups', 'sdui_compiler', 'diary_repository', 'governor_client'.",
+        "max_length": 64,
+        "example": "sdui_orchestrator"
+      },
+      "msg": {
+        "type": "string",
+        "required": true,
+        "description": "Human-readable description of the event. Should be terse and actionable. Do NOT include sensitive data (passwords, tokens, PII).",
+        "max_length": 512,
+        "example": "Loaded blueprint for screen diary_list in 1.2ms"
+      },
+      "telemetry": {
+        "type": "object",
+        "required": false,
+        "description": "Arbitrary key-value performance metadata. All values must be JSON-serializable primitives. No nested objects.",
+        "known_keys": {
+          "latency_ms": "f64 \u2014 request/operation round-trip latency in milliseconds",
+          "latency_us": "u64 \u2014 request latency in microseconds (preferred for sub-ms precision)",
+          "memory_kb": "u64 \u2014 current process RSS memory in kilobytes",
+          "cpu_temp_c": "f32 \u2014 Pi 5 SoC temperature in Celsius",
+          "rows_affected": "u32 \u2014 SQLite write affected rows",
+          "payload_bytes": "u64 \u2014 raw byte size of request/response body",
+          "error_code": "string \u2014 machine-readable error identifier (e.g. 'SQLITE_LOCKED')"
+        },
+        "example": {
+          "latency_ms": 1.2,
+          "memory_kb": 14208
+        }
+      },
+      "trace_id": {
+        "type": "string",
+        "required": false,
+        "description": "8-character lowercase hex correlation ID. Shared across a single logical request that spans multiple modules (e.g. a Flutter action that triggers Governor \u2192 shua_diary \u2192 SQLite). Generate with first 8 chars of a UUID v4.",
+        "pattern": "^[0-9a-f]{8}$",
+        "example": "f2e674a1"
+      }
+    },
+    "validation_rules": {
+      "_comment": "Governor MUST reject log entries violating these rules with HTTP 422 Unprocessable Entity.",
+      "rule_1": "'level' must be one of the exact enum strings. Reject with code 'INVALID_LEVEL' if not.",
+      "rule_2": "'module' must match a known module ID. Reject with code 'UNKNOWN_MODULE' if not.",
+      "rule_3": "'ts' must be within \u00b160 seconds of the Governor's current system clock. Reject with code 'TIMESTAMP_SKEW' if outside this window (prevents log replay attacks).",
+      "rule_4": "'msg' must not exceed 512 bytes UTF-8. Truncate silently server-side if over limit (never reject \u2014 log truncation is better than log loss).",
+      "rule_5": "'telemetry' values must be primitive types only (string, number, boolean, null). Reject nested objects with code 'INVALID_TELEMETRY'.",
+      "rule_6": "If 'trace_id' is present, it must match the pattern '^[0-9a-f]{8}$'. Reject with code 'INVALID_TRACE_ID' if malformed."
+    },
+    "emitter_rules": {
+      "_comment": "Rules governing emitter behaviour in each language. These are NEVER relaxed.",
+      "rule_fire_and_forget": "All non-Rust emitters (TypeScript, Dart, Python) MUST use fire-and-forget HTTP POST. They must NEVER await the response on a hot path. Network errors must be silently discarded \u2014 a logging failure must NEVER crash or stall the calling module.",
+      "rule_no_sensitive_data": "Passwords, auth tokens, device UUIDs, and PII must NEVER appear in 'msg' or 'telemetry'. Use '[REDACTED]' if context requires referencing a sensitive field.",
+      "rule_governor_unreachable": "If the Governor is unreachable, emitters must fail silently. They may buffer up to 32 entries in memory and retry after 10 seconds. Buffers must be discarded, not persisted, on process restart.",
+      "rule_rust_direct": "The Rust Governor logs its own events directly into the MPSC ring-buffer via the 'tracing' subscriber. It must NOT POST to its own HTTP endpoint (avoids self-loop).",
+      "rule_no_spam": "Emitters must apply basic deduplication: if the same (level, module, subsystem, msg) tuple is emitted more than 10 times within 1 second, collapse into a single entry with telemetry 'occurrence_count' set to the actual count."
+    },
+    "sqlite_schema": {
+      "_comment": "Governor creates this table on first boot via rusqlite migration. Indexes enable O(log n) lookups for Flutter Diagnostics Panel queries.",
+      "table": "activity_log",
+      "columns": {
+        "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+        "ts": "INTEGER NOT NULL",
+        "level": "TEXT NOT NULL",
+        "module": "TEXT NOT NULL",
+        "subsystem": "TEXT NOT NULL",
+        "msg": "TEXT NOT NULL",
+        "telemetry": "TEXT",
+        "trace_id": "TEXT"
+      },
+      "indexes": [
+        "CREATE INDEX idx_activity_module ON activity_log(module)",
+        "CREATE INDEX idx_activity_level  ON activity_log(level)",
+        "CREATE INDEX idx_activity_ts     ON activity_log(ts DESC)"
+      ]
+    },
+    "http_query_params": {
+      "_comment": "Query parameters for GET /api/logs (RPC 741). All params are optional.",
+      "module": "string \u2014 filter by source module ID",
+      "level": "string \u2014 minimum severity level filter (inclusive, following severity order)",
+      "subsystem": "string \u2014 filter by subsystem name",
+      "trace_id": "string \u2014 filter by correlation trace ID",
+      "since_ts": "u64 \u2014 Unix ms lower bound timestamp",
+      "until_ts": "u64 \u2014 Unix ms upper bound timestamp",
+      "limit": "u16 \u2014 max entries to return, default 50, max 500",
+      "offset": "u32 \u2014 pagination offset, default 0"
+    }
+  },
+  "log_levels": {
+    "_comment": "Predefined HBP logging levels as compact integers.",
+    "TRACE": 1,
+    "DEBUG": 2,
+    "INFO": 3,
+    "WARN": 4,
+    "ERROR": 5,
+    "CRITICAL": 6
+  },
+  "log_tags": {
+    "_comment": "24-bit predefined system log tag bitmask flags. sync_contracts.py generates these constants in all targets.",
+    "SYSTEM": 1,
+    "LIFECYCLE": 2,
+    "NETWORK": 4,
+    "DATABASE": 8,
+    "SDUI": 16,
+    "PERF": 32,
+    "SECURITY": 64,
+    "AI": 128,
+    "RESERVED_1": 256,
+    "RESERVED_2": 512,
+    "RESERVED_3": 1024,
+    "RESERVED_4": 2048,
+    "RESERVED_5": 4096,
+    "RESERVED_6": 8192,
+    "RESERVED_7": 16384,
+    "RESERVED_8": 32768,
+    "RESERVED_9": 65536,
+    "RESERVED_10": 131072,
+    "RESERVED_11": 262144,
+    "RESERVED_12": 524288,
+    "RESERVED_13": 1048576,
+    "RESERVED_14": 2097152,
+    "RESERVED_15": 4194304,
+    "RESERVED_16": 8388608
+  }
+}

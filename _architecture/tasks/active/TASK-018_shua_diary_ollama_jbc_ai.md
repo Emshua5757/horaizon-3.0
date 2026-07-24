@@ -1,4 +1,4 @@
-# TASK-018 — `shua_diary` Ollama AI Session & Block Mutation Engine
+# TASK-018 — `shua_diary` JBC MCP Server & Ollama/Gemini Tool Calling Engine
 
 | Field | Value |
 | :--- | :--- |
@@ -8,56 +8,80 @@
 | **Language** | TypeScript (Node.js) |
 | **Target** | `shua_modules/shua_diary/src/ai/` |
 | **Blocks** | TASK-019 |
-| **Prerequisites** | TASK-017 (`shua_diary` Backend), TASK-006 (Ollama Lifecycle & AI Router) |
-| **References** | `_architecture/reference/shua_diary.md` |
+| **Prerequisites** | TASK-017 (`shua_diary` Backend), TASK-006 (Ollama Lifecycle), TASK-006B (Governor MCP Router), `_architecture/contracts/mcp/mcp_master_spec.md` |
+| **References** | `_architecture/contracts/mcp/mcp_master_spec.md` |
 
 ---
 
-## Architectural Directives (ADR-001 & horAIzon 3.0 Clean Stack)
+## Architectural Directives (ADR-001 & MCP Architecture)
 
 > [!IMPORTANT]
-> **NO Python Subprocesses. NO N8n Webhooks.**
-> - 2.0 `N8nJbcProvider` is **dropped** (unnecessary external webhook dependency).
-> - 2.0 `PythonSemanticsAnalyzerProvider` is **dropped** (fragile Python process on ARM).
-> - **AI Strategy**: Pure Ollama (via `shua_governor` AI Intent Router) for all JBC block mutations, note generation, embeddings (`nomic-embed-text`), and sentiment analysis.
-> - Cloud Fallback: Gemini provider when cloud AI is explicitly requested.
+> **JBC IS NOW THE JOSH BLOCK COMPILER MCP SERVER.**
+> - In 2.0, JBC was a custom string bytecode syntax requiring regex parsing (`JbcTranslator.ts`, `selfHealLine.ts`).
+> - **In 3.0, JBC becomes a standard MCP Server (`JbcMcpServer`)**.
+> - Instead of teaching models a custom bytecode string format, **JBC exposes native MCP Tools and Resources** using standard JSON schemas (`@modelcontextprotocol/sdk`).
+> - Both local **Ollama** (via `shua_governor` AI Intent Router) and **Gemini** (cloud fallback) call these MCP tools directly via native LLM Function Calling!
+> - **NO Python Subprocesses. NO N8n Webhooks.**
+
+---
+
+## JBC MCP Tools Exposed (`src/ai/jbc_mcp_tools.ts`)
+
+| Tool Name | Parameters | Purpose |
+| :--- | :--- | :--- |
+| `diary_create_block` | `{ entry_id, block_type, content, lexo_rank? }` | Inserts a new native block widget (markdown, code, image, checklist, etc.) into an entry |
+| `diary_update_block` | `{ block_id, content }` | Updates block content |
+| `diary_delete_block` | `{ block_id }` | Deletes a block from an entry |
+| `diary_reorder_blocks` | `{ entry_id, block_ids }` | Reorders blocks in an entry using LexoRank |
+| `diary_synthesize_notes` | `{ raw_text, user_id }` | Converts raw text notes or voice note transcripts into structured entry blocks |
+| `diary_analyze_entry` | `{ entry_id }` | Analyzes entry text for mood score (1-10), energy level, and key tags |
+
+---
+
+## JBC MCP Resources Exposed (`src/ai/jbc_mcp_resources.ts`)
+
+| Resource URI | Description |
+| :--- | :--- |
+| `diary://entries/{id}` | Read entry title, metadata, and list of native blocks |
+| `diary://entries/latest` | Read most recent entry for active user |
+| `diary://mood/timeline` | Read mood score history and heatmap dataset |
 
 ---
 
 ## Key Modules & Components (`src/ai/`)
 
-1. **`DiaryAiSession` (`src/ai/diary_ai_session.ts`)**:
-   - Manages active user AI sessions, persistent config, and provider instantiation.
-2. **Ollama JBC / Block Mutation Engine (`src/ai/providers/ollama_jbc_provider.ts`)**:
-   - Converts natural language instructions into structured block mutation commands (`create_block`, `update_block`, `delete_block`, `reorder_block`).
-3. **Diary Generator Provider (`src/ai/providers/ollama_generator_provider.ts`)**:
-   - Synthesizes raw text notes or voice note audio transcripts into structured diary entries.
-4. **Sentiment & Mood Analyzer (`src/ai/providers/ollama_analyzer_provider.ts`)**:
-   - Analyzes entry text to extract mood scores (1-10), energy levels, and key themes.
+1. **`JbcMcpServer` (`src/ai/jbc_mcp_server.ts`)**:
+   - Manages MCP JSON-RPC protocol over WebSocket / stdio. Registers all JBC tools and resources.
+2. **`DiaryAiSession` (`src/ai/diary_ai_session.ts`)**:
+   - Manages active user AI chat sessions, persistent model preferences, and provider switching.
+3. **Ollama MCP Tool Provider (`src/ai/providers/ollama_mcp_provider.ts`)**:
+   - Sends user chat prompts to Ollama with `diaryMcpTools` definitions; executes called tools via `JbcMcpServer`.
+4. **Gemini MCP Tool Provider (`src/ai/providers/gemini_mcp_provider.ts`)**:
+   - Cloud fallback tool calling provider.
 5. **Background Analysis Worker (`src/ai/analysis_worker.ts`)**:
-   - Asynchronous worker queue processing entry analysis in the background without blocking RPC responses.
+   - Asynchronous queue executing `diary_analyze_entry` in the background after entry edits.
 6. **Monthly Synthesis Governor Job (`src/ai/monthly_synthesis.ts`)**:
-   - Triggered on the 1st of each month via `shua_governor` Dream Loop scheduler to generate monthly summary entries.
-7. **Gemini Fallback Providers**:
-   - `GeminiJbcProvider`, `GeminiGeneratorProvider`, `GeminiAnalyzerProvider`.
+   - Triggered on the 1st of each month via `shua_governor` Dream Loop scheduler to synthesize monthly summary entries.
 
 ---
 
-## RPC Endpoints Added to WebSocket API
+## RPC Endpoints Added to WebSocket Data API
 
-- `diary.ai.jbc_chat`: Streaming / single-shot JBC block mutation execution.
-- `diary.ai.generate_from_notes`: Synthesizes raw notes or transcripts into entry blocks.
+- `diary.ai.chat`: Interactive streaming chat session with MCP tool execution.
+- `diary.ai.generate_from_notes`: Synthesizes raw text or voice transcripts into entry blocks.
 - `diary.ai.analyze`: Queues background sentiment and mood analysis.
 - `diary.ai.monthly_synthesis`: Generates monthly synthesis entry.
-- `diary.ai.get_config` / `diary.ai.save_config`: Persistent user AI preferences.
+- `diary.ai.get_config` / `diary.ai.save_config`: Persistent user AI model preferences.
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] AI session initializes cleanly in Node.js backend with persistent config
-- [ ] JBC block compiler converts natural language to structured block ops
-- [ ] Sentiment & mood analyzer computes scores and updates entry metadata
+- [ ] `JbcMcpServer` implements MCP standard using `@modelcontextprotocol/sdk`
+- [ ] Exposes all 6 `diary_*` MCP tools with JSON schemas
+- [ ] Exposes `diary://` MCP resources
+- [ ] Ollama provider executes MCP tool calls natively (zero regex string parsing)
+- [ ] Gemini cloud fallback provider executes identical MCP tools
 - [ ] Analysis worker processes queued jobs asynchronously
 - [ ] Monthly synthesis triggers cleanly from governor scheduler
 - [ ] Zero N8n or Python process dependencies

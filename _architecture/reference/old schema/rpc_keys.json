@@ -1,0 +1,61 @@
+{
+  "rpc_request_keys": {
+    "_comment": "Key `1` sub-map keys for 0x01 REQUEST payloads. Integer-keyed parameter names eliminate string overhead inside the parameters map.",
+    "method_id": 0,
+    "params": 1,
+    "transaction_id": 2,
+    "param_keys": {
+      "text": 0,
+      "timestamp": 1,
+      "user_id": 2,
+      "conversation_id": 3,
+      "message_id": 4,
+      "entry_id": 5,
+      "entry_type": 6,
+      "mood_score": 7,
+      "energy_score": 8,
+      "tags": 9,
+      "content": 10,
+      "title": 11,
+      "status": 12,
+      "priority": 13,
+      "due_at": 14,
+      "symbol": 15,
+      "exchange": 16,
+      "quantity": 17,
+      "price": 18,
+      "side": 19,
+      "limit": 20,
+      "offset": 21,
+      "query": 22,
+      "mode": 23,
+      "template": 24,
+      "version": 25,
+      "strategy_id": 26,
+      "live_mode": 27,
+      "max_trade_usd": 28,
+      "daily_loss_limit": 29,
+      "device_uuid": 30,
+      "platform_type": 31,
+      "token": 32,
+      "orchestration_mode": 33,
+      "active_specialists": 34,
+      "thinking_budget": 35
+    }
+  },
+  "rpc_response_keys": {
+    "_comment": "Key map for 0x02 RESPONSE payloads. Keeps response size minimal.",
+    "status": 0,
+    "data": 1,
+    "error": 2,
+    "transaction_id": 3,
+    "memory_citations": 4,
+    "workflow_triggered": 5,
+    "status_values": {
+      "ok": 0,
+      "error": 1,
+      "partial": 2,
+      "pending": 3
+    }
+  }
+}

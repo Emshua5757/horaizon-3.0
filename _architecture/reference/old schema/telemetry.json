@@ -1,0 +1,106 @@
+{
+  "high_frequency_telemetry": {
+    "_comment": "Integer-key layouts for 0x04 TELEMETRY payloads. These are binary MessagePack maps with pre-defined index arrays. Zero heap allocation targets \u2014 all indices are compile-time constants.",
+    "system_telemetry": {
+      "_comment": "Pi 5 hardware diagnostic payload \u2014 sent via WebSocket on a 5-second heartbeat interval to the Flutter telemetry overlay.",
+      "message_type_flag": "0x04",
+      "subtype_id": 1,
+      "keys": {
+        "0": "subtype",
+        "1": "timestamp_ms",
+        "2": "cpu_percent",
+        "3": "ram_used_bytes",
+        "4": "ram_total_bytes",
+        "5": "disk_used_bytes",
+        "6": "disk_total_bytes",
+        "7": "temperature_celsius",
+        "8": "active_containers",
+        "9": "network_rx_bytes_sec",
+        "10": "network_tx_bytes_sec",
+        "11": "ollama_model_loaded",
+        "12": "tailscale_connected"
+      }
+    },
+    "gym_vision_pose": {
+      "_comment": "212-byte fixed binary pose frame. NOT a MessagePack map \u2014 a raw binary buffer packed as Uint8List. The structure below describes the fixed byte-offset layout.",
+      "message_type_flag": "0x04",
+      "subtype_id": 2,
+      "format": "binary_fixed_width",
+      "total_bytes": 212,
+      "header_bytes": 8,
+      "header_layout": {
+        "offset_0_3": "exercise_id (uint32 big-endian)",
+        "offset_4_7": "timestamp_offset_ms (uint32 big-endian)"
+      },
+      "body_bytes": 204,
+      "body_layout": {
+        "description": "17 keypoints \u00d7 3 float32 values (x, y, confidence) = 51 float32s = 204 bytes. Little-endian.",
+        "keypoint_map": {
+          "0": "nose",
+          "1": "left_eye_inner",
+          "2": "left_eye",
+          "3": "left_eye_outer",
+          "4": "right_eye_inner",
+          "5": "right_eye",
+          "6": "right_eye_outer",
+          "7": "left_ear",
+          "8": "right_ear",
+          "9": "mouth_left",
+          "10": "mouth_right",
+          "11": "left_shoulder",
+          "12": "right_shoulder",
+          "13": "left_elbow",
+          "14": "right_elbow",
+          "15": "left_wrist",
+          "16": "right_wrist"
+        }
+      }
+    },
+    "llm_stream_chunk": {
+      "_comment": "0x08 STREAM_CHUNK payload for token-by-token LLM streaming. MessagePack map.",
+      "message_type_flag": "0x08",
+      "keys": {
+        "0": "conversation_id",
+        "1": "token_text",
+        "2": "is_final",
+        "3": "model_name",
+        "4": "tokens_generated"
+      }
+    },
+    "container_state_broadcast": {
+      "_comment": "0x0B BROADCAST payload when a container changes state (thaw/freeze). Sent to all connected clients.",
+      "message_type_flag": "0x0B",
+      "keys": {
+        "0": "container_name",
+        "1": "previous_state",
+        "2": "new_state",
+        "3": "timestamp_ms",
+        "4": "triggered_by"
+      },
+      "state_values": {
+        "running": 0,
+        "paused": 1,
+        "stopped": 2,
+        "starting": 3
+      }
+    },
+    "state_sync_delta": {
+      "_comment": "0x11 STATE_SYNC payload for CRDT offline sync delta reconciliation from Drift SQLite \u2192 PostgreSQL.",
+      "message_type_flag": "0x11",
+      "keys": {
+        "0": "table_id",
+        "1": "record_id",
+        "2": "sync_token",
+        "3": "operation",
+        "4": "delta_payload",
+        "5": "device_id"
+      },
+      "operation_values": {
+        "insert": 0,
+        "update": 1,
+        "delete": 2,
+        "conflict": 3
+      }
+    }
+  }
+}

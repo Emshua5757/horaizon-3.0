@@ -159,9 +159,12 @@ CREATE VIRTUAL TABLE IF NOT EXISTS diary_blocks_fts USING fts5(
 
 ## Pi 5 Deduplicated Media Vault (`src/media/media_vault.ts`)
 
-- **Storage path**: `/var/lib/horaizon/media/{sha256[0..2]}/{sha256}.{ext}`
-- On upload: compute SHA256 of file bytes. If `media_assets` row exists → return existing record and increment `ref_count`. If new → write file to disk and create record.
-- On delete of a block referencing media: decrement `ref_count`. If `ref_count === 0` → delete physical file from disk.
+- Storage root: `/var/lib/horaizon/media/{sha256[0..2]}/{sha256}.ext`
+- **Deduplication**: Uploading an identical photo/video calculates SHA256, increments `ref_count` in `media_assets`, and returns existing `file_path`.
+- **Atomic Ref-Count Transactions**:
+  - Decrementing `ref_count` and deleting media block rows MUST execute within an atomic SQLite transaction (`db.transaction(() => { ... })`).
+  - Physical file unlinking from disk occurs ONLY after the SQLite transaction commits with `ref_count === 0`.
+- **Garbage Collection**: Nightly Dream Loop job verifies `media_assets` ref-counts against active block content strings and unlinks unreferenced files.
 
 ---
 

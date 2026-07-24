@@ -8,4 +8,6 @@
 - **Task Archiving Policy**: Move completed task spec files from `_architecture/tasks/active/` to `_architecture/tasks/archived/` upon task completion and mark `Status: [x] Completed`.
 - **Centralized Telemetry Logging**: Always emit structured `tracing` logs (`info!`, `warn!`, `error!`) with subsystem attributes for all process state changes, RPC dispatching, and errors.
 - **Minimal & Purposeful Git Commits**: Do NOT create frequent micro-commits during planning, drafting, or minor edits. Combine incremental edits and commit only at major task milestones, task completion/merge, or when explicitly requested by the user to avoid cluttering GitHub profile activity.
+- **MCP Compliance & AI-Enabled Architecture**: All AI tool operations, schemas, and resource streams across submodules MUST comply with `_architecture/contracts/mcp/mcp_master_spec.md`. Expose standardized MCP tools and resources instead of ad-hoc string bytecodes or custom text DSLs, ensuring the entire horAIzon 3.0 monorepo is fully AI-agent enabled.
+
 

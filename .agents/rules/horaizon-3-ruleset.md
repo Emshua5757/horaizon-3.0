@@ -34,3 +34,7 @@ description: horAIzon 3.0 Mandatory Engineering Ruleset
 ## 8. Minimal & Purposeful Git Commits
 - **Avoid Micro-Commit Clutter**: Do NOT run `git commit` for every minor edit, planning artifact, or task spec tweak during active discussions. Batch related modifications together and commit only at key milestones (e.g. task completion, feature branch merge) or when explicitly instructed by the user. This preserves clean repository history and prevents saturating GitHub profile contribution logs with low-value commits.
 
+## 9. MCP Compliance & AI-Enabled Architecture
+- **Standardized MCP Contracts**: All AI tool interfaces, JSON schemas, and resource streams across `shua_governor` and all submodules MUST strictly comply with `_architecture/contracts/mcp/mcp_master_spec.md`. Never invent custom string bytecode, opaque text DSLs, or ad-hoc prompt formats when a standard MCP tool or resource can be used. This ensures the entire horAIzon 3.0 monorepo is fully AI-agent enabled for local Ollama, Gemini, Claude, and background task loops (TASK-013).
+
+

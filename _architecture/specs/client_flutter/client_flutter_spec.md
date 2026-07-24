@@ -4,10 +4,10 @@
 | :--- | :--- |
 | **Language** | Dart |
 | **Framework** | Flutter |
-| **Phase** | Phase 1 |
-| **Targets** | Windows (MSI, 100.90.83.12) + Android (Moto G84, 100.111.230.72) |
+| **Phase** | Phase 1 Baseline (Supports Phase 2–5 feature modules) |
+| **Targets** | Windows (MSI Laptop, 1024×768+) + Android (Moto G84 5G, 6.5" 120Hz) |
 | **State** | Riverpod (`AsyncNotifier`, `Notifier`, `StreamNotifier`) |
-| **Navigation** | GoRouter (typed routes) |
+| **Navigation** | GoRouter (typed routes) + `RouteObserver` history tracking |
 | **Transport** | HBP v2 client (WebSocket + MessagePack) |
 | **UI** | Native Flutter widgets — NO SDUI renderer |
 
@@ -15,194 +15,162 @@
 
 ## Design Principles
 
-1. **No SDUI**. There is no blueprint loader, no screen assembler, no `SduiBlockRegistry`. Screens are `.dart` files.
+1. **No SDUI**. There is no blueprint loader, no screen assembler, no `SduiBlockRegistry`. Screens are native `.dart` widgets.
 2. **Typed state everywhere**. Every provider has a typed model class. No `dynamic`, no `Map<String, dynamic>` at the state layer.
-3. **HBP v2 is the only transport**. No raw REST calls. All data flows through the `HbpClient` WebSocket.
-4. **Platform-adaptive layout**. Windows = larger canvas, multi-column where appropriate. Android = single-column, bottom nav bar. GoRouter handles routing identically on both.
-5. **Offline shell**. The app can launch and navigate even when the Pi5 is unreachable. Screens show a connection error state, not a crash.
+3. **HBP v2 is the main transport**. All microservice data flows through `HbpClient` WebSocket (`ws://host:7700/hbp`).
+4. **Platform-adaptive layout**. Breakpoint-driven: Compact (< 640px) uses `NavigationBar`, Medium (640–1024px) uses `NavigationRail`, Expanded (> 1024px) uses multi-column canvas.
+5. **Offline-safe shell**. The app launches cleanly when Pi 5 is unreachable, displaying an interactive `ConnectionStatusBanner` instead of crashing.
+6. **Biometric App Lock**. Optional device-level unlock (`local_auth`) securing private diary and resume data.
+7. **mDNS Auto-Discovery**. Auto-discovers `horaizon.local` on LAN via `multicast_dns` when host IP is unconfigured.
 
 ---
 
 ## Technology Stack
 
-| Concern | Package |
-| :--- | :--- |
-| State management | `riverpod` + `flutter_riverpod` + `riverpod_annotation` |
-| Navigation | `go_router` |
-| MessagePack encode/decode | `messagepack` (pub.dev) |
-| WebSocket | `web_socket_channel` |
-| Theming | Custom `ThemeData` — HCT color system (`material_color_utilities`) |
-| Fonts | `google_fonts` (Outfit, JetBrains Mono, Lora) |
-| Persistent local config | `shared_preferences` (Pi5 URL, Tailscale vs LAN toggle) |
-| Animations | Flutter built-in (`AnimatedWidget`, `TweenAnimationBuilder`) |
-| UUID generation | `uuid` |
+| Concern | Package | Usage |
+| :--- | :--- | :--- |
+| State management | `riverpod` + `flutter_riverpod` | App state & async network providers |
+| Navigation | `go_router` | Typed route map & navigation shell |
+| MessagePack | `messagepack` | HBP v2 frame payload encoding |
+| WebSocket | `web_socket_channel` | Persistent HBP v2 connection |
+| Theme System | Custom `ThemeCompiler` + `dynamic_color` | HCT color seeds, 4 surface modes, Material You |
+| Biometric Security | `local_auth` | Face ID / Touch ID / Fingerprint app lock |
+| LAN Auto-Discovery | `multicast_dns` | mDNS broadcast search for `horaizon.local` |
+| Fonts | `google_fonts` | Outfit (UI), Lora (Diary), JetBrains Mono (Code) |
+| Persistent config | `shared_preferences` | User preferences & saved connection settings |
+| Icons | `flutter_svg` + `flutter_launcher_icons` | Vector graphics & custom app icons |
 
 ---
 
-## Platform Targets
+## Platform Targets & Breakpoints (`lib/shared/breakpoints.dart`)
 
-### Windows (MSI Laptop)
-- Window size: adaptive, min 1024×768
-- Navigation: Side rail (NavigationRail) on left
-- Multi-column layouts where screen width allows
-- Development machine — hot reload works natively
+```dart
+class Breakpoints {
+  static const double compact = 640.0;   // Mobile phone boundary
+  static const double expanded = 1024.0; // Large tablet / desktop boundary
+}
+```
 
-### Android (Moto G84 5G)
-- Navigation: Bottom NavigationBar
-- Single-column scroll layouts
-- Uses same GoRouter routes — layout is purely responsive, not a separate codebase
-- APK sideloaded (not Play Store for now)
+- **Compact (< 640px)**: Bottom `NavigationBar`, single-column vertical list layout.
+- **Medium (640–1024px)**: Left `NavigationRail`, single or double card column.
+- **Expanded (> 1024px)**: Left `NavigationRail`, multi-column master-detail canvas with side inspector.
 
 ---
 
-## GoRouter — Route Map
+## GoRouter — Canonical Route Map
 
 ```
-/                           ← Splash / connection check
-├── /dashboard              ← Home dashboard (module status, Governor health)
-├── /settings               ← App settings (Pi5 URL, Ollama model, theme)
+/                           ← Splash / mDNS auto-discovery / connection check
+├── /dashboard              ← Home dashboard (native module grid, Ollama badge)
+├── /settings               ← App settings (mDNS scan, visual customizer, theme, host IP)
+├── /dev/blocks             ← Developer 36-block gallery preview
 │
-├── /resume                 ← shua_resume module root
-│   ├── /resume/editor      ← Resume matrix editor
-│   ├── /resume/compile     ← PDF compilation screen (template picker, JD input)
-│   └── /resume/history     ← Past compilation history
+├── /code                   ← Phase 2: shua_code_visualizer
+│   ├── /code/topology      ← AST topology graph
+│   └── /code/watch         ← File watcher control
 │
-├── /diary                  ← shua_diary module root
+├── /diary                  ← Phase 3: shua_diary
 │   ├── /diary/list         ← Entry list (date-grouped, mood heatmap)
-│   ├── /diary/entry/:id    ← Block editor (native Notion-like)
+│   ├── /diary/entry/:id    ← Block editor (36 native widgets)
 │   └── /diary/new          ← Create new entry
 │
-├── /code                   ← shua_code_visualizer module root
-│   ├── /code/topology      ← AST topology viewer
-│   └── /code/watch         ← Watcher daemon control
+├── /resume                 ← Phase 4: shua_resume
+│   ├── /resume/editor      ← Resume matrix editor
+│   ├── /resume/compile     ← Typst PDF compilation screen
+│   └── /resume/history     ← Compilation history
 │
-├── /governor               ← shua_governor control panel
-│   ├── /governor/status    ← Module process states, RAM, uptime
-│   ├── /governor/ollama    ← Model load/evict controls
-│   └── /governor/logs      ← Live log stream
+├── /governor               ← Phase 1: shua_governor control panel
+│   ├── /governor/status    ← Process states, RAM/CPU metrics
+│   ├── /governor/ollama    ← Model loader & RAM gauge
+│   └── /governor/logs      ← Live reverse-telemetry log stream
 │
-└── /gym                    ← shua_gym (Phase 4 stub — locked behind feature flag)
-    └── /crypto             ← shua_crypto (Phase 4 stub — locked behind feature flag)
+├── /gym                    ← Phase 5: shua_gym (Health & workout tracking)
+└── /crypto                 ← Phase 5: shua_crypto (Local secrets & key vault)
 ```
 
 ---
 
-## Screen Inventory
+## Screen Inventory (Aligned to Master Roadmap)
 
-### Phase 1 Screens (Must Build)
-
-| Screen | Route | Priority | Description |
-| :--- | :--- | :--- | :--- |
-| `SplashScreen` | `/` | P0 | Connection check, Pi5 reachability test, route to dashboard |
-| `DashboardScreen` | `/dashboard` | P0 | Module status grid, Ollama model badge, Governor health |
-| `SettingsScreen` | `/settings` | P0 | Pi5 host URL, LAN/Tailscale toggle, theme picker, font scale |
-| `GovernorStatusScreen` | `/governor/status` | P0 | Live process table from `governor.status` |
-| `GovernorOllamaScreen` | `/governor/ollama` | P1 | Model picker, load/evict buttons, RAM gauge |
-| `GovernorLogsScreen` | `/governor/logs` | P1 | Streaming log feed from Governor EVENT |
-
-### Phase 3 Screens (Stubs in Phase 1, Implemented in Phase 3)
-
-| Screen | Route | Module |
+### Phase 1 Screens
+| Screen | Route | Description |
 | :--- | :--- | :--- |
-| `ResumeEditorScreen` | `/resume/editor` | shua_resume |
-| `ResumeCompileScreen` | `/resume/compile` | shua_resume |
-| `ResumeHistoryScreen` | `/resume/history` | shua_resume |
-| `DiaryListScreen` | `/diary/list` | shua_diary |
-| `DiaryEntryScreen` | `/diary/entry/:id` | shua_diary |
-| `DiaryNewScreen` | `/diary/new` | shua_diary |
+| `SplashScreen` | `/` | mDNS LAN discovery, Pi 5 connectivity check, biometric auth guard |
+| `DashboardScreen` | `/dashboard` | Native module card grid, Ollama model status header card |
+| `SettingsScreen` | `/settings` | Visual customizer, host IP/port, mDNS scan button, font scale |
+| `GovernorStatusScreen` | `/governor/status` | Real-time cgroups v2 process table, wake/sleep buttons |
+| `GovernorOllamaScreen` | `/governor/ollama` | Ollama model load/evict controls, RAM gauge |
+| `GovernorLogsScreen` | `/governor/logs` | Real-time reverse-telemetry log feed from Governor EVENT |
 
-### Phase 2 Screens (Stubs in Phase 1, Implemented in Phase 2)
-
-| Screen | Route | Module |
+### Phase 2 Screens (`shua_code_visualizer`)
+| Screen | Route | Description |
 | :--- | :--- | :--- |
-| `CodeTopologyScreen` | `/code/topology` | shua_code_visualizer |
-| `CodeWatchScreen` | `/code/watch` | shua_code_visualizer |
+| `CodeTopologyScreen` | `/code/topology` | Interactive AST dependency hypergraph canvas |
+| `CodeWatchScreen` | `/code/watch` | File watcher daemon status & controls |
+
+### Phase 3 Screens (`shua_diary`)
+| Screen | Route | Description |
+| :--- | :--- | :--- |
+| `DiaryListScreen` | `/diary/list` | Date-grouped entry list, mood filter & heatmap row |
+| `DiaryEntryScreen` | `/diary/entry/:id` | 37 native block widget editor with LexoRank reordering |
+| `DiaryNewScreen` | `/diary/new` | Create entry dialog & template picker |
+
+### Phase 4 Screens (`shua_resume`)
+| Screen | Route | Description |
+| :--- | :--- | :--- |
+| `ResumeEditorScreen` | `/resume/editor` | Resume matrix editor (experience, skills, portfolio) |
+| `ResumeCompileScreen` | `/resume/compile` | Typst PDF compilation screen with AI tailoring |
+| `ResumeHistoryScreen` | `/resume/history` | Past PDF compilation list & download links |
+
+### Phase 5 Screens (`shua_gym` & `shua_crypto`)
+| Screen | Route | Description |
+| :--- | :--- | :--- |
+| `GymScreen` | `/gym` | Workout tracking & physical metrics |
+| `CryptoVaultScreen` | `/crypto` | Local secrets & encryption key vault |
 
 ---
 
-## Riverpod Provider Registry
+## Shared Provider & UI Conventions
 
-### HBP / Connection Layer
+### Standardized `AsyncValueView` (`lib/shared/widgets/async_value_view.dart`)
+All screens use `AsyncValueView<T>` to handle Riverpod `AsyncValue` loading and error states consistently:
 
-| Provider | Type | Scope | Description |
-| :--- | :--- | :--- | :--- |
-| `hbpClientProvider` | `AsyncNotifier<HbpClient>` | Global | WebSocket connection to Governor. Manages connect/reconnect. |
-| `connectionStateProvider` | `StateProvider<ConnectionState>` | Global | `connected \| connecting \| disconnected \| error` |
+```dart
+class AsyncValueView<T> extends StatelessWidget {
+  final AsyncValue<T> value;
+  final Widget Function(T data) builder;
+  final VoidCallback? onRetry;
 
-### Governor Providers
+  const AsyncValueView({
+    super.key,
+    required this.value,
+    required this.builder,
+    this.onRetry,
+  });
 
-| Provider | Type | Scope | Description |
-| :--- | :--- | :--- | :--- |
-| `governorStatusProvider` | `AsyncNotifier<GovernorStatus>` | Global | Polls `governor.status` on connect + every 30s |
-| `ollamaStateProvider` | `StateNotifier<OllamaState>` | Global | Currently loaded model, RAM usage |
-| `governorLogsProvider` | `StreamNotifier<List<LogEntry>>` | Governor screen | Live log stream from Governor EVENT push |
-
-### App Config Providers
-
-| Provider | Type | Scope | Description |
-| :--- | :--- | :--- | :--- |
-| `appConfigProvider` | `AsyncNotifier<AppConfig>` | Global | Pi5 URL, network mode (LAN/Tailscale), loaded from `shared_preferences` |
-| `themeProvider` | `Notifier<AppTheme>` | Global | Active theme (seed color, brightness, font scale) |
-
----
-
-## Folder Structure
-
-```
-client_flutter/
-├── lib/
-│   ├── main.dart
-│   ├── app.dart                        ← MaterialApp.router + GoRouter setup
-│   │
-│   ├── core/
-│   │   ├── hbp/
-│   │   │   ├── hbp_client.dart         ← WebSocket connect/reconnect/heartbeat
-│   │   │   ├── hbp_frame.dart          ← Frame encode/decode (MessagePack)
-│   │   │   ├── hbp_dispatcher.dart     ← Route incoming frames to providers
-│   │   │   └── hbp_request.dart        ← Typed request builder
-│   │   ├── config/
-│   │   │   ├── app_config.dart         ← AppConfig model
-│   │   │   └── app_config_provider.dart
-│   │   └── theme/
-│   │       ├── app_theme.dart          ← ThemeData builder
-│   │       └── theme_provider.dart
-│   │
-│   ├── features/
-│   │   ├── dashboard/
-│   │   │   ├── dashboard_screen.dart
-│   │   │   └── dashboard_provider.dart
-│   │   ├── settings/
-│   │   │   └── settings_screen.dart
-│   │   ├── governor/
-│   │   │   ├── governor_status_screen.dart
-│   │   │   ├── governor_ollama_screen.dart
-│   │   │   ├── governor_logs_screen.dart
-│   │   │   └── governor_provider.dart
-│   │   ├── resume/                     ← Phase 3 (stub in Phase 1)
-│   │   ├── diary/                      ← Phase 3 (stub in Phase 1)
-│   │   └── code_visualizer/            ← Phase 2 (stub in Phase 1)
-│   │
-│   ├── shared/
-│   │   ├── widgets/                    ← Reusable UI components
-│   │   │   ├── module_status_card.dart
-│   │   │   ├── connection_banner.dart
-│   │   │   └── loading_shimmer.dart
-│   │   └── models/                     ← Shared data models
-│   │       ├── governor_status.dart
-│   │       ├── ollama_state.dart
-│   │       └── connection_state.dart
-│   │
-│   └── router/
-│       └── app_router.dart             ← GoRouter definition
-│
-├── pubspec.yaml
-├── analysis_options.yaml
-└── README.md
+  @override
+  Widget build(BuildContext context) {
+    return value.when(
+      data: builder,
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, stack) => Card(
+        color: Colors.redContainer,
+        child: ListTile(
+          leading: const Icon(Icons.error_outline, color: Colors.red),
+          title: Text('Error loading data: $err'),
+          trailing: onRetry != null
+              ? IconButton(icon: const Icon(Icons.refresh), onPressed: onRetry)
+              : null,
+        ),
+      ),
+    );
+  }
+}
 ```
 
 ---
 
-## Connection Lifecycle (Splash → Dashboard)
+## Connection Lifecycle (Splash → mDNS → Dashboard)
 
 ```
 App Launch
@@ -210,58 +178,48 @@ App Launch
     ▼
 SplashScreen
     │
-    ├──► Load AppConfig from shared_preferences
-    │         (Pi5 URL, network mode)
-    │
-    ├──► Attempt WebSocket connect to Pi5
+    ├──► Check Biometric Auth (if enabled in settings) ──► Fail ──► Lock Screen
+    │                                                     Pass
+    │                                                       │
+    ├──► Load AppConfig from shared_preferences             │
+    │         (Pi 5 URL, network mode)                      │
+    │                                                       │
+    ├──► Is Pi 5 Host IP set? ──────────────────────────────┘
+    │         ├── NO  ──► Broadcast mDNS search for horaizon.local (multicast_dns)
+    │         │                ├── Found ──► Save IP & Connect
+    │         │                └── Not Found ──► Show Settings Screen
+    │         └── YES
+    │              │
+    │              ▼
+    ├──► Attempt HBP v2 WebSocket connect to Pi 5 (ws://host:7700/hbp)
     │         hbpClientProvider.build()
     │
-    ├── [Success] ──► governor.status request
-    │                      │
-    │                 [Success] ──► GoRouter.push('/dashboard')
-    │                 [Failure] ──► Dashboard with degraded state banner
+    ├── [Success] ──► governor.status request ──► GoRouter.go('/dashboard')
     │
-    └── [Timeout 5s] ──► Show "Cannot reach Pi5" screen
-                              │
-                         [Retry button] or [Settings]
+    └── [Timeout 5s] ──► Render degraded UI with ConnectionStatusBanner
 ```
 
 ---
 
-## Theme System
+## Reconnect Testing Strategy
 
-The theme follows the Material 3 HCT (Hue-Chroma-Tone) color system. Seed colors generate the full `ColorScheme` dynamically.
+To verify the acceptance criterion *"Connection drop → reconnect → state restores without app restart"*:
 
-| Theme Preset | Seed Color | Brightness | Personality |
-| :--- | :--- | :--- | :--- |
-| `midnightGlass` (default) | HSL(220, 40%, 20%) | Dark | Primary UI — deep navy |
-| `warmPaper` | HSL(38, 60%, 50%) | Light | Diary canvas feel |
-| `cyberNeon` | HSL(160, 100%, 40%) | Dark | High contrast cyberpunk |
-| `emeraldForest` | HSL(145, 50%, 35%) | Dark | Rich green depth |
-
-Typography:
-- **UI / Headlines**: Outfit
-- **Body / Reading**: Lora (diary canvas only)
-- **Code / Monospace**: JetBrains Mono
-
----
-
-## Phase 1 Acceptance Criteria
-
-- [ ] App launches on Windows without crash
-- [ ] App launches on Android (Moto G84) without crash
-- [ ] `SplashScreen` connects to Pi5 at `100.67.11.0:7700` via Tailscale
-- [ ] `DashboardScreen` displays Governor module status from `governor.status`
-- [ ] `SettingsScreen` persists Pi5 URL to `shared_preferences`
-- [ ] Navigation between all Phase 1 screens works on both platforms
-- [ ] Connection drop → reconnect → state restores without app restart
-- [ ] GoRouter deep links work on both platforms
+1. **Automated Unit & Widget Tests**:
+   - `test/core/hbp/hbp_client_test.dart` uses a `MockWebSocketChannel` stream controller.
+   - Emits an abrupt socket close event (`onDone`), asserts `HbpConnectionState.reconnecting`, verifies exponential backoff timers (1s, 2s, 4s... 30s), and verifies automatic state re-subscription upon reconnect.
+2. **Manual Hardware Verification**:
+   - Run `client_flutter` on Windows or Android.
+   - Stop `shua_governor` daemon on Pi 5 (`sudo systemctl stop shua-governor`).
+   - Observe `ConnectionStatusBanner` displaying red offline state.
+   - Restart `shua_governor` daemon (`sudo systemctl start shua-governor`).
+   - Confirm `ConnectionStatusBanner` transitions to green pulse and UI state auto-refreshes without restarting app.
 
 ---
 
 ## References
 
 - `_architecture/contracts/hbp/hbp_v2_spec.md` — Wire protocol
-- `_architecture/specs/shua_governor/shua_governor_spec.md` — Governor API
-- `_architecture/decisions/ADR-001_native_over_sdui.md` — Why no SDUI
-- `_architecture/reference/client_flutter.md` — 2.0 Flutter topology (historical)
+- `_architecture/contracts/mcp/mcp_master_spec.md` — Master MCP specification
+- `_architecture/decisions/ADR-001_native_over_sdui.md` — Native over SDUI decision
+- `_architecture/tasks/master_task_roadmap.md` — Master task roadmap

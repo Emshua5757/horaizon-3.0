@@ -1,0 +1,42 @@
+{
+  "hbp_frame": {
+    "_comment": "12-byte fixed HBP header layout. These are not mapped to integers \u2014 they are protocol-level byte constants used by the binary codec in every language.",
+    "magic_bytes": [
+      "0x48",
+      "0x42"
+    ],
+    "protocol_version": "0x01",
+    "max_payload_bytes": 5242880,
+    "message_types": {
+      "_comment": "Byte 3 of the HBP header. Groups A\u2013D. Generated as HbpMessageType enum/constants in each language.",
+      "HANDSHAKE": "0x00",
+      "REQUEST": "0x01",
+      "RESPONSE": "0x02",
+      "ERROR": "0x03",
+      "TELEMETRY": "0x04",
+      "EVOLUTION": "0x05",
+      "PING": "0x06",
+      "PONG": "0x07",
+      "STREAM_CHUNK": "0x08",
+      "STREAM_END": "0x09",
+      "BINARY_PIPELINE": "0x0A",
+      "BROADCAST": "0x0B",
+      "CANCEL": "0x0C",
+      "FLOW_CONTROL": "0x0D",
+      "BATCH_REQUEST": "0x0E",
+      "BATCH_RESPONSE": "0x0F",
+      "REKEY": "0x10",
+      "STATE_SYNC": "0x11",
+      "LOG": "0x12"
+    },
+    "error_categories": {
+      "_comment": "Byte 0 of the 0x03 Error payload. Generated as HbpErrorCategory enum.",
+      "TRANSPORT": "0x01",
+      "AUTH_SECURITY": "0x02",
+      "RPC_ROUTING": "0x03",
+      "DATABASE": "0x04",
+      "EVOLUTION_SANDBOX": "0x05",
+      "RESOURCE_EXHAUSTION": "0x06"
+    }
+  }
+}

@@ -19,6 +19,22 @@ index       = 3
 name        = "label"
 type        = "str"
 
+[[structs]]
+name        = "EntryUpdatedEvent"
+description = "Server-pushed real-time entry update event for multi-device optimistic concurrency"
+[[structs.fields]]
+index       = 1
+name        = "entry_id"
+type        = "str"
+[[structs.fields]]
+index       = 2
+name        = "block_id"
+type        = "str"
+[[structs.fields]]
+index       = 3
+name        = "version"
+type        = "u32"
+
 # ---------------------------------------------------------------------------
 # Operations
 # ---------------------------------------------------------------------------
@@ -52,10 +68,46 @@ response_struct = ""
 
 [[operations]]
 module          = "shua.diary"
+name            = "entry.save"
+type            = "rpc"
+requires_auth   = true
+description     = "Upsert diary entry metadata or block array with optimistic version check"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
 name            = "entry.delete"
 type            = "rpc"
 requires_auth   = true
 description     = "Delete a diary entry"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "search"
+type            = "rpc"
+requires_auth   = true
+description     = "Full-text search (FTS5) across diary entry text and block contents"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "media.upload"
+type            = "rpc"
+requires_auth   = true
+description     = "Upload binary media file to Pi 5 Content-Addressable Media Vault"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "media.get"
+type            = "rpc"
+requires_auth   = true
+description     = "Retrieve media file metadata and URL from Media Vault"
 request_struct  = ""
 response_struct = ""
 
@@ -85,6 +137,14 @@ requires_auth   = true
 description     = "Delete a diary block"
 request_struct  = ""
 response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "entry.updated"
+type            = "event"
+requires_auth   = true
+description     = "Server-pushed real-time entry update notification"
+event_struct    = "EntryUpdatedEvent"
 
 [[operations]]
 module          = "shua.diary"

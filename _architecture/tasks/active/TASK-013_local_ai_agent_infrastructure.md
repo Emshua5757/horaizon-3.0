@@ -82,8 +82,8 @@ services:
       - "5678:5678"
     environment:
       - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=shua
-      - N8N_BASIC_AUTH_PASSWORD=horaizon3
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:-shua}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD} # Loaded from .env.local
       - N8N_HOST=localhost
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
@@ -92,12 +92,25 @@ services:
       - TZ=Asia/Manila
       # Point n8n's Ollama node to host Ollama
       - OLLAMA_HOST=http://host.docker.internal:11434
+    env_file:
+      - .env.local
     volumes:
       - n8n_data:/home/node/.n8n
-      # Mount the repo so n8n can read/write task files directly
+      # Mount the workspace with git branch isolation rules
       - c:/horaizon-3.0:/workspace
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+---
+
+## Security & Blast-Radius Directives
+
+> [!IMPORTANT]
+> **Autonomous Agent Safety & Branch Isolation Rules**:
+> 1. **Secret Isolation**: `N8N_BASIC_AUTH_PASSWORD` MUST be stored in `tools/n8n_agent/.env.local` (never committed to git, listed in `.gitignore`).
+> 2. **Git Feature Branch Isolation**: The Autonomous Executor NEVER commits code directly to `main`. It MUST create a dedicated feature branch per task (`task/agent-TASK-XXX-description`) before running `aider`.
+> 3. **Human PR Merge Gate**: Once code execution passes `cargo check` / `flutter analyze`, the Executor opens a Git diff Pull Request artifact. The branch is merged to `main` using `--no-ff` ONLY after explicit user review and approval.
+
 
   # ---- Qdrant: Local vector store for RAG ----
   qdrant:

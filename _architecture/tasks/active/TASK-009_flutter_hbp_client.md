@@ -1,4 +1,4 @@
-# TASK-009 — `client_flutter` HBP v2 Client & Native Logging Engine
+# TASK-009 — `client_flutter` HBP v2 Client, Native Logging Engine & Shared UI Utilities
 
 | Field | Value |
 | :--- | :--- |
@@ -6,7 +6,7 @@
 | **Phase** | Phase 1 |
 | **Type** | AI-executable |
 | **Language** | Dart |
-| **Target** | `client_flutter/lib/core/hbp/`, `lib/core/logging/` |
+| **Target** | `client_flutter/lib/core/hbp/`, `lib/core/logging/`, `lib/shared/widgets/` |
 | **Blocks** | TASK-010, TASK-011 |
 | **Prerequisites** | TASK-008 complete |
 
@@ -20,6 +20,7 @@
 > - **In 3.0**:
 >   1. **`HorizonWebSocketProvider`**: A clean, reusable Riverpod `AsyncNotifier<WebSocketChannel>` that handles connection lifecycle, heartbeat ping/pong, and reconnect with exponential backoff. Each feature module instantiates its own typed WS stream (e.g. `governorWsProvider`, `diaryWsProvider`).
 >   2. **`GovernorLogger`**: Emits structured telemetry logs directly over the HBP v2 WebSocket connection to `shua_governor` port 7700. Zero local database coupling.
+>   3. **Shared `AsyncValueView<T>`**: Provides a standardized Riverpod `AsyncValue` wrapper for consistent loading shimmers and error card rendering across all screens.
 
 Read `_architecture/contracts/hbp/hbp_v2_spec.md` in full before implementing.
 
@@ -359,7 +360,60 @@ class GovernorLogger {
 
 ---
 
-## Step 4: `lib/core/hbp/hbp_client_provider.dart` — Riverpod provider
+## Step 4: `lib/shared/widgets/async_value_view.dart` — Shared Riverpod UI Wrapper
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+class AsyncValueView<T> extends StatelessWidget {
+  final AsyncValue<T> value;
+  final Widget Function(T data) builder;
+  final VoidCallback? onRetry;
+
+  const AsyncValueView({
+    super.key,
+    required this.value,
+    required this.builder,
+    this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return value.when(
+      data: builder,
+      loading: () => const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: CircularProgressIndicator(),
+        ),
+      ),
+      error: (err, stack) => Card(
+        margin: const EdgeInsets.all(16),
+        color: Theme.of(context).colorScheme.errorContainer,
+        child: ListTile(
+          leading: Icon(Icons.error_outline, color: Theme.of(context).colorScheme.onErrorContainer),
+          title: Text(
+            'Error: $err',
+            style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+          ),
+          trailing: onRetry != null
+              ? IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: onRetry,
+                  tooltip: 'Retry',
+                )
+              : null,
+        ),
+      ),
+    );
+  }
+}
+```
+
+---
+
+## Step 5: `lib/core/hbp/hbp_client_provider.dart` — Riverpod provider
 
 ```dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -384,11 +438,28 @@ final hbpConnectionStateProvider = StreamProvider<HbpConnectionState>((ref) asyn
 
 ---
 
+## Testing Strategy & Reconnect Verification
+
+```dart
+// test/core/hbp/hbp_client_test.dart
+void main() {
+  test('HbpClient handles socket drop and enters reconnecting state', () async {
+    // 1. Instantiates HbpClient with MockWebSocketChannel
+    // 2. Emits close event (onDone)
+    // 3. Verifies currentState transitions to HbpConnectionState.reconnecting
+    // 4. Verifies exponential backoff timer fires and attempts reconnect
+  });
+}
+```
+
+---
+
 ## Acceptance Criteria
 
 - [ ] `HbpFrame` correctly encodes and decodes all 6 frame types
 - [ ] `HbpClient` connects to `ws://host:port/hbp` and sends ping every 15s
 - [ ] Reconnect uses exponential backoff (1s, 2s, 4s… up to 30s)
+- [ ] Unit test verifies reconnect backoff behavior on socket drop
 - [ ] `GovernorLogger` emits structured telemetry logs over WebSocket to `shua_governor` with zero Drift DB coupling
-- [ ] `hbpConnectionStateProvider` emits live state updates
+- [ ] `AsyncValueView<T>` widget implemented and used across feature screens
 - [ ] `flutter analyze` — 0 errors
