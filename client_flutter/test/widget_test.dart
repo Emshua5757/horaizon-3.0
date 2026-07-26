@@ -1,5 +1,5 @@
-// Basic Flutter widget test for horAIzon 3.0
-
+import 'package:client_flutter/core/hbp/hbp_client_provider.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -7,10 +7,21 @@ import 'package:client_flutter/app.dart';
 
 void main() {
   testWidgets('HoraizonApp renders main title smoke test', (WidgetTester tester) async {
-    // Build our app wrapped in ProviderScope and trigger a frame.
-    await tester.pumpWidget(const ProviderScope(child: HoraizonApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          hbpClientProvider.overrideWith((ref) async {
+            throw Exception('Offline test override');
+          }),
+        ],
+        child: const HoraizonApp(),
+      ),
+    );
 
-    // Verify that 'horAIzon 3.0' text widget exists.
+    await tester.pump();
+
     expect(find.text('horAIzon 3.0'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
   });
 }

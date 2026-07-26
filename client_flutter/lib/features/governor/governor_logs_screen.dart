@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 
-/// Dashboard screen — placeholder.
+/// Governor logs screen — placeholder.
 /// TODO: Implemented in TASK-011 (TASK-011_flutter_dashboard_governor_screens.md)
-class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key});
+class GovernorLogsScreen extends StatelessWidget {
+  const GovernorLogsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
       body: Center(
-        child: Text('Dashboard — TASK-011'),
+        child: Text('Governor Logs — TASK-011'),
       ),
     );
   }
