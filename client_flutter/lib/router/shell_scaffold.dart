@@ -4,9 +4,14 @@ import 'package:go_router/go_router.dart';
 import '../core/hbp/hbp_client_provider.dart';
 import '../core/hbp/hbp_client.dart';
 
+/// StateProvider for expanding/minimizing the desktop navigation sidebar.
+final isSidebarExpandedProvider = StateProvider<bool>((ref) => true);
+
 /// State-of-the-art responsive navigation shell for horAIzon 3.0.
-/// Enforces clean global system destinations (Dashboard, Global Chat, Terminal, Settings).
-/// Sub-modules (Diary, Resume, Code Visualizer) are launched from the Dashboard launchpad.
+/// Implements 3 responsive modes strictly aligned with Stitch designs:
+/// 1. Desktop Expanded (260px width) — `Desktop | Dashboard - Telemetry Sidebar`
+/// 2. Desktop Minimized (80px width) — `Desktop | Dashboard - Minimized Sidebar`
+/// 3. Mobile Compact — `Mobile | Dashboard - Compact`
 class ShellScaffold extends ConsumerWidget {
   final Widget child;
 
@@ -29,7 +34,7 @@ class ShellScaffold extends ConsumerWidget {
       icon: Icons.terminal_outlined,
       selectedIcon: Icons.terminal_rounded,
       label: 'Terminal',
-      path: '/governor/logs',
+      path: '/terminal',
     ),
     _Dest(
       icon: Icons.settings_outlined,
@@ -52,20 +57,24 @@ class ShellScaffold extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedIndex = _selectedIndex(context);
-    final isWide = MediaQuery.of(context).size.width >= 640;
+    final mediaWidth = MediaQuery.of(context).size.width;
+    final isMobile = mediaWidth < 640;
+    final isExpanded = ref.watch(isSidebarExpandedProvider) && mediaWidth >= 900;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final connState = ref.watch(hbpConnectionStateProvider).valueOrNull ?? HbpConnectionState.disconnected;
 
-    if (isWide) {
+    if (!isMobile) {
       return Scaffold(
         body: Row(
           children: [
-            // Premium Glassmorphic Side Navigation Panel
-            Container(
-              width: 104,
+            // Glassmorphic Desktop Side Navigation Sidebar (Expanded vs Minimized Rail)
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              width: isExpanded ? 260 : 80,
               decoration: BoxDecoration(
-                color: cs.surface,
+                color: const Color(0xFF090D16),
                 border: Border(
                   right: BorderSide(
                     color: cs.primary.withValues(alpha: 0.15),
@@ -75,90 +84,85 @@ class ShellScaffold extends ConsumerWidget {
               ),
               child: Column(
                 children: [
-                  const SizedBox(height: 24),
-                  // App Brand Logo Emblem
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [
-                          cs.primary,
-                          cs.secondary,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: cs.primary.withValues(alpha: 0.35),
-                          blurRadius: 16,
-                          spreadRadius: 1,
-                        ),
-                      ],
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'h3',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -1,
-                        ),
-                      ),
-                    ),
+                  const SizedBox(height: 20),
+                  // Header: Profile & Status Indicator
+                  _SidebarHeader(
+                    isExpanded: isExpanded,
+                    connState: connState,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'horAIzon',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: cs.primary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 16),
                   const Divider(indent: 16, endIndent: 16, height: 1),
                   const SizedBox(height: 16),
-                  // Navigation Items
+
+                  // 4 Primary Global Navigation Destinations
                   Expanded(
                     child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
                       itemCount: _destinations.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, i) {
                         final d = _destinations[i];
                         final isSelected = selectedIndex == i;
                         return _NavTile(
                           destination: d,
                           isSelected: isSelected,
+                          isExpanded: isExpanded,
                           onTap: () => context.go(d.path),
                         );
                       },
                     ),
                   ),
-                  // Connection Status Pill Footer
-                  _ConnectionFooter(connState: connState),
+
+                  // Sidebar Collapse/Expand Toggle Button at Bottom
+                  IconButton(
+                    icon: Icon(
+                      isExpanded
+                          ? Icons.arrow_back_ios_new_rounded
+                          : Icons.arrow_forward_ios_rounded,
+                      color: cs.onSurface.withValues(alpha: 0.5),
+                      size: 18,
+                    ),
+                    onPressed: () {
+                      ref.read(isSidebarExpandedProvider.notifier).state = !isExpanded;
+                    },
+                    tooltip: isExpanded ? 'Minimize Sidebar' : 'Expand Sidebar',
+                  ),
                   const SizedBox(height: 16),
                 ],
               ),
             ),
-            // Main Screen Body
-            Expanded(child: child),
+
+            // Main Screen Canvas with Top History Navigation Header (< and >)
+            Expanded(
+              child: Column(
+                children: [
+                  // Global Top Navigation History Bar
+                  _TopHistoryHeader(
+                    title: _destinations[selectedIndex].label,
+                  ),
+                  // Active Screen Child
+                  Expanded(child: child),
+                ],
+              ),
+            ),
           ],
         ),
       );
     }
 
-    // Mobile / Narrow Glassmorphic Bottom Navigation Bar
+    // Mobile / Compact Bottom Navigation Shell (`Mobile | Dashboard - Compact`)
     return Scaffold(
-      body: child,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _TopHistoryHeader(title: _destinations[selectedIndex].label),
+            Expanded(child: child),
+          ],
+        ),
+      ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: cs.surface.withValues(alpha: 0.92),
+          color: const Color(0xFF090D16),
           border: Border(
             top: BorderSide(
               color: cs.primary.withValues(alpha: 0.2),
@@ -170,7 +174,7 @@ class ShellScaffold extends ConsumerWidget {
           selectedIndex: selectedIndex,
           onDestinationSelected: (i) => context.go(_destinations[i].path),
           backgroundColor: Colors.transparent,
-          indicatorColor: cs.primaryContainer,
+          indicatorColor: cs.primary.withValues(alpha: 0.2),
           elevation: 0,
           destinations: _destinations
               .map((d) => NavigationDestination(
@@ -185,14 +189,184 @@ class ShellScaffold extends ConsumerWidget {
   }
 }
 
+/// Top Navigation Header incorporating Route History Back (`<`) and Forward (`>`) controls.
+class _TopHistoryHeader extends StatelessWidget {
+  final String title;
+
+  const _TopHistoryHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final canPop = context.canPop();
+
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF090D16).withValues(alpha: 0.8),
+        border: Border(
+          bottom: BorderSide(
+            color: cs.primary.withValues(alpha: 0.1),
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Back Button (<)
+          IconButton(
+            icon: Icon(
+              Icons.chevron_left_rounded,
+              color: canPop ? cs.primary : cs.onSurface.withValues(alpha: 0.3),
+              size: 26,
+            ),
+            onPressed: canPop ? () => context.pop() : null,
+            tooltip: 'Go Back',
+          ),
+          const SizedBox(width: 4),
+          // Forward Button (>)
+          IconButton(
+            icon: Icon(
+              Icons.chevron_right_rounded,
+              color: cs.onSurface.withValues(alpha: 0.3),
+              size: 26,
+            ),
+            onPressed: null, // GoRouter pop-forward stack placeholder
+            tooltip: 'Go Forward',
+          ),
+          const SizedBox(width: 16),
+          Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: cs.onSurface,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const Spacer(),
+          // System Uptime Indicator
+          Text(
+            'Uptime: 14d 06h 22m',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: cs.onSurface.withValues(alpha: 0.5),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Sidebar Header displaying Profile Avatar & RPi5 LED Connection Status.
+class _SidebarHeader extends StatelessWidget {
+  final bool isExpanded;
+  final HbpConnectionState connState;
+
+  const _SidebarHeader({
+    required this.isExpanded,
+    required this.connState,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final (statusColor, statusText) = switch (connState) {
+      HbpConnectionState.connected    => (const Color(0xFF2DD4BF), 'RPi5 Connected'),
+      HbpConnectionState.connecting   => (Colors.amber, 'Connecting...'),
+      HbpConnectionState.reconnecting => (Colors.orange, 'Retrying...'),
+      HbpConnectionState.disconnected => (const Color(0xFFEF4444), 'RPi5 Disconnected'),
+    };
+
+    if (!isExpanded) {
+      return Tooltip(
+        message: 'Joshua B. Ygot ($statusText)',
+        child: CircleAvatar(
+          radius: 20,
+          backgroundColor: statusColor.withValues(alpha: 0.2),
+          child: CircleAvatar(
+            radius: 16,
+            backgroundColor: cs.primaryContainer,
+            child: Icon(Icons.person_rounded, size: 18, color: cs.primary),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: statusColor.withValues(alpha: 0.2),
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: cs.primaryContainer,
+              child: Icon(Icons.person_rounded, size: 18, color: cs.primary),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Joshua B. Ygot',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: statusColor,
+                        boxShadow: [
+                          BoxShadow(color: statusColor, blurRadius: 4),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        statusText,
+                        style: TextStyle(
+                          color: statusColor,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _NavTile extends StatelessWidget {
   final _Dest destination;
   final bool isSelected;
+  final bool isExpanded;
   final VoidCallback onTap;
 
   const _NavTile({
     required this.destination,
     required this.isSelected,
+    required this.isExpanded,
     required this.onTap,
   });
 
@@ -200,107 +374,58 @@ class _NavTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    const activeColor = Color(0xFF00E5FF);
 
     return Tooltip(
-      message: destination.label,
+      message: isExpanded ? '' : destination.label,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: EdgeInsets.symmetric(
+            horizontal: isExpanded ? 16 : 0,
+            vertical: 12,
+          ),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             color: isSelected
-                ? cs.primary.withValues(alpha: 0.15)
+                ? activeColor.withValues(alpha: 0.12)
                 : Colors.transparent,
             border: isSelected
-                ? Border.all(color: cs.primary.withValues(alpha: 0.4), width: 1.5)
-                : Border.all(color: Colors.transparent, width: 1.5),
+                ? Border.all(color: activeColor.withValues(alpha: 0.4), width: 1)
+                : Border.all(color: Colors.transparent, width: 1),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: cs.primary.withValues(alpha: 0.2),
-                      blurRadius: 12,
+                      color: activeColor.withValues(alpha: 0.15),
+                      blurRadius: 10,
                     )
                   ]
                 : null,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: Row(
+            mainAxisAlignment:
+                isExpanded ? MainAxisAlignment.start : MainAxisAlignment.center,
             children: [
               Icon(
                 isSelected ? destination.selectedIcon : destination.icon,
-                color: isSelected ? cs.primary : cs.onSurface.withValues(alpha: 0.6),
-                size: 26,
+                color: isSelected ? activeColor : cs.onSurface.withValues(alpha: 0.6),
+                size: 22,
               ),
-              const SizedBox(height: 6),
-              Text(
-                destination.label,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: isSelected ? cs.primary : cs.onSurface.withValues(alpha: 0.6),
-                  fontSize: 10,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              if (isExpanded) ...[
+                const SizedBox(width: 12),
+                Text(
+                  destination.label,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: isSelected ? activeColor : cs.onSurface.withValues(alpha: 0.7),
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ConnectionFooter extends StatelessWidget {
-  final HbpConnectionState connState;
-
-  const _ConnectionFooter({required this.connState});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final (color, label) = switch (connState) {
-      HbpConnectionState.connected    => (const Color(0xFF00E5A0), 'ONLINE'),
-      HbpConnectionState.connecting   => (Colors.amber, 'CONNECTING'),
-      HbpConnectionState.reconnecting => (Colors.orange, 'RETRYING'),
-      HbpConnectionState.disconnected => (cs.error, 'OFFLINE'),
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color,
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.8),
-                  blurRadius: 6,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 9,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.8,
-            ),
-          ),
-        ],
       ),
     );
   }
