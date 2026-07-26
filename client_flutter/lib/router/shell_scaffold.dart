@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../core/hbp/hbp_client_provider.dart';
 import '../core/hbp/hbp_client.dart';
+import '../features/governor/governor_provider.dart';
 
 /// StateProvider for expanding/minimizing the desktop navigation sidebar.
 final isSidebarExpandedProvider = StateProvider<bool>((ref) => true);
@@ -132,11 +133,11 @@ class ShellScaffold extends ConsumerWidget {
               ),
             ),
 
-            // Main Screen Canvas with Top History Navigation Header (< and >)
+            // Main Screen Canvas with Persistent Top Telemetry Navigation Header
             Expanded(
               child: Column(
                 children: [
-                  // Global Top Navigation History Bar
+                  // Global Top Navigation History & Hardware Telemetry Status Bar
                   _TopHistoryHeader(
                     title: _destinations[selectedIndex].label,
                   ),
@@ -189,26 +190,27 @@ class ShellScaffold extends ConsumerWidget {
   }
 }
 
-/// Top Navigation Header incorporating Route History Back (`<`) and Forward (`>`) controls.
-class _TopHistoryHeader extends StatelessWidget {
+/// Top Navigation Header incorporating Route History Back (`<`), Forward (`>`), and Persistent Telemetry Status Meters.
+class _TopHistoryHeader extends ConsumerWidget {
   final String title;
 
   const _TopHistoryHeader({required this.title});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final canPop = context.canPop();
+    final statusAsync = ref.watch(governorStatusProvider);
 
     return Container(
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      height: 54,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF090D16).withValues(alpha: 0.8),
+        color: const Color(0xFF090D16).withValues(alpha: 0.95),
         border: Border(
           bottom: BorderSide(
-            color: cs.primary.withValues(alpha: 0.1),
+            color: cs.primary.withValues(alpha: 0.12),
             width: 1,
           ),
         ),
@@ -225,7 +227,6 @@ class _TopHistoryHeader extends StatelessWidget {
             onPressed: canPop ? () => context.pop() : null,
             tooltip: 'Go Back',
           ),
-          const SizedBox(width: 4),
           // Forward Button (>)
           IconButton(
             icon: Icon(
@@ -233,10 +234,10 @@ class _TopHistoryHeader extends StatelessWidget {
               color: cs.onSurface.withValues(alpha: 0.3),
               size: 26,
             ),
-            onPressed: null, // GoRouter pop-forward stack placeholder
+            onPressed: null,
             tooltip: 'Go Forward',
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 8),
           Text(
             title,
             style: theme.textTheme.titleMedium?.copyWith(
@@ -244,13 +245,106 @@ class _TopHistoryHeader extends StatelessWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
-          const Spacer(),
-          // System Uptime Indicator
-          Text(
-            'Uptime: 14d 06h 22m',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: cs.onSurface.withValues(alpha: 0.5),
+          const SizedBox(width: 16),
+
+          // Persistent Telemetry & Hardware Meters (Overflow-safe Horizontal Scroll View)
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: statusAsync.when(
+                  data: (status) => Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // CPU Gauge Pill
+                      _StatusPill(
+                        icon: Icons.memory_rounded,
+                        label: 'CPU',
+                        value: '${status.cpuUsagePct.toStringAsFixed(0)}%',
+                        color: const Color(0xFF00E5FF),
+                      ),
+                      const SizedBox(width: 8),
+                      // RAM Ceiling Pill
+                      _StatusPill(
+                        icon: Icons.storage_rounded,
+                        label: 'RAM',
+                        value: '${(status.totalRamMb / 1024).toStringAsFixed(1)}/7.1G',
+                        color: const Color(0xFF6366F1),
+                      ),
+                      const SizedBox(width: 8),
+                      // SoC Temp Pill
+                      _StatusPill(
+                        icon: Icons.thermostat_rounded,
+                        label: 'Temp',
+                        value: '${status.socTempC}°C',
+                        color: const Color(0xFFF59E0B),
+                      ),
+                      const SizedBox(width: 8),
+                      // Tailscale Ping Pill
+                      _StatusPill(
+                        icon: Icons.wifi_rounded,
+                        label: 'Ping',
+                        value: '${status.tailscaleLatencyMs}ms',
+                        color: const Color(0xFF2DD4BF),
+                      ),
+                      const SizedBox(width: 8),
+                      // Active AI Model Pill
+                      _StatusPill(
+                        icon: Icons.auto_awesome_rounded,
+                        label: 'AI Model',
+                        value: status.loadedModel?.split(' ').first ?? 'qwen2.5:1.5b',
+                        color: const Color(0xFF00E5FF),
+                      ),
+                    ],
+                  ),
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
+                ),
+              ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact Telemetry Status Pill for Top Navigation Header.
+class _StatusPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  const _StatusPill({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            '$label: ',
+            style: const TextStyle(color: Colors.white60, fontSize: 10),
+          ),
+          Text(
+            value,
+            style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
           ),
         ],
       ),
