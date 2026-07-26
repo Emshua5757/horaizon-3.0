@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 enum SurfaceMode { cyberObsidian, oledPureBlack, midnightSpace, warmLight }
 
@@ -7,9 +6,6 @@ enum TypographyProfile { modernOutfit, cyberMono, editorialLora }
 
 /// Pure mathematical compiler translating primary/secondary seeds and surface modes
 /// into a full Material 3 ThemeData object with glowing borders and glassmorphism.
-///
-/// Time Complexity: O(1) — pure mathematical color transformation.
-/// Space Complexity: O(1) — no allocations beyond ThemeData.
 class ThemeCompiler {
   static ThemeData compile({
     required Brightness brightness,
@@ -79,6 +75,55 @@ class ThemeCompiler {
         foregroundColor: scheme.onSurface,
         elevation: 0,
         scrolledUnderElevation: 1,
+        titleTextStyle: textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.5,
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: primarySeed,
+          foregroundColor: Colors.black,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: scheme.onSurface,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          side: BorderSide(color: primarySeed.withValues(alpha: 0.5), width: 1.5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: scheme.surfaceContainerLow.withValues(alpha: 0.6),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: scheme.outlineVariant),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.4)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: primarySeed, width: 2),
+        ),
+      ),
+      listTileTheme: ListTileThemeData(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        iconColor: primarySeed,
+      ),
+      dividerTheme: DividerThemeData(
+        color: scheme.outlineVariant.withValues(alpha: 0.25),
+        thickness: 1,
       ),
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: scaffoldBg,

@@ -6,9 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../core/hbp/hbp_client_provider.dart';
 import '../core/hbp/hbp_client.dart';
 
-/// Splash screen displayed on app launch.
-/// Attempts to connect to the shua_governor HBP v2 WebSocket.
-/// On success → routes to /dashboard. On failure → shows retry UI.
+/// Premium cybernetic splash screen for horAIzon 3.0.
+/// Pings shua_governor HBP v2 WebSocket on launch.
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
@@ -20,7 +19,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulseCtrl;
   late Animation<double> _pulse;
-  String _statusText = 'Connecting to Pi 5…';
+  String _statusText = 'Establishing HBP v2 Connection…';
   bool _failed = false;
 
   @override
@@ -30,7 +29,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
-    _pulse = Tween<double>(begin: 0.6, end: 1.0).animate(
+    _pulse = Tween<double>(begin: 0.7, end: 1.0).animate(
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
     _attemptConnect();
@@ -38,22 +37,21 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   Future<void> _attemptConnect() async {
     setState(() {
-      _statusText = 'Connecting to Pi 5…';
+      _statusText = 'Connecting to Governor port 7700…';
       _failed = false;
     });
 
     try {
-      // Watch the hbpClientProvider to trigger connection
       final client = await ref.read(hbpClientProvider.future).timeout(
         const Duration(seconds: 8),
-        onTimeout: () => throw TimeoutException('Governor not reachable'),
+        onTimeout: () => throw TimeoutException('Governor connection timeout'),
       );
 
       if (!mounted) return;
 
       if (client.currentState == HbpConnectionState.connected) {
-        setState(() => _statusText = 'Connected ✓');
-        await Future.delayed(const Duration(milliseconds: 600));
+        setState(() => _statusText = 'Connected to Pi 5 ✓');
+        await Future.delayed(const Duration(milliseconds: 500));
         if (mounted) context.go('/dashboard');
       } else {
         _setFailed();
@@ -65,7 +63,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   void _setFailed() {
     setState(() {
-      _statusText = 'Could not reach Governor';
+      _statusText = 'Governor unreachable on LAN/Tailscale';
       _failed = true;
     });
   }
@@ -79,90 +77,155 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
 
     return Scaffold(
+      backgroundColor: cs.surface,
       body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Animated logo emblem
-            AnimatedBuilder(
-              animation: _pulse,
-              builder: (_, __) => Opacity(
-                opacity: _pulse.value,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        cs.primary.withValues(alpha: 0.6),
-                        cs.surface,
-                      ],
-                    ),
-                    border: Border.all(color: cs.primary, width: 2.5),
-                  ),
-                  child: Center(
-                    child: Text(
-                      'hAI',
-                      style: TextStyle(
-                        color: cs.primary,
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Glowing Cyber Emblem Logo
+                AnimatedBuilder(
+                  animation: _pulse,
+                  builder: (_, __) => Transform.scale(
+                    scale: _pulse.value,
+                    child: Container(
+                      width: 140,
+                      height: 140,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            cs.primary.withValues(alpha: 0.35),
+                            cs.surface,
+                          ],
+                        ),
+                        border: Border.all(
+                          color: cs.primary.withValues(alpha: 0.8),
+                          width: 3,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: cs.primary.withValues(alpha: 0.4),
+                            blurRadius: 32,
+                            spreadRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          'h3',
+                          style: TextStyle(
+                            color: cs.primary,
+                            fontSize: 44,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -2,
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 32),
-            Text(
-              'horAIzon 3.0',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                const SizedBox(height: 36),
+                // App Title
+                Text(
+                  'horAIzon 3.0',
+                  style: theme.textTheme.headlineMedium?.copyWith(
                     color: cs.onSurface,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2.0,
                   ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _statusText,
-              style: TextStyle(
-                color: _failed ? cs.error : cs.primary,
-                fontSize: 14,
-              ),
-            ),
-            if (!_failed) ...[
-              const SizedBox(height: 24),
-              SizedBox(
-                width: 200,
-                child: LinearProgressIndicator(
-                  color: cs.primary,
-                  backgroundColor: cs.primary.withValues(alpha: 0.2),
                 ),
-              ),
-            ],
-            if (_failed) ...[
-              const SizedBox(height: 24),
-              FilledButton.icon(
-                onPressed: () {
-                  // Invalidate provider to re-trigger connection
-                  ref.invalidate(hbpClientProvider);
-                  _attemptConnect();
-                },
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
-              ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => context.go('/dashboard'),
-                child: const Text('Continue Offline'),
-              ),
-            ],
-          ],
+                const SizedBox(height: 8),
+                Text(
+                  'AI-Native Autonomous Workspace',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: cs.onSurface.withValues(alpha: 0.6),
+                    letterSpacing: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 36),
+                // Status Badge Container
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: (_failed ? cs.error : cs.primary).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: (_failed ? cs.error : cs.primary).withValues(alpha: 0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: _failed
+                            ? Icon(Icons.error_outline, size: 12, color: cs.error)
+                            : CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: cs.primary,
+                              ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        _statusText,
+                        style: TextStyle(
+                          color: _failed ? cs.error : cs.primary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_failed) ...[
+                  const SizedBox(height: 32),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          ref.invalidate(hbpClientProvider);
+                          _attemptConnect();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: cs.primary,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry Connection'),
+                      ),
+                      const SizedBox(width: 12),
+                      OutlinedButton(
+                        onPressed: () => context.go('/dashboard'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: cs.onSurface,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                          side: BorderSide(color: cs.outlineVariant),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: const Text('Continue Offline'),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/chat/global_chat_screen.dart';
 import '../features/governor/governor_status_screen.dart';
 import '../features/governor/governor_ollama_screen.dart';
 import '../features/governor/governor_logs_screen.dart';
@@ -31,6 +32,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/dashboard',
             builder: (_, __) => const DashboardScreen(),
+          ),
+          GoRoute(
+            path: '/chat',
+            builder: (_, __) => const GlobalChatScreen(),
           ),
           GoRoute(
             path: '/settings',
