@@ -65,6 +65,88 @@
 
 ---
 
+## Tool Calling Engine & Loop Engineering (`src/ai/tool_loop_engine.ts`)
+
+> [!TIP]
+> **Pure Code Tool Loop (Zero N8n Dependency)**:
+> Interactive tool calling is a synchronous low-latency cycle. Wrapping this in external N8n webhooks introduces unnecessary HTTP node roundtrips and Docker overhead. `shua_diary` executes tool loops directly in Node.js/TypeScript using the native `runToolLoop` engine.
+
+```typescript
+export async function runToolLoop(
+  prompt: string,
+  tools: McpTool[],
+  options: ToolLoopOptions = { maxIterations: 5, model: "qwen2.5:4b" }
+): Promise<ToolLoopResult> {
+  // 1. Check SQLite Hash Cache
+  const cacheKey = hashPayload(options.model, prompt);
+  const cached = await getCachedInference(cacheKey);
+  if (cached) return cached;
+
+  // 2. Pre-segmentation pass (Fast heuristic/regex - non-LLM)
+  const segments = preSegmentRawNotes(prompt);
+
+  // 3. Prepare byte-identical static prompt prefix for Ollama KV-cache reuse
+  let messages: ChatMessage[] = [
+    { role: "system", content: DIARY_SYSTEM_PROMPT_STATIC },
+    { role: "user", content: prompt }
+  ];
+
+  let iterations = 0;
+  let retries = 0;
+
+  while (iterations < options.maxIterations) {
+    iterations++;
+
+    // 4. Schema-constrained LLM Sampling via Ollama
+    const response = await ollama.chat({
+      model: options.model,
+      messages,
+      tools,
+      format: "json", // Constrains sampling to valid JSON tool call schemas
+    });
+
+    if (!response.message.tool_calls?.length) {
+      const result = { status: "completed", content: response.message.content };
+      await setCachedInference(cacheKey, result);
+      return result;
+    }
+
+    for (const call of response.message.tool_calls) {
+      // 5. Pre-execution schema validation
+      const validation = validateAgainstSchema(call.function.arguments, toolSchemas[call.function.name]);
+
+      if (!validation.ok) {
+        retries++;
+        if (retries >= 2) {
+          // 6. Confidence-Gated Fallback: Mark block unverified instead of full failure
+          const fallbackResult = await executeToolWithFallback(call.function.name, call.function.arguments, { unverified: true });
+          messages.push({ role: "assistant", tool_calls: [call] });
+          messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(fallbackResult) });
+          continue;
+        }
+
+        messages.push({ role: "assistant", tool_calls: [call] });
+        messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ error: true, validation: validation.errors }) });
+        continue;
+      }
+
+      // 7. Execute MCP Tool Call & emit Telemetry
+      const result = await executeMcpTool(call.function.name, call.function.arguments);
+      emitTelemetryLog("info", "TAG_AI_INFERENCE", { tool: call.function.name, trace_id: generateTraceId() });
+
+      messages.push({ role: "assistant", tool_calls: [call] });
+      messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
+    }
+  }
+
+  // 8. Circuit Breaker trigger on max iterations reached
+  emitTelemetryLog("warn", "TAG_AI_INFERENCE", { warning: "Tool loop exceeded max iterations ceiling", iterations });
+  return { status: "partial_success", content: "Completed available blocks with unverified flags." };
+}
+```
+
+---
+
 ## RPC Endpoints Added to WebSocket Data API
 
 - `diary.ai.chat`: Interactive streaming chat session with MCP tool execution.
@@ -80,9 +162,15 @@
 - [ ] `JbcMcpServer` implements MCP standard using `@modelcontextprotocol/sdk`
 - [ ] Exposes all 6 `diary_*` MCP tools with JSON schemas
 - [ ] Exposes `diary://` MCP resources
+- [ ] `runToolLoop` engine enforces max iterations ceiling ($K=5$) and schema validation
+- [ ] Incorporates confidence-gated fallback (`unverified: true`) on 2nd retry attempt
+- [ ] Implements Ollama KV-cache optimization via byte-identical system prompt headers
+- [ ] Caches deterministic tool outcomes in SQLite (`activity.db`)
+- [ ] Emits structured `TAG_AI_INFERENCE` telemetry logs with `trace_id` for every tool execution
 - [ ] Ollama provider executes MCP tool calls natively (zero regex string parsing)
 - [ ] Gemini cloud fallback provider executes identical MCP tools
 - [ ] Analysis worker processes queued jobs asynchronously
 - [ ] Monthly synthesis triggers cleanly from governor scheduler
 - [ ] Zero N8n or Python process dependencies
 - [ ] `0` TypeScript compiler errors or warnings
+

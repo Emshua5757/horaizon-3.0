@@ -27,6 +27,23 @@ The visual orchestration layer is **n8n** (self-hosted), which handles schedulin
 
 ---
 
+## Multi-Agent Hardware Execution Policy (Pi 5 8GB RAM + Laptop 16GB RAM / 4GB VRAM)
+
+To execute multi-agent workflows (Planner + Reviewer personas) on local constrained hardware without overloading RAM/VRAM budgets:
+
+1. **Pattern A — Single-Device Sequential Persona (Default)**:
+   - Run both agents on **one loaded model** sequentially on a single node.
+   - *Step 1*: Load model (`qwen2.5:4b`) with System Prompt = `Planner Persona` → Generate proposed task/block.
+   - *Step 2*: Retain loaded model, switch System Prompt = `Reviewer Persona` → Evaluate & score task (1-10).
+   - **RAM Footprint**: $O(1)$ single model (~2.4GB RAM on Pi 5 or Laptop). Zero model unload/reload penalty.
+
+2. **Pattern B — Dual-Device Hybrid Offload (`offload_device_url` over HBP v2)**:
+   - **Pi 5 (8GB RAM)** hosts the fast primary **Tool Loop** (`shua_diary` / `shua_governor` using 1.5B–4B models).
+   - **Laptop (16GB RAM + 4GB GPU VRAM)** uses Ollama **Hybrid GPU/CPU Layer Offloading** (4GB layers on CUDA VRAM + remaining layers in 16GB System RAM) to comfortably host heavy **7B/8B models** (`qwen2.5:7b` / `llama3.1:8b`).
+   - Communication uses binary MessagePack frames over HBP v2 WebSocket (`ws://laptop:7700/hbp`) with `mod: "shua.governor"` and `op: "mcp.tool_call"`.
+
+---
+
 ## Architecture Diagram
 
 ```

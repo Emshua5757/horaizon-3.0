@@ -1,0 +1,92 @@
+name: client_flutter
+description: "horAIzon 3.0 — Native Flutter client (Windows + Android)"
+version: 0.1.0+1
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+  flutter: '>=3.22.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Navigation
+  go_router: ^14.2.2
+
+  # MessagePack (HBP v2 payload encoding)
+  messagepack: ^0.2.1
+
+  # WebSocket
+  web_socket_channel: ^3.0.1
+
+  # Local persistence (user preferences only: theme, host IP, etc. — NO DB)
+  shared_preferences: ^2.3.1
+
+  # Biometric authentication (Face ID / Touch ID / Fingerprint fallback)
+  local_auth: ^2.2.0
+
+  # mDNS Pi 5 discovery on LAN
+  multicast_dns: ^0.3.2+3
+
+  # Material You Android dynamic color
+  dynamic_color: ^1.7.0
+
+  # UUID generation
+  uuid: ^4.4.0
+
+  # Fonts
+  google_fonts: ^6.2.1
+
+  # Material color utilities (HCT theme)
+  material_color_utilities: ^0.13.0
+
+  # Icons & SVG
+  flutter_svg: ^2.0.10+1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.13.1
+  riverpod_generator: ^2.4.3
+  build_runner: ^2.4.11
+  custom_lint: ^0.7.6
+  riverpod_lint: ^2.6.4
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: false
+  image_path: "assets/icon/app_icon.png"
+  windows:
+    generate: true
+    image_path: "assets/icon/app_icon.png"
+    icon_size: 48
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: Outfit
+      fonts:
+        - asset: assets/fonts/Outfit-Regular.ttf
+        - asset: assets/fonts/Outfit-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Outfit-Bold.ttf
+          weight: 700
+    - family: Lora
+      fonts:
+        - asset: assets/fonts/Lora-Regular.ttf
+        - asset: assets/fonts/Lora-Italic.ttf
+          style: italic
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Regular.ttf
+        - asset: assets/fonts/JetBrainsMono-Bold.ttf
+          weight: 700
+  assets:
+    - assets/fonts/
+    - assets/icon/
