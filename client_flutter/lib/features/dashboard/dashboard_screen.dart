@@ -1,10 +1,9 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../governor/governor_provider.dart';
 
-/// State-of-the-art native glassmorphic Dashboard matching Google Stitch designs.
+/// Desktop & Mobile Dashboard strictly matching Google Stitch Screenshot 2.
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
@@ -19,7 +18,7 @@ class DashboardScreen extends ConsumerWidget {
       backgroundColor: const Color(0xFF090D16),
       body: statusAsync.when(
         data: (status) => ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(24),
           children: [
             // Welcome Header
             Row(
@@ -32,24 +31,19 @@ class DashboardScreen extends ConsumerWidget {
                       style: theme.textTheme.headlineSmall?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
+                        fontSize: 24,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Row(
                       children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Color(0xFF2DD4BF),
-                          ),
-                        ),
+                        const Icon(Icons.access_time_rounded, color: Color(0xFF2DD4BF), size: 14),
                         const SizedBox(width: 6),
                         Text(
-                          'System Uptime: 14d 06h 22m',
+                          'Uptime: 14d 06h 22m',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: cs.onSurface.withValues(alpha: 0.6),
+                            fontSize: 12,
                           ),
                         ),
                       ],
@@ -64,100 +58,134 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-
-            // Top Hero Row (Hardware Telemetry & AI Aggregator Cards)
-            if (isDesktop)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: _HardwareTelemetryCard(status: status)),
-                  const SizedBox(width: 16),
-                  Expanded(child: _AiAggregatorCard(status: status)),
-                ],
-              )
-            else ...[
-              _HardwareTelemetryCard(status: status),
-              const SizedBox(height: 16),
-              _AiAggregatorCard(status: status),
-            ],
-
             const SizedBox(height: 24),
 
-            // Supervised Microservices Section Header
-            Text(
-              'SUPERVISED MICROSERVICES',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: Colors.white70,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Microservices List / Grid
+            // Top Hero Cards (RPI5 Edge Node Telemetry + AI Aggregator)
             if (isDesktop)
-              GridView.count(
-                crossAxisCount: 3,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 1.5,
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(flex: 4, child: _HardwareTelemetryHero(status: status)),
+                    const SizedBox(width: 20),
+                    Expanded(flex: 6, child: _AiAggregatorHero(status: status)),
+                  ],
+                ),
+              )
+            else ...[
+              _HardwareTelemetryHero(status: status),
+              const SizedBox(height: 16),
+              _AiAggregatorHero(status: status),
+            ],
+
+            const SizedBox(height: 32),
+
+            // Supervised Microservices Header
+            Row(
+              children: [
+                const Text(
+                  'Supervised Microservices',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '(cgroups v2 Power Control)',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.4),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Microservices Grid / Column
+            if (isDesktop)
+              Row(
                 children: [
-                  _MicroserviceTile(
-                    name: 'shua_diary',
-                    title: 'shua_diary',
-                    icon: Icons.book_outlined,
-                    accentColor: const Color(0xFF2DD4BF),
-                    status: status,
-                    onLaunch: () => context.go('/diary'),
+                  Expanded(
+                    child: _MicroserviceCard(
+                      name: 'shua_diary',
+                      title: 'shua_diary',
+                      icon: Icons.book_outlined,
+                      accentColor: const Color(0xFF2DD4BF),
+                      status: status,
+                      ramText: '142 MB RAM',
+                      subText: '384 Entries',
+                      buttonLabel: 'Launch Diary',
+                      onLaunch: () => context.go('/diary'),
+                    ),
                   ),
-                  _MicroserviceTile(
-                    name: 'shua_code_viz',
-                    title: 'shua_code_viz',
-                    icon: Icons.code_rounded,
-                    accentColor: const Color(0xFF6366F1),
-                    status: status,
-                    onLaunch: () => context.go('/code/topology'),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _MicroserviceCard(
+                      name: 'shua_code_viz',
+                      title: 'shua_code_viz',
+                      icon: Icons.code_rounded,
+                      accentColor: const Color(0xFFF59E0B),
+                      status: status,
+                      ramText: '0 MB RAM (Frozen)',
+                      subText: '-',
+                      buttonLabel: '▷ Wake & Launch',
+                      onLaunch: () => context.go('/code/topology'),
+                    ),
                   ),
-                  _MicroserviceTile(
-                    name: 'shua_resume',
-                    title: 'shua_resume',
-                    icon: Icons.description_outlined,
-                    accentColor: const Color(0xFFF59E0B),
-                    status: status,
-                    onLaunch: () => context.go('/resume/editor'),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _MicroserviceCard(
+                      name: 'shua_resume',
+                      title: 'shua_resume',
+                      icon: Icons.description_outlined,
+                      accentColor: const Color(0xFF2DD4BF),
+                      status: status,
+                      ramText: '88 MB RAM',
+                      subText: '4 Exhibits',
+                      buttonLabel: 'Launch Builder',
+                      onLaunch: () => context.go('/resume/editor'),
+                    ),
                   ),
                 ],
               )
             else
               Column(
                 children: [
-                  _MicroserviceTile(
+                  _MicroserviceCard(
                     name: 'shua_diary',
                     title: 'shua_diary',
                     icon: Icons.book_outlined,
                     accentColor: const Color(0xFF2DD4BF),
                     status: status,
+                    ramText: '142 MB RAM',
+                    subText: '384 Entries',
+                    buttonLabel: 'Launch Diary',
                     onLaunch: () => context.go('/diary'),
                   ),
-                  const SizedBox(height: 10),
-                  _MicroserviceTile(
+                  const SizedBox(height: 12),
+                  _MicroserviceCard(
                     name: 'shua_code_viz',
                     title: 'shua_code_viz',
                     icon: Icons.code_rounded,
-                    accentColor: const Color(0xFF6366F1),
+                    accentColor: const Color(0xFFF59E0B),
                     status: status,
+                    ramText: '0 MB RAM (Frozen)',
+                    subText: '-',
+                    buttonLabel: '▷ Wake & Launch',
                     onLaunch: () => context.go('/code/topology'),
                   ),
-                  const SizedBox(height: 10),
-                  _MicroserviceTile(
+                  const SizedBox(height: 12),
+                  _MicroserviceCard(
                     name: 'shua_resume',
                     title: 'shua_resume',
                     icon: Icons.description_outlined,
-                    accentColor: const Color(0xFFF59E0B),
+                    accentColor: const Color(0xFF2DD4BF),
                     status: status,
+                    ramText: '88 MB RAM',
+                    subText: '4 Exhibits',
+                    buttonLabel: 'Launch Builder',
                     onLaunch: () => context.go('/resume/editor'),
                   ),
                 ],
@@ -175,67 +203,113 @@ class DashboardScreen extends ConsumerWidget {
   }
 }
 
-/// Hardware Telemetry Card strictly matching Stitch layout.
-class _HardwareTelemetryCard extends StatelessWidget {
+/// Hardware Telemetry Card matching Stitch Screenshot 2.
+class _HardwareTelemetryHero extends StatelessWidget {
   final GovernorStatus status;
 
-  const _HardwareTelemetryCard({required this.status});
+  const _HardwareTelemetryHero({required this.status});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final ramPct = (status.totalRamMb / status.ramCeilingMb).clamp(0.0, 1.0);
-
-    return _GlassCard(
+    return _StitchCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'HARDWARE TELEMETRY',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: Colors.white70,
+          const Text(
+            'RPI5 EDGE NODE',
+            style: TextStyle(
+              color: Colors.white38,
+              fontSize: 10,
               fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
+              letterSpacing: 1,
             ),
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _GaugeMetric(
-                  label: 'CPU Load',
-                  value: '${status.cpuUsagePct.toStringAsFixed(0)}%',
-                  progress: status.cpuUsagePct / 100.0,
-                  color: const Color(0xFF00E5FF),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _GaugeMetric(
-                  label: 'Memory',
-                  value: '${(status.totalRamMb / 1024.0).toStringAsFixed(1)} / 7.1 GB',
-                  progress: ramPct,
-                  color: const Color(0xFF00E5FF),
-                ),
-              ),
-            ],
+          const SizedBox(height: 2),
+          const Text(
+            'Hardware Telemetry',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
+
+          // CPU Load Box
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('CPU Load', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                    Icon(Icons.trending_up_rounded, color: Color(0xFF2DD4BF), size: 16),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${status.cpuUsagePct.toStringAsFixed(0)}%',
+                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                LinearProgressIndicator(
+                  value: status.cpuUsagePct / 100.0,
+                  backgroundColor: Colors.white10,
+                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF2DD4BF)),
+                  minHeight: 3,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // SoC Temp Box
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('SoC Temp', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                const SizedBox(height: 4),
+                Text(
+                  '${status.socTempC.toStringAsFixed(1)}°C',
+                  style: const TextStyle(color: Color(0xFF2DD4BF), fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          const SizedBox(height: 12),
+
+          // Backup Sync Footer Badge
           Row(
             children: [
-              Expanded(
-                child: _ChipTile(
-                  icon: Icons.thermostat_outlined,
-                  label: 'SoC Temp',
-                  value: '${status.socTempC}°C',
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFF2DD4BF),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 6),
               Expanded(
-                child: _ChipTile(
-                  icon: Icons.router_outlined,
-                  label: 'Latency',
-                  value: '${status.tailscaleLatencyMs}ms',
+                child: Text(
+                  'Last Backup: ${status.lastBackupTime}',
+                  style: const TextStyle(color: Colors.white38, fontSize: 9),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -246,72 +320,96 @@ class _HardwareTelemetryCard extends StatelessWidget {
   }
 }
 
-/// Shua Governor AI Aggregator Card strictly matching Stitch layout.
-class _AiAggregatorCard extends StatelessWidget {
+/// Shua Governor AI Aggregator Hero matching Stitch Screenshot 2.
+class _AiAggregatorHero extends StatelessWidget {
   final GovernorStatus status;
 
-  const _AiAggregatorCard({required this.status});
+  const _AiAggregatorHero({required this.status});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return _GlassCard(
-      borderColor: const Color(0xFF00E5FF).withValues(alpha: 0.6),
+    return _StitchCard(
+      borderColor: const Color(0xFF00E5FF).withValues(alpha: 0.4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Column(
+              const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'SHUA GOVERNOR',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: const Color(0xFF00E5FF),
+                    style: TextStyle(
+                      color: Color(0xFF00E5FF),
+                      fontSize: 10,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2),
                   Text(
                     'AI Aggregator',
-                    style: theme.textTheme.titleMedium?.copyWith(
+                    style: TextStyle(
                       color: Colors.white,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
               ),
               const Spacer(),
-              const Icon(Icons.auto_awesome_rounded, color: Color(0xFF00E5FF), size: 22),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2DD4BF).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF2DD4BF).withValues(alpha: 0.4)),
+                ),
+                child: const Row(
+                  children: [
+                    CircleAvatar(radius: 3, backgroundColor: Color(0xFF2DD4BF)),
+                    SizedBox(width: 6),
+                    Text(
+                      'Router Active',
+                      style: TextStyle(color: Color(0xFF2DD4BF), fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
+
+          // Active Model Info Table Box
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.35),
-              borderRadius: BorderRadius.circular(8),
+              color: Colors.black.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(6),
               border: Border.all(color: Colors.white10),
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Active Model', style: TextStyle(color: Colors.white54, fontSize: 11)),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        status.loadedModel ?? 'qwen2.5:1.5b',
-                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                    const SizedBox(
+                      width: 100,
+                      child: Text('Active Model', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                    ),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: Text(
+                          status.loadedModel ?? 'qwen2.5:1.5b (RPi5 Edge)',
+                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                   ],
@@ -320,14 +418,14 @@ class _AiAggregatorCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('VRAM Allocation', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                    const Text('Ollama VRAM Allocation', style: TextStyle(color: Colors.white54, fontSize: 11)),
                     Text(
-                      '${status.ollamaRamMb?.toStringAsFixed(0) ?? "1,840"} MB / 4,096 MB',
-                      style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 11, fontWeight: FontWeight.bold),
+                      '${status.ollamaRamMb?.toStringAsFixed(0) ?? "1,840"} MB',
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 LinearProgressIndicator(
                   value: (status.ollamaRamMb ?? 1840) / 4096.0,
                   backgroundColor: Colors.white10,
@@ -337,54 +435,45 @@ class _AiAggregatorCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 14),
-          // Action Buttons: Load Model, Evict, Offload
+          const Spacer(),
+          const SizedBox(height: 16),
+
+          // Action Buttons: Load Model, Evict, Switch to Laptop Offload
           Row(
             children: [
               Expanded(
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.download_rounded, size: 14),
-                  label: const Text('Load Model', style: TextStyle(fontSize: 12)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00E5FF),
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF00E5FF),
+                    side: const BorderSide(color: Color(0xFF00E5FF)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                   ),
                   onPressed: () => context.go('/chat'),
+                  child: const Text('Load Model', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.eject_outlined, size: 14),
-                  label: const Text('Evict', style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white70,
-                    side: const BorderSide(color: Colors.white24),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  ),
-                  onPressed: () {},
+              const SizedBox(width: 10),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  side: const BorderSide(color: Colors.white24),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                 ),
+                onPressed: () {},
+                child: const Text('Evict', style: TextStyle(fontSize: 12)),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.computer_rounded, size: 14),
-                  label: const Text('Offload', style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white70,
-                    side: const BorderSide(color: Colors.white24),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                  ),
-                  onPressed: () {},
+              const SizedBox(width: 10),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.laptop_mac_rounded, size: 14, color: Color(0xFF00E5FF)),
+                label: const Text('Switch to Laptop Offload', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.white24),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                 ),
+                onPressed: () {},
               ),
             ],
           ),
@@ -394,21 +483,27 @@ class _AiAggregatorCard extends StatelessWidget {
   }
 }
 
-/// Supervised Microservice Item matching Stitch list tile design.
-class _MicroserviceTile extends ConsumerWidget {
+/// Microservice Card strictly matching Stitch Screenshot 2.
+class _MicroserviceCard extends ConsumerWidget {
   final String name;
   final String title;
   final IconData icon;
   final Color accentColor;
   final GovernorStatus status;
+  final String ramText;
+  final String subText;
+  final String buttonLabel;
   final VoidCallback onLaunch;
 
-  const _MicroserviceTile({
+  const _MicroserviceCard({
     required this.name,
     required this.title,
     required this.icon,
     required this.accentColor,
     required this.status,
+    required this.ramText,
+    required this.subText,
+    required this.buttonLabel,
     required this.onLaunch,
   });
 
@@ -420,75 +515,58 @@ class _MicroserviceTile extends ConsumerWidget {
     );
     final isRunning = module.state == ModuleState.running;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B).withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Row(
+    return _StitchCard(
+      borderColor: isRunning ? const Color(0xFF2DD4BF).withValues(alpha: 0.3) : Colors.amber.withValues(alpha: 0.3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(icon, color: accentColor, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
+          Row(
+            children: [
+              Icon(icon, color: accentColor, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
                   title,
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isRunning ? const Color(0xFF2DD4BF) : Colors.amber,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      isRunning ? 'ACTIVE' : 'SIGSTOP',
-                      style: TextStyle(
-                        color: isRunning ? const Color(0xFF2DD4BF) : Colors.amber,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+              ),
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isRunning ? const Color(0xFF2DD4BF) : Colors.amber,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          IconButton(
-            icon: Icon(
-              isRunning ? Icons.pause_circle_outline_rounded : Icons.play_circle_outline_rounded,
-              color: isRunning ? Colors.white54 : const Color(0xFF00E5FF),
-            ),
-            onPressed: () {
-              if (isRunning) {
-                ref.read(governorStatusProvider.notifier).sleepModule(name);
-              } else {
-                ref.read(governorStatusProvider.notifier).wakeModule(name);
-              }
-            },
-            tooltip: isRunning ? 'SIGSTOP Freeze' : 'Wake Module',
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(ramText, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+              Text(subText, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.open_in_new_rounded, color: Colors.white54, size: 18),
-            onPressed: onLaunch,
-            tooltip: 'Open Module',
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: isRunning ? Colors.white : Colors.amber,
+                side: BorderSide(color: isRunning ? Colors.white24 : Colors.amber.withValues(alpha: 0.5)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              ),
+              onPressed: () {
+                if (!isRunning) {
+                  ref.read(governorStatusProvider.notifier).wakeModule(name);
+                }
+                onLaunch();
+              },
+              child: Text(buttonLabel, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
           ),
         ],
       ),
@@ -496,102 +574,22 @@ class _MicroserviceTile extends ConsumerWidget {
   }
 }
 
-class _GlassCard extends StatelessWidget {
+class _StitchCard extends StatelessWidget {
   final Widget child;
   final Color? borderColor;
 
-  const _GlassCard({required this.child, this.borderColor});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E293B).withValues(alpha: 0.65),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: borderColor ?? const Color(0xFF334155).withValues(alpha: 0.5)),
-          ),
-          child: child,
-        ),
-      ),
-    );
-  }
-}
-
-class _GaugeMetric extends StatelessWidget {
-  final String label;
-  final String value;
-  final double progress;
-  final Color color;
-
-  const _GaugeMetric({
-    required this.label,
-    required this.value,
-    required this.progress,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: const TextStyle(color: Colors.white54, fontSize: 11)),
-            Text(value, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        const SizedBox(height: 6),
-        LinearProgressIndicator(
-          value: progress,
-          backgroundColor: Colors.white10,
-          valueColor: AlwaysStoppedAnimation<Color>(color),
-          minHeight: 4,
-        ),
-      ],
-    );
-  }
-}
-
-class _ChipTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
-  const _ChipTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
+  const _StitchCard({required this.child, this.borderColor});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.white10),
+        color: const Color(0xFF0F172A).withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor ?? Colors.white10, width: 1),
       ),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: const Color(0xFF00E5FF)),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: const TextStyle(color: Colors.white54, fontSize: 9)),
-              Text(value, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        ],
-      ),
+      child: child,
     );
   }
 }

@@ -6,9 +6,9 @@ import '../core/hbp/hbp_client.dart';
 import '../features/governor/governor_provider.dart';
 
 /// StateProvider for expanding/minimizing the desktop navigation sidebar.
-final isSidebarExpandedProvider = StateProvider<bool>((ref) => true);
+final isSidebarExpandedProvider = StateProvider<bool>((ref) => false);
 
-/// Responsive navigation shell strictly translating Google Stitch desktop and mobile designs.
+/// Responsive navigation shell strictly translating Google Stitch desktop & mobile designs.
 class ShellScaffold extends ConsumerWidget {
   final Widget child;
 
@@ -70,33 +70,29 @@ class ShellScaffold extends ConsumerWidget {
             AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeInOut,
-              width: isExpanded ? 260 : 80,
+              width: isExpanded ? 240 : 72,
               decoration: BoxDecoration(
-                color: const Color(0xFF090D16),
+                color: const Color(0xFF070A10),
                 border: Border(
                   right: BorderSide(
-                    color: cs.primary.withValues(alpha: 0.15),
+                    color: Colors.white.withValues(alpha: 0.08),
                     width: 1,
                   ),
                 ),
               ),
               child: Column(
                 children: [
+                  const SizedBox(height: 16),
+                  // Top Profile Avatar Emblem
+                  _SidebarProfile(isExpanded: isExpanded, connState: connState),
                   const SizedBox(height: 20),
-                  _SidebarHeader(
-                    isExpanded: isExpanded,
-                    connState: connState,
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(indent: 16, endIndent: 16, height: 1, color: Colors.white12),
-                  const SizedBox(height: 16),
 
                   // 4 Primary Global Navigation Destinations
                   Expanded(
                     child: ListView.separated(
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       itemCount: _destinations.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (context, i) {
                         final d = _destinations[i];
                         final isSelected = selectedIndex == i;
@@ -110,32 +106,18 @@ class ShellScaffold extends ConsumerWidget {
                     ),
                   ),
 
-                  // Sidebar Collapse/Expand Toggle Button at Bottom
-                  IconButton(
-                    icon: Icon(
-                      isExpanded
-                          ? Icons.arrow_back_ios_new_rounded
-                          : Icons.arrow_forward_ios_rounded,
-                      color: cs.onSurface.withValues(alpha: 0.5),
-                      size: 18,
-                    ),
-                    onPressed: () {
-                      ref.read(isSidebarExpandedProvider.notifier).state = !isExpanded;
-                    },
-                    tooltip: isExpanded ? 'Minimize Sidebar' : 'Expand Sidebar',
-                  ),
+                  // Sidebar Telemetry Readouts at Bottom (Stitch Desktop Design)
+                  _SidebarTelemetry(isExpanded: isExpanded),
                   const SizedBox(height: 16),
                 ],
               ),
             ),
 
-            // Main Screen Canvas with Top Navigation History Header
+            // Main Screen Canvas with Stitch Top Header
             Expanded(
               child: Column(
                 children: [
-                  _DesktopHeader(
-                    title: _destinations[selectedIndex].label,
-                  ),
+                  _DesktopHeader(title: _destinations[selectedIndex].label),
                   Expanded(child: child),
                 ],
               ),
@@ -151,17 +133,14 @@ class ShellScaffold extends ConsumerWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // Stitch Mobile Header (Logo + Bell + Avatar)
             const _MobileHeader(),
             Expanded(child: child),
           ],
         ),
       ),
-      // Floating Status Bar + Compact Bottom Navigation Bar
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Stitch Mobile Floating RPi5 Connection Pill
           _MobileFloatingPill(connState: connState),
           const SizedBox(height: 8),
           Container(
@@ -195,7 +174,250 @@ class ShellScaffold extends ConsumerWidget {
   }
 }
 
-/// Google Stitch Mobile Header (horAIzon 3.0 + Bell Icon + User Profile Avatar)
+/// Sidebar Telemetry Readouts at bottom of Rail strictly matching Stitch Screenshot 2.
+class _SidebarTelemetry extends ConsumerWidget {
+  final bool isExpanded;
+
+  const _SidebarTelemetry({required this.isExpanded});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status = ref.watch(governorStatusProvider).valueOrNull;
+    final cpu = status?.cpuUsagePct.toStringAsFixed(0) ?? '18';
+    final mem = ((status?.totalRamMb ?? 2140) / 1024).toStringAsFixed(1);
+    final temp = status?.socTempC.toStringAsFixed(0) ?? '42';
+    final ping = status?.tailscaleLatencyMs ?? 12;
+
+    if (isExpanded) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Divider(color: Colors.white10),
+            const SizedBox(height: 8),
+            _TelemetryLine(label: 'CPU', value: '$cpu%'),
+            _TelemetryLine(label: 'MEM', value: '${mem}G', color: const Color(0xFF00E5FF)),
+            _TelemetryLine(label: 'TMP', value: '$temp°', color: const Color(0xFF2DD4BF)),
+            _TelemetryLine(label: 'PNG', value: '${ping}ms', color: const Color(0xFF00E5FF)),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        const Divider(indent: 12, endIndent: 12, color: Colors.white10),
+        const SizedBox(height: 6),
+        _TelemetryMiniBlock(label: 'CPU', value: '$cpu%'),
+        const SizedBox(height: 6),
+        _TelemetryMiniBlock(label: 'MEM', value: '${mem}G', color: const Color(0xFF00E5FF)),
+        const SizedBox(height: 6),
+        _TelemetryMiniBlock(label: 'TMP', value: '$temp°', color: const Color(0xFF2DD4BF)),
+        const SizedBox(height: 6),
+        _TelemetryMiniBlock(label: 'PNG', value: '${ping}ms', color: const Color(0xFF00E5FF)),
+      ],
+    );
+  }
+}
+
+class _TelemetryMiniBlock extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color? color;
+
+  const _TelemetryMiniBlock({
+    required this.label,
+    required this.value,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white38, fontSize: 8, fontWeight: FontWeight.bold),
+        ),
+        Text(
+          value,
+          style: TextStyle(color: color ?? Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
+}
+
+class _TelemetryLine extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color? color;
+
+  const _TelemetryLine({
+    required this.label,
+    required this.value,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+          Text(value, style: TextStyle(color: color ?? Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Desktop Header matching Stitch Screenshot 2 (`Workspace > Dashboard` + Search + Bell + Connect Node).
+class _DesktopHeader extends StatelessWidget {
+  final String title;
+
+  const _DesktopHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 54,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: const BoxDecoration(
+        color: Color(0xFF090D16),
+        border: Border(
+          bottom: BorderSide(
+            color: Colors.white10,
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Breadcrumb Title (`Workspace > Dashboard`)
+          RichText(
+            text: TextSpan(
+              children: [
+                const TextSpan(
+                  text: 'Workspace  ›  ',
+                  style: TextStyle(color: Colors.white38, fontSize: 13),
+                ),
+                TextSpan(
+                  text: title,
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          // Action Buttons: Search, Bell, Connect Node
+          IconButton(
+            icon: const Icon(Icons.search_rounded, color: Colors.white70, size: 20),
+            onPressed: () {},
+            tooltip: 'Search',
+          ),
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: Colors.white70, size: 20),
+            onPressed: () {},
+            tooltip: 'Notifications',
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.hub_outlined, size: 14, color: Color(0xFF00E5FF)),
+            label: const Text('Connect Node', style: TextStyle(color: Color(0xFF00E5FF), fontSize: 12, fontWeight: FontWeight.bold)),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Color(0xFF00E5FF)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            ),
+            onPressed: () {},
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Sidebar Profile Emblem matching Stitch Screenshot 2.
+class _SidebarProfile extends StatelessWidget {
+  final bool isExpanded;
+  final HbpConnectionState connState;
+
+  const _SidebarProfile({
+    required this.isExpanded,
+    required this.connState,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final (statusColor, statusText) = switch (connState) {
+      HbpConnectionState.connected    => (const Color(0xFF2DD4BF), 'RPi5 Connected'),
+      HbpConnectionState.connecting   => (Colors.amber, 'Connecting...'),
+      HbpConnectionState.reconnecting => (Colors.orange, 'Retrying...'),
+      HbpConnectionState.disconnected => (const Color(0xFFEF4444), 'RPi5 Disconnected'),
+    };
+
+    if (!isExpanded) {
+      return Tooltip(
+        message: 'Joshua B. Ygot ($statusText)',
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: const Color(0xFF1E293B),
+            border: Border.all(color: statusColor, width: 1.5),
+          ),
+          child: const Center(
+            child: Icon(Icons.person_rounded, size: 20, color: Color(0xFF00E5FF)),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF1E293B),
+              border: Border.all(color: statusColor, width: 1.5),
+            ),
+            child: const Center(
+              child: Icon(Icons.person_rounded, size: 20, color: Color(0xFF00E5FF)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Joshua B. Ygot',
+                  style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  statusText,
+                  style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.w600),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MobileHeader extends StatelessWidget {
   const _MobileHeader();
 
@@ -205,9 +427,7 @@ class _MobileHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: const BoxDecoration(
         color: Color(0xFF090D16),
-        border: Border(
-          bottom: BorderSide(color: Colors.white10, width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: Colors.white10, width: 1)),
       ),
       child: Row(
         children: [
@@ -216,21 +436,11 @@ class _MobileHeader extends StatelessWidget {
             children: [
               Text(
                 'horAIzon 3.0',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: -0.5,
-                ),
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: -0.5),
               ),
               Text(
                 'AI OPERATING SYSTEM',
-                style: TextStyle(
-                  color: Color(0xFF00E5FF),
-                  fontSize: 8,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                ),
+                style: TextStyle(color: Color(0xFF00E5FF), fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1.2),
               ),
             ],
           ),
@@ -259,7 +469,6 @@ class _MobileHeader extends StatelessWidget {
   }
 }
 
-/// Stitch Mobile Floating Connection Pill (`((•)) RPi5: 5MS | ONLINE`)
 class _MobileFloatingPill extends ConsumerWidget {
   final HbpConnectionState connState;
 
@@ -282,11 +491,7 @@ class _MobileFloatingPill extends ConsumerWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withValues(alpha: 0.5), width: 1),
         boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.2),
-            blurRadius: 10,
-            spreadRadius: 1,
-          ),
+          BoxShadow(color: color.withValues(alpha: 0.2), blurRadius: 10, spreadRadius: 1),
         ],
       ),
       child: Row(
@@ -304,176 +509,7 @@ class _MobileFloatingPill extends ConsumerWidget {
           const SizedBox(width: 8),
           Text(
             label,
-            style: TextStyle(
-              color: color,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.8,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Desktop Navigation Header with Back (`<`) and Forward (`>`) route buttons.
-class _DesktopHeader extends StatelessWidget {
-  final String title;
-
-  const _DesktopHeader({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final canPop = context.canPop();
-
-    return Container(
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF090D16),
-        border: Border(
-          bottom: BorderSide(
-            color: cs.primary.withValues(alpha: 0.1),
-            width: 1,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: Icon(
-              Icons.chevron_left_rounded,
-              color: canPop ? cs.primary : cs.onSurface.withValues(alpha: 0.3),
-              size: 26,
-            ),
-            onPressed: canPop ? () => context.pop() : null,
-            tooltip: 'Go Back',
-          ),
-          IconButton(
-            icon: Icon(
-              Icons.chevron_right_rounded,
-              color: cs.onSurface.withValues(alpha: 0.3),
-              size: 26,
-            ),
-            onPressed: null,
-            tooltip: 'Go Forward',
-          ),
-          const SizedBox(width: 12),
-          Text(
-            title,
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: cs.onSurface,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const Spacer(),
-          Text(
-            'System Uptime: 14d 06h 22m',
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: cs.onSurface.withValues(alpha: 0.5),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Desktop Sidebar Header displaying Profile Avatar & RPi5 LED Connection Status.
-class _SidebarHeader extends StatelessWidget {
-  final bool isExpanded;
-  final HbpConnectionState connState;
-
-  const _SidebarHeader({
-    required this.isExpanded,
-    required this.connState,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final (statusColor, statusText) = switch (connState) {
-      HbpConnectionState.connected    => (const Color(0xFF2DD4BF), 'RPi5 Connected'),
-      HbpConnectionState.connecting   => (Colors.amber, 'Connecting...'),
-      HbpConnectionState.reconnecting => (Colors.orange, 'Retrying...'),
-      HbpConnectionState.disconnected => (const Color(0xFFEF4444), 'RPi5 Disconnected'),
-    };
-
-    if (!isExpanded) {
-      return Tooltip(
-        message: 'Joshua B. Ygot ($statusText)',
-        child: CircleAvatar(
-          radius: 20,
-          backgroundColor: statusColor.withValues(alpha: 0.2),
-          child: CircleAvatar(
-            radius: 16,
-            backgroundColor: cs.primaryContainer,
-            child: Icon(Icons.person_rounded, size: 18, color: cs.primary),
-          ),
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: statusColor.withValues(alpha: 0.2),
-            child: CircleAvatar(
-              radius: 16,
-              backgroundColor: cs.primaryContainer,
-              child: Icon(Icons.person_rounded, size: 18, color: cs.primary),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Joshua B. Ygot',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: statusColor,
-                        boxShadow: [
-                          BoxShadow(color: statusColor, blurRadius: 4),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        statusText,
-                        style: TextStyle(
-                          color: statusColor,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+            style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8),
           ),
         ],
       ),
@@ -497,44 +533,30 @@ class _NavTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     const activeColor = Color(0xFF00E5FF);
 
     return Tooltip(
       message: isExpanded ? '' : destination.label,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           padding: EdgeInsets.symmetric(
-            horizontal: isExpanded ? 16 : 0,
-            vertical: 12,
+            horizontal: isExpanded ? 14 : 0,
+            vertical: 10,
           ),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            color: isSelected
-                ? activeColor.withValues(alpha: 0.12)
-                : Colors.transparent,
-            border: isSelected
-                ? Border.all(color: activeColor.withValues(alpha: 0.4), width: 1)
-                : Border.all(color: Colors.transparent, width: 1),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: activeColor.withValues(alpha: 0.15),
-                      blurRadius: 10,
-                    )
-                  ]
-                : null,
+            borderRadius: BorderRadius.circular(8),
+            color: isSelected ? activeColor.withValues(alpha: 0.15) : Colors.transparent,
+            border: isSelected ? Border.all(color: activeColor.withValues(alpha: 0.4), width: 1) : null,
           ),
           child: Row(
-            mainAxisAlignment:
-                isExpanded ? MainAxisAlignment.start : MainAxisAlignment.center,
+            mainAxisAlignment: isExpanded ? MainAxisAlignment.start : MainAxisAlignment.center,
             children: [
               Icon(
                 isSelected ? destination.selectedIcon : destination.icon,
-                color: isSelected ? activeColor : cs.onSurface.withValues(alpha: 0.6),
+                color: isSelected ? activeColor : Colors.white54,
                 size: 22,
               ),
               if (isExpanded) ...[
@@ -542,7 +564,7 @@ class _NavTile extends StatelessWidget {
                 Text(
                   destination.label,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: isSelected ? activeColor : cs.onSurface.withValues(alpha: 0.7),
+                    color: isSelected ? activeColor : Colors.white70,
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   ),
                 ),
