@@ -23,6 +23,11 @@
 4. **Model Lifecycle & Scope Switching Latency**:
    - Switching scopes (e.g. `diary` → `code`) evicts the active Ollama model (`keep_alive: 0`) to preserve Pi 5 RAM budget (8GB RAM ceiling).
    - Scope switches carry a documented 1.5s–3.5s model reload latency hit. The client UI displays an "AI Model Loading..." indicator during transitions.
+5. **Local Inference Optimization & Constrained Loop Engineering**:
+   - **Static Byte-Identical Prompt Headers**: System prompt headers for each context scope (`scope: diary`, `scope: code`, etc.) MUST remain byte-identical across tool loop iterations to enable Ollama KV-cache reuse, dropping prompt evaluation times from ~1.2s to ~150ms on Pi 5 ARM.
+   - **Grammar & Schema-Constrained Sampling**: Ollama chat calls MUST pass `format: <json_schema>` parameters derived from MCP tool schemas. Parameter generation is constrained at sampling level, preventing malformed enum values before tool execution.
+   - **Deterministic Output Caching (`activity.db`)**: Tool loop responses are cached in SQLite with primary key `SHA256(model + static_prompt + input_payload)`. Duplicate queries return pre-computed tool call results with zero LLM inference overhead.
+   - **Telemetry Circuit Breaker (`TAG_AI_INFERENCE`)**: Emits structured `tracing` logs (`info!`, `warn!`, `error!`) tagged with `subsystem: "ai_router"` and `trace_id`. If a tool loop hits `maxIterations` 3 consecutive times, the governor flags pipeline status as `degraded` and halts auto-retries.
 
 ---
 
