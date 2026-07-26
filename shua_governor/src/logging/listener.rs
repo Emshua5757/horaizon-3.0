@@ -42,7 +42,7 @@ pub async fn start_log_ipc_listener(log_tx: mpsc::Sender<LogEntry>) {
     });
 
     #[cfg(target_os = "linux")]
-    {
+    tokio::spawn(async move {
         use std::os::unix::fs::PermissionsExt;
 
         let socket_path = "/tmp/horaizon_logs.sock";
@@ -77,7 +77,7 @@ pub async fn start_log_ipc_listener(log_tx: mpsc::Sender<LogEntry>) {
                 }
             }
         }
-    }
+    });
 }
 
 async fn harvest_socket_stream<S>(stream: S, log_tx: mpsc::Sender<LogEntry>)
