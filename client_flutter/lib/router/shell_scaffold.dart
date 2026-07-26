@@ -8,11 +8,7 @@ import '../features/governor/governor_provider.dart';
 /// StateProvider for expanding/minimizing the desktop navigation sidebar.
 final isSidebarExpandedProvider = StateProvider<bool>((ref) => true);
 
-/// State-of-the-art responsive navigation shell for horAIzon 3.0.
-/// Implements 3 responsive modes strictly aligned with Stitch designs:
-/// 1. Desktop Expanded (260px width) — `Desktop | Dashboard - Telemetry Sidebar`
-/// 2. Desktop Minimized (80px width) — `Desktop | Dashboard - Minimized Sidebar`
-/// 3. Mobile Compact — `Mobile | Dashboard - Compact`
+/// Responsive navigation shell strictly translating Google Stitch desktop and mobile designs.
 class ShellScaffold extends ConsumerWidget {
   final Widget child;
 
@@ -28,7 +24,7 @@ class ShellScaffold extends ConsumerWidget {
     _Dest(
       icon: Icons.auto_awesome_outlined,
       selectedIcon: Icons.auto_awesome_rounded,
-      label: 'AI Chat',
+      label: 'JOSH',
       path: '/chat',
     ),
     _Dest(
@@ -67,6 +63,7 @@ class ShellScaffold extends ConsumerWidget {
 
     if (!isMobile) {
       return Scaffold(
+        backgroundColor: const Color(0xFF090D16),
         body: Row(
           children: [
             // Glassmorphic Desktop Side Navigation Sidebar (Expanded vs Minimized Rail)
@@ -86,13 +83,12 @@ class ShellScaffold extends ConsumerWidget {
               child: Column(
                 children: [
                   const SizedBox(height: 20),
-                  // Header: Profile & Status Indicator
                   _SidebarHeader(
                     isExpanded: isExpanded,
                     connState: connState,
                   ),
                   const SizedBox(height: 16),
-                  const Divider(indent: 16, endIndent: 16, height: 1),
+                  const Divider(indent: 16, endIndent: 16, height: 1, color: Colors.white12),
                   const SizedBox(height: 16),
 
                   // 4 Primary Global Navigation Destinations
@@ -133,15 +129,13 @@ class ShellScaffold extends ConsumerWidget {
               ),
             ),
 
-            // Main Screen Canvas with Persistent Top Telemetry Navigation Header
+            // Main Screen Canvas with Top Navigation History Header
             Expanded(
               child: Column(
                 children: [
-                  // Global Top Navigation History & Hardware Telemetry Status Bar
-                  _TopHistoryHeader(
+                  _DesktopHeader(
                     title: _destinations[selectedIndex].label,
                   ),
-                  // Active Screen Child
                   Expanded(child: child),
                 ],
               ),
@@ -151,73 +145,204 @@ class ShellScaffold extends ConsumerWidget {
       );
     }
 
-    // Mobile / Compact Bottom Navigation Shell (`Mobile | Dashboard - Compact`)
+    // Mobile Layout strictly matching Google Stitch `Mobile | Dashboard - Compact`
     return Scaffold(
+      backgroundColor: const Color(0xFF090D16),
       body: SafeArea(
         child: Column(
           children: [
-            _TopHistoryHeader(title: _destinations[selectedIndex].label),
+            // Stitch Mobile Header (Logo + Bell + Avatar)
+            const _MobileHeader(),
             Expanded(child: child),
           ],
         ),
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF090D16),
-          border: Border(
-            top: BorderSide(
-              color: cs.primary.withValues(alpha: 0.2),
-              width: 1,
+      // Floating Status Bar + Compact Bottom Navigation Bar
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Stitch Mobile Floating RPi5 Connection Pill
+          _MobileFloatingPill(connState: connState),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF090D16),
+              border: Border(
+                top: BorderSide(
+                  color: cs.primary.withValues(alpha: 0.2),
+                  width: 1,
+                ),
+              ),
+            ),
+            child: NavigationBar(
+              selectedIndex: selectedIndex,
+              onDestinationSelected: (i) => context.go(_destinations[i].path),
+              backgroundColor: Colors.transparent,
+              indicatorColor: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+              elevation: 0,
+              destinations: _destinations
+                  .map((d) => NavigationDestination(
+                        icon: Icon(d.icon, color: Colors.white54),
+                        selectedIcon: Icon(d.selectedIcon, color: const Color(0xFF00E5FF)),
+                        label: d.label,
+                      ))
+                  .toList(),
             ),
           ),
-        ),
-        child: NavigationBar(
-          selectedIndex: selectedIndex,
-          onDestinationSelected: (i) => context.go(_destinations[i].path),
-          backgroundColor: Colors.transparent,
-          indicatorColor: cs.primary.withValues(alpha: 0.2),
-          elevation: 0,
-          destinations: _destinations
-              .map((d) => NavigationDestination(
-                    icon: Icon(d.icon),
-                    selectedIcon: Icon(d.selectedIcon, color: cs.primary),
-                    label: d.label,
-                  ))
-              .toList(),
-        ),
+        ],
       ),
     );
   }
 }
 
-/// Top Navigation Header incorporating Route History Back (`<`), Forward (`>`), and Persistent Telemetry Status Meters.
-class _TopHistoryHeader extends ConsumerWidget {
-  final String title;
+/// Google Stitch Mobile Header (horAIzon 3.0 + Bell Icon + User Profile Avatar)
+class _MobileHeader extends StatelessWidget {
+  const _MobileHeader();
 
-  const _TopHistoryHeader({required this.title});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: const BoxDecoration(
+        color: Color(0xFF090D16),
+        border: Border(
+          bottom: BorderSide(color: Colors.white10, width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'horAIzon 3.0',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              Text(
+                'AI OPERATING SYSTEM',
+                style: TextStyle(
+                  color: Color(0xFF00E5FF),
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: Color(0xFF00E5FF), size: 22),
+            onPressed: () {},
+            tooltip: 'Notifications',
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFF2DD4BF), width: 1.5),
+            ),
+            child: const CircleAvatar(
+              radius: 14,
+              backgroundColor: Color(0xFF1E293B),
+              child: Icon(Icons.person_rounded, size: 16, color: Color(0xFF00E5FF)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Stitch Mobile Floating Connection Pill (`((•)) RPi5: 5MS | ONLINE`)
+class _MobileFloatingPill extends ConsumerWidget {
+  final HbpConnectionState connState;
+
+  const _MobileFloatingPill({required this.connState});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final status = ref.watch(governorStatusProvider).valueOrNull;
+    final (color, label) = switch (connState) {
+      HbpConnectionState.connected    => (const Color(0xFF2DD4BF), 'RPi5: ${status?.tailscaleLatencyMs ?? 5}MS | ONLINE'),
+      HbpConnectionState.connecting   => (Colors.amber, 'RPi5: CONNECTING...'),
+      HbpConnectionState.reconnecting => (Colors.orange, 'RPi5: RETRYING...'),
+      HbpConnectionState.disconnected => (const Color(0xFFEF4444), 'RPi5: OFFLINE'),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A).withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.5), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.2),
+            blurRadius: 10,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color,
+              boxShadow: [BoxShadow(color: color, blurRadius: 6)],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Desktop Navigation Header with Back (`<`) and Forward (`>`) route buttons.
+class _DesktopHeader extends StatelessWidget {
+  final String title;
+
+  const _DesktopHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final canPop = context.canPop();
-    final statusAsync = ref.watch(governorStatusProvider);
 
     return Container(
-      height: 54,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF090D16).withValues(alpha: 0.95),
+        color: const Color(0xFF090D16),
         border: Border(
           bottom: BorderSide(
-            color: cs.primary.withValues(alpha: 0.12),
+            color: cs.primary.withValues(alpha: 0.1),
             width: 1,
           ),
         ),
       ),
       child: Row(
         children: [
-          // Back Button (<)
           IconButton(
             icon: Icon(
               Icons.chevron_left_rounded,
@@ -227,7 +352,6 @@ class _TopHistoryHeader extends ConsumerWidget {
             onPressed: canPop ? () => context.pop() : null,
             tooltip: 'Go Back',
           ),
-          // Forward Button (>)
           IconButton(
             icon: Icon(
               Icons.chevron_right_rounded,
@@ -237,7 +361,7 @@ class _TopHistoryHeader extends ConsumerWidget {
             onPressed: null,
             tooltip: 'Go Forward',
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
           Text(
             title,
             style: theme.textTheme.titleMedium?.copyWith(
@@ -245,63 +369,11 @@ class _TopHistoryHeader extends ConsumerWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(width: 16),
-
-          // Persistent Telemetry & Hardware Meters (Overflow-safe Horizontal Scroll View)
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: statusAsync.when(
-                  data: (status) => Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // CPU Gauge Pill
-                      _StatusPill(
-                        icon: Icons.memory_rounded,
-                        label: 'CPU',
-                        value: '${status.cpuUsagePct.toStringAsFixed(0)}%',
-                        color: const Color(0xFF00E5FF),
-                      ),
-                      const SizedBox(width: 8),
-                      // RAM Ceiling Pill
-                      _StatusPill(
-                        icon: Icons.storage_rounded,
-                        label: 'RAM',
-                        value: '${(status.totalRamMb / 1024).toStringAsFixed(1)}/7.1G',
-                        color: const Color(0xFF6366F1),
-                      ),
-                      const SizedBox(width: 8),
-                      // SoC Temp Pill
-                      _StatusPill(
-                        icon: Icons.thermostat_rounded,
-                        label: 'Temp',
-                        value: '${status.socTempC}°C',
-                        color: const Color(0xFFF59E0B),
-                      ),
-                      const SizedBox(width: 8),
-                      // Tailscale Ping Pill
-                      _StatusPill(
-                        icon: Icons.wifi_rounded,
-                        label: 'Ping',
-                        value: '${status.tailscaleLatencyMs}ms',
-                        color: const Color(0xFF2DD4BF),
-                      ),
-                      const SizedBox(width: 8),
-                      // Active AI Model Pill
-                      _StatusPill(
-                        icon: Icons.auto_awesome_rounded,
-                        label: 'AI Model',
-                        value: status.loadedModel?.split(' ').first ?? 'qwen2.5:1.5b',
-                        color: const Color(0xFF00E5FF),
-                      ),
-                    ],
-                  ),
-                  loading: () => const SizedBox.shrink(),
-                  error: (_, __) => const SizedBox.shrink(),
-                ),
-              ),
+          const Spacer(),
+          Text(
+            'System Uptime: 14d 06h 22m',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: cs.onSurface.withValues(alpha: 0.5),
             ),
           ),
         ],
@@ -310,49 +382,7 @@ class _TopHistoryHeader extends ConsumerWidget {
   }
 }
 
-/// Compact Telemetry Status Pill for Top Navigation Header.
-class _StatusPill extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _StatusPill({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(
-            '$label: ',
-            style: const TextStyle(color: Colors.white60, fontSize: 10),
-          ),
-          Text(
-            value,
-            style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Sidebar Header displaying Profile Avatar & RPi5 LED Connection Status.
+/// Desktop Sidebar Header displaying Profile Avatar & RPi5 LED Connection Status.
 class _SidebarHeader extends StatelessWidget {
   final bool isExpanded;
   final HbpConnectionState connState;

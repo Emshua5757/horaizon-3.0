@@ -4,8 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../governor/governor_provider.dart';
 
-/// State-of-the-art native glassmorphic Dashboard for horAIzon 3.0.
-/// Translates the Google Stitch designs (`Desktop Telemetry Sidebar`, `Desktop Minimized Sidebar`, `Mobile Compact`).
+/// State-of-the-art native glassmorphic Dashboard matching Google Stitch designs.
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
@@ -20,9 +19,9 @@ class DashboardScreen extends ConsumerWidget {
       backgroundColor: const Color(0xFF090D16),
       body: statusAsync.when(
         data: (status) => ListView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           children: [
-            // Top Welcome Header
+            // Welcome Header
             Row(
               children: [
                 Column(
@@ -36,11 +35,24 @@ class DashboardScreen extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      'Personal AI Operating System — Raspberry Pi 5 Active',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: cs.onSurface.withValues(alpha: 0.6),
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF2DD4BF),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'System Uptime: 14d 06h 22m',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -52,80 +64,104 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
-            // Top Hero Row: 2 Glassmorphic Cards (Hardware Telemetry & AI Aggregator)
+            // Top Hero Row (Hardware Telemetry & AI Aggregator Cards)
             if (isDesktop)
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(child: _HardwareTelemetryHeroCard(status: status)),
+                  Expanded(child: _HardwareTelemetryCard(status: status)),
                   const SizedBox(width: 16),
-                  Expanded(child: _AiAggregatorHeroCard(status: status)),
+                  Expanded(child: _AiAggregatorCard(status: status)),
                 ],
               )
             else ...[
-              _HardwareTelemetryHeroCard(status: status),
+              _HardwareTelemetryCard(status: status),
               const SizedBox(height: 16),
-              _AiAggregatorHeroCard(status: status),
+              _AiAggregatorCard(status: status),
             ],
 
-            const SizedBox(height: 28),
+            const SizedBox(height: 24),
 
-            // Microservices Management Section Header
-            Row(
-              children: [
-                const Icon(Icons.apps_rounded, color: Color(0xFF00E5FF), size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Supervised Microservices (cgroups v2 Power Control)',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+            // Supervised Microservices Section Header
+            Text(
+              'SUPERVISED MICROSERVICES',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: Colors.white70,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Microservices List / Grid
+            if (isDesktop)
+              GridView.count(
+                crossAxisCount: 3,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 1.5,
+                children: [
+                  _MicroserviceTile(
+                    name: 'shua_diary',
+                    title: 'shua_diary',
+                    icon: Icons.book_outlined,
+                    accentColor: const Color(0xFF2DD4BF),
+                    status: status,
+                    onLaunch: () => context.go('/diary'),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Grid of Microservices Launcher Cards
-            GridView.count(
-              crossAxisCount: isDesktop ? 3 : 1,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              childAspectRatio: isDesktop ? 1.4 : 2.2,
-              children: [
-                _ModuleCard(
-                  name: 'shua_diary',
-                  title: 'Personal Diary & Media Vault',
-                  icon: Icons.book_outlined,
-                  accentColor: const Color(0xFF2DD4BF),
-                  status: status,
-                  description: '142 MB RAM | 384 Entries | Media Vault Active',
-                  onLaunch: () => context.go('/diary'),
-                ),
-                _ModuleCard(
-                  name: 'shua_code_viz',
-                  title: 'Codebase Visualizer & AST Topology',
-                  icon: Icons.account_tree_outlined,
-                  accentColor: const Color(0xFF6366F1),
-                  status: status,
-                  description: 'AST Tree-sitter Watcher Idle',
-                  onLaunch: () => context.go('/code/topology'),
-                ),
-                _ModuleCard(
-                  name: 'shua_resume',
-                  title: 'Resume Matrix & Typst Compiler',
-                  icon: Icons.description_outlined,
-                  accentColor: const Color(0xFFF59E0B),
-                  status: status,
-                  description: '88 MB RAM | 4 PDF Exhibits Compiled',
-                  onLaunch: () => context.go('/resume/editor'),
-                ),
-              ],
-            ),
+                  _MicroserviceTile(
+                    name: 'shua_code_viz',
+                    title: 'shua_code_viz',
+                    icon: Icons.code_rounded,
+                    accentColor: const Color(0xFF6366F1),
+                    status: status,
+                    onLaunch: () => context.go('/code/topology'),
+                  ),
+                  _MicroserviceTile(
+                    name: 'shua_resume',
+                    title: 'shua_resume',
+                    icon: Icons.description_outlined,
+                    accentColor: const Color(0xFFF59E0B),
+                    status: status,
+                    onLaunch: () => context.go('/resume/editor'),
+                  ),
+                ],
+              )
+            else
+              Column(
+                children: [
+                  _MicroserviceTile(
+                    name: 'shua_diary',
+                    title: 'shua_diary',
+                    icon: Icons.book_outlined,
+                    accentColor: const Color(0xFF2DD4BF),
+                    status: status,
+                    onLaunch: () => context.go('/diary'),
+                  ),
+                  const SizedBox(height: 10),
+                  _MicroserviceTile(
+                    name: 'shua_code_viz',
+                    title: 'shua_code_viz',
+                    icon: Icons.code_rounded,
+                    accentColor: const Color(0xFF6366F1),
+                    status: status,
+                    onLaunch: () => context.go('/code/topology'),
+                  ),
+                  const SizedBox(height: 10),
+                  _MicroserviceTile(
+                    name: 'shua_resume',
+                    title: 'shua_resume',
+                    icon: Icons.description_outlined,
+                    accentColor: const Color(0xFFF59E0B),
+                    status: status,
+                    onLaunch: () => context.go('/resume/editor'),
+                  ),
+                ],
+              ),
           ],
         ),
         loading: () => const Center(
@@ -139,108 +175,67 @@ class DashboardScreen extends ConsumerWidget {
   }
 }
 
-/// Hero Card 1: Raspberry Pi 5 Hardware Telemetry & Disaster Recovery Status.
-class _HardwareTelemetryHeroCard extends StatelessWidget {
+/// Hardware Telemetry Card strictly matching Stitch layout.
+class _HardwareTelemetryCard extends StatelessWidget {
   final GovernorStatus status;
 
-  const _HardwareTelemetryHeroCard({required this.status});
+  const _HardwareTelemetryCard({required this.status});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final ramPct = (status.totalRamMb / status.ramCeilingMb).clamp(0.0, 1.0);
 
     return _GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.memory_rounded, color: Color(0xFF00E5FF), size: 22),
-              const SizedBox(width: 8),
-              Text(
-                'Raspberry Pi 5 System Telemetry',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2DD4BF).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF2DD4BF).withValues(alpha: 0.4)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFF2DD4BF),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'HEALTHY',
-                      style: TextStyle(
-                        color: Color(0xFF2DD4BF),
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          Text(
+            'HARDWARE TELEMETRY',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: Colors.white70,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+            ),
           ),
-          const SizedBox(height: 16),
-          // Hardware Gauges
+          const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
-                child: _GaugeTile(
-                  label: 'ARM CPU (4-Core)',
+                child: _GaugeMetric(
+                  label: 'CPU Load',
                   value: '${status.cpuUsagePct.toStringAsFixed(0)}%',
                   progress: status.cpuUsagePct / 100.0,
                   color: const Color(0xFF00E5FF),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               Expanded(
-                child: _GaugeTile(
-                  label: 'RAM (7.1 GB Ceiling)',
+                child: _GaugeMetric(
+                  label: 'Memory',
                   value: '${(status.totalRamMb / 1024.0).toStringAsFixed(1)} / 7.1 GB',
                   progress: ramPct,
-                  color: const Color(0xFF6366F1),
+                  color: const Color(0xFF00E5FF),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Row(
             children: [
-              _MetricChip(icon: Icons.thermostat_rounded, label: 'SoC Temp', value: '${status.socTempC}°C'),
-              const SizedBox(width: 12),
-              _MetricChip(icon: Icons.wifi_rounded, label: 'Tailscale RTT', value: '${status.tailscaleLatencyMs}ms'),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(height: 1, color: Colors.white10),
-          const SizedBox(height: 12),
-          // ADR-002 Backup Badge
-          Row(
-            children: [
-              const Icon(Icons.shield_outlined, color: Color(0xFF2DD4BF), size: 16),
-              const SizedBox(width: 6),
               Expanded(
-                child: Text(
-                  'ADR-002 Backup: ${status.lastBackupTime}',
-                  style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurface.withValues(alpha: 0.6)),
+                child: _ChipTile(
+                  icon: Icons.thermostat_outlined,
+                  label: 'SoC Temp',
+                  value: '${status.socTempC}°C',
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _ChipTile(
+                  icon: Icons.router_outlined,
+                  label: 'Latency',
+                  value: '${status.tailscaleLatencyMs}ms',
                 ),
               ),
             ],
@@ -251,221 +246,249 @@ class _HardwareTelemetryHeroCard extends StatelessWidget {
   }
 }
 
-/// Hero Card 2: Shua Governor AI Aggregator & Active Ollama Model.
-class _AiAggregatorHeroCard extends StatelessWidget {
+/// Shua Governor AI Aggregator Card strictly matching Stitch layout.
+class _AiAggregatorCard extends StatelessWidget {
   final GovernorStatus status;
 
-  const _AiAggregatorHeroCard({required this.status});
+  const _AiAggregatorCard({required this.status});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cs = theme.colorScheme;
 
     return _GlassCard(
+      borderColor: const Color(0xFF00E5FF).withValues(alpha: 0.6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.auto_awesome_rounded, color: Color(0xFF00E5FF), size: 22),
-              const SizedBox(width: 8),
-              Text(
-                'Shua Governor AI Aggregator',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'SHUA GOVERNOR',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: const Color(0xFF00E5FF),
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'AI Aggregator',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
               const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF6366F1).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.4)),
-                ),
-                child: const Text(
-                  'ROUTER ACTIVE',
-                  style: TextStyle(
-                    color: Color(0xFF6366F1),
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+              const Icon(Icons.auto_awesome_rounded, color: Color(0xFF00E5FF), size: 22),
             ],
           ),
-          const SizedBox(height: 16),
-          // Model Details Box
+          const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.4),
+              color: Colors.black.withValues(alpha: 0.35),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Colors.white10),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'ACTIVE MODEL',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: const Color(0xFF00E5FF),
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  status.loadedModel ?? 'qwen2.5:1.5b (RPi5 Edge)',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 6),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Ollama Allocation: ${status.ollamaRamMb?.toStringAsFixed(0) ?? "1840"} MB',
-                      style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurface.withValues(alpha: 0.6)),
+                    const Text('Active Model', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        status.loadedModel ?? 'qwen2.5:1.5b',
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('VRAM Allocation', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                    Text(
+                      '${status.ollamaRamMb?.toStringAsFixed(0) ?? "1,840"} MB / 4,096 MB',
+                      style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                LinearProgressIndicator(
+                  value: (status.ollamaRamMb ?? 1840) / 4096.0,
+                  backgroundColor: Colors.white10,
+                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00E5FF)),
+                  minHeight: 4,
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          // Quick Model Actions
+          const SizedBox(height: 14),
+          // Action Buttons: Load Model, Evict, Offload
           Row(
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  icon: const Icon(Icons.swap_horiz_rounded, size: 16),
-                  label: const Text('Switch Offload Engine'),
+                  icon: const Icon(Icons.download_rounded, size: 14),
+                  label: const Text('Load Model', style: TextStyle(fontSize: 12)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00E5FF).withValues(alpha: 0.15),
-                    foregroundColor: const Color(0xFF00E5FF),
-                    side: const BorderSide(color: Color(0xFF00E5FF)),
+                    backgroundColor: const Color(0xFF00E5FF),
+                    foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 10),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                   ),
                   onPressed: () => context.go('/chat'),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.eject_outlined, size: 14),
+                  label: const Text('Evict', style: TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white70,
+                    side: const BorderSide(color: Colors.white24),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  onPressed: () {},
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.computer_rounded, size: 14),
+                  label: const Text('Offload', style: TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white70,
+                    side: const BorderSide(color: Colors.white24),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  onPressed: () {},
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-/// Glassmorphic Microservice Card with cgroups v2 Power Toggle Switch.
-class _ModuleCard extends ConsumerWidget {
+/// Supervised Microservice Item matching Stitch list tile design.
+class _MicroserviceTile extends ConsumerWidget {
   final String name;
   final String title;
   final IconData icon;
   final Color accentColor;
   final GovernorStatus status;
-  final String description;
   final VoidCallback onLaunch;
 
-  const _ModuleCard({
+  const _MicroserviceTile({
     required this.name,
     required this.title,
     required this.icon,
     required this.accentColor,
     required this.status,
-    required this.description,
     required this.onLaunch,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final module = status.modules.firstWhere(
       (m) => m.name == name,
       orElse: () => ModuleStatus(name: name, state: ModuleState.stopped),
     );
     final isRunning = module.state == ModuleState.running;
 
-    return _GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B).withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Icon(icon, color: accentColor, size: 24),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  title,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              // cgroups v2 Power Switch (ON/Running vs OFF/Sleeping)
-              Switch(
-                value: isRunning,
-                activeThumbColor: accentColor,
-                activeTrackColor: accentColor.withValues(alpha: 0.2),
-                inactiveThumbColor: Colors.grey,
-                inactiveTrackColor: Colors.white10,
-                onChanged: (val) {
-                  if (val) {
-                    ref.read(governorStatusProvider.notifier).wakeModule(name);
-                  } else {
-                    ref.read(governorStatusProvider.notifier).sleepModule(name);
-                  }
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Power Status Pill
-          Row(
-            children: [
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isRunning ? accentColor : Colors.amber,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                isRunning ? 'ON (Running)' : 'OFF (Sleeping - SIGSTOP Frozen)',
-                style: TextStyle(
-                  color: isRunning ? accentColor : Colors.amber,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          Text(
-            description,
-            style: theme.textTheme.bodySmall?.copyWith(color: Colors.white60),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: BorderSide(color: accentColor.withValues(alpha: 0.5)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: onLaunch,
-              child: Text(isRunning ? 'Open Module' : 'Wake & Open'),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
             ),
+            child: Icon(icon, color: accentColor, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isRunning ? const Color(0xFF2DD4BF) : Colors.amber,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      isRunning ? 'ACTIVE' : 'SIGSTOP',
+                      style: TextStyle(
+                        color: isRunning ? const Color(0xFF2DD4BF) : Colors.amber,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(
+              isRunning ? Icons.pause_circle_outline_rounded : Icons.play_circle_outline_rounded,
+              color: isRunning ? Colors.white54 : const Color(0xFF00E5FF),
+            ),
+            onPressed: () {
+              if (isRunning) {
+                ref.read(governorStatusProvider.notifier).sleepModule(name);
+              } else {
+                ref.read(governorStatusProvider.notifier).wakeModule(name);
+              }
+            },
+            tooltip: isRunning ? 'SIGSTOP Freeze' : 'Wake Module',
+          ),
+          IconButton(
+            icon: const Icon(Icons.open_in_new_rounded, color: Colors.white54, size: 18),
+            onPressed: onLaunch,
+            tooltip: 'Open Module',
           ),
         ],
       ),
@@ -473,11 +496,11 @@ class _ModuleCard extends ConsumerWidget {
   }
 }
 
-/// Custom Glassmorphic Card Container Widget.
 class _GlassCard extends StatelessWidget {
   final Widget child;
+  final Color? borderColor;
 
-  const _GlassCard({required this.child});
+  const _GlassCard({required this.child, this.borderColor});
 
   @override
   Widget build(BuildContext context) {
@@ -490,7 +513,7 @@ class _GlassCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFF1E293B).withValues(alpha: 0.65),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFF334155).withValues(alpha: 0.5)),
+            border: Border.all(color: borderColor ?? const Color(0xFF334155).withValues(alpha: 0.5)),
           ),
           child: child,
         ),
@@ -499,13 +522,13 @@ class _GlassCard extends StatelessWidget {
   }
 }
 
-class _GaugeTile extends StatelessWidget {
+class _GaugeMetric extends StatelessWidget {
   final String label;
   final String value;
   final double progress;
   final Color color;
 
-  const _GaugeTile({
+  const _GaugeMetric({
     required this.label,
     required this.value,
     required this.progress,
@@ -514,38 +537,34 @@ class _GaugeTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white60, fontSize: 10)),
-          const SizedBox(height: 4),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 6),
-          LinearProgressIndicator(
-            value: progress,
-            backgroundColor: Colors.white10,
-            valueColor: AlwaysStoppedAnimation<Color>(color),
-            minHeight: 4,
-          ),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+            Text(value, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        LinearProgressIndicator(
+          value: progress,
+          backgroundColor: Colors.white10,
+          valueColor: AlwaysStoppedAnimation<Color>(color),
+          minHeight: 4,
+        ),
+      ],
     );
   }
 }
 
-class _MetricChip extends StatelessWidget {
+class _ChipTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
 
-  const _MetricChip({
+  const _ChipTile({
     required this.icon,
     required this.label,
     required this.value,
@@ -554,18 +573,23 @@ class _MetricChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: Colors.black.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.white10),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: const Color(0xFF00E5FF)),
-          const SizedBox(width: 6),
-          Text('$label: ', style: const TextStyle(color: Colors.white60, fontSize: 11)),
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+          Icon(icon, size: 16, color: const Color(0xFF00E5FF)),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white54, fontSize: 9)),
+              Text(value, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+            ],
+          ),
         ],
       ),
     );
