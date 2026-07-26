@@ -1,23 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'core/theme/theme_provider.dart';
+import 'router/app_router.dart';
 
 /// Root application widget.
-/// GoRouter and theme are wired up in TASK-010.
-class HoraizonApp extends StatelessWidget {
+/// Wires GoRouter, live theme hot-swapping, and text scale from ThemeNotifier.
+class HoraizonApp extends ConsumerWidget {
   const HoraizonApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'horAIzon 3.0',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(),
-      home: const Scaffold(
-        body: Center(
-          child: Text(
-            'horAIzon 3.0',
-            style: TextStyle(fontSize: 32, color: Colors.white),
-          ),
-        ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final router = ref.watch(routerProvider);
+    final themeState = ref.watch(themeProvider);
+
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(
+        textScaler: TextScaler.linear(themeState.textScale),
+      ),
+      child: MaterialApp.router(
+        title: 'horAIzon 3.0',
+        debugShowCheckedModeBanner: false,
+        routerConfig: router,
+        theme: themeState.compiledData,
       ),
     );
   }
