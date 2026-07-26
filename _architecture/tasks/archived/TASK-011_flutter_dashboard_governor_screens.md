@@ -2,7 +2,7 @@
 
 | Field | Value |
 | :--- | :--- |
-| **Status** | [ ] In progress |
+| **Status** | [x] Completed |
 | **Phase** | Phase 1 |
 | **Type** | AI-executable |
 | **Language** | Dart / Flutter |
@@ -21,7 +21,7 @@ Implement the native Flutter **Responsive Navigation Shell Scaffold** (`ShellSca
 
 > [!NOTE]
 > **Logs & Terminal Redirection**:
-> Telemetry logs from `shua_governor` will be rendered exclusively within the standalone `/terminal` screen. The old `governor_logs_screen.dart` is redirected to the `/terminal` route.
+> Telemetry logs from `shua_governor` are rendered exclusively within the standalone `/terminal` screen (`TerminalScreen`). The obsolete `governor_logs_screen.dart` file has been removed.
 
 ---
 
@@ -35,7 +35,7 @@ Implement the native Flutter **Responsive Navigation Shell Scaffold** (`ShellSca
 ### 2. Responsive Navigation Shell (`lib/router/shell_scaffold.dart`)
 - **Route Navigation History Controls**: Top header `<` (back) and `>` (forward) buttons invoking `context.pop()` or GoRouter stack traversal.
 - **Sidebar Collapse Toggle**: Expand/collapse button to switch between 260px expanded glass sidebar and minimized icon-only rail.
-- **Strict 4-Destination Navigation**: Dashboard (`/`), AI Chat (`/chat`), Terminal (`/terminal`), Settings (`/settings`).
+- **Strict 4-Destination Navigation**: Dashboard (`/dashboard`), AI Chat (`/chat`), Terminal (`/terminal`), Settings (`/settings`).
 
 ### 3. Glassmorphic Dashboard Screen (`lib/features/dashboard/dashboard_screen.dart`)
 - **Hero Card 1 (RPi5 System Hardware Telemetry)**: CPU gauge, 7,168 MB RAM ceiling gauge, SoC Temp, Tailscale latency, and ADR-002 backup status badge.
@@ -54,8 +54,8 @@ Implement the native Flutter **Responsive Navigation Shell Scaffold** (`ShellSca
 
 ## Acceptance Criteria
 
-- [ ] Responsive `ShellScaffold` matches Google Stitch designs for Expanded Desktop, Minimized Rail, and Mobile Compact.
-- [ ] Route history controls `<` and `>` navigate backward and forward smoothly.
-- [ ] `DashboardScreen` renders hardware telemetry hero card, AI aggregator hero card, and microservice power toggles.
-- [ ] Module power toggles dispatch `wakeModule` and `sleepModule` RPCs over HBP v2.
-- [ ] Zero compiler warnings (`flutter analyze`).
+- [x] Responsive `ShellScaffold` matches Google Stitch designs for Expanded Desktop, Minimized Rail, and Mobile Compact.
+- [x] Route history controls `<` and `>` navigate backward and forward smoothly.
+- [x] `DashboardScreen` renders hardware telemetry hero card, AI aggregator hero card, and microservice power toggles.
+- [x] Module power toggles dispatch `wakeModule` and `sleepModule` RPCs over HBP v2.
+- [x] Zero compiler warnings (`flutter analyze`).
