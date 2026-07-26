@@ -95,6 +95,8 @@ docker-compose.override.yml
 *.crt
 secrets/
 .secrets/
+.agents/
+.agents/mcp.json
 config/local.toml
 config/production.toml
 
