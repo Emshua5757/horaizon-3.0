@@ -1,44 +1,36 @@
 import 'dart:async';
 import 'dart:typed_data';
-
 import 'package:web_socket_channel/web_socket_channel.dart';
-
-import 'hbp_frame.dart';
 import '../config/app_config.dart';
+import 'hbp_frame.dart';
 
-/// Connection state enum
-enum HbpConnectionState {
-  disconnected,
-  connecting,
-  connected,
-  reconnecting,
-}
+enum HbpConnectionState { disconnected, connecting, connected, reconnecting }
 
+typedef WebSocketChannelFactory = WebSocketChannel Function(Uri uri);
+
+/// High-Performance Binary Protocol (HBP) v2 WebSocket Client
 class HbpClient {
-  HbpClient(this._config, {WebSocketChannel Function(Uri uri)? channelFactory})
-      : _channelFactory = channelFactory ?? WebSocketChannel.connect;
-
   final AppConfig _config;
-  final WebSocketChannel Function(Uri uri) _channelFactory;
+  final WebSocketChannelFactory _channelFactory;
 
   WebSocketChannel? _channel;
   StreamSubscription? _sub;
   Timer? _heartbeat;
   Timer? _reconnectTimer;
-
-  var _state = HbpConnectionState.disconnected;
   int _reconnectAttempts = 0;
 
-  /// Pending requests: txId → Completer<HbpFrame>
-  final _pending = <String, Completer<HbpFrame>>{};
-
-  /// Event stream for server-pushed EVENTs (fire-and-forget from server)
+  HbpConnectionState _state = HbpConnectionState.disconnected;
+  final Map<String, Completer<HbpFrame>> _pending = {};
   final _eventController = StreamController<HbpFrame>.broadcast();
-  Stream<HbpFrame> get events => _eventController.stream;
 
-  /// Connection state stream
-  final _stateController =
-      StreamController<HbpConnectionState>.broadcast();
+  HbpClient(
+    this._config, {
+    WebSocketChannelFactory? channelFactory,
+  }) : _channelFactory =
+            channelFactory ?? ((uri) => WebSocketChannel.connect(uri));
+
+  Stream<HbpFrame> get events => _eventController.stream;
+  final _stateController = StreamController<HbpConnectionState>.broadcast();
   Stream<HbpConnectionState> get connectionState => _stateController.stream;
   HbpConnectionState get currentState => _state;
 
@@ -77,6 +69,7 @@ class HbpClient {
     _reconnectTimer?.cancel();
     _sub?.cancel();
     _channel?.sink.close();
+    _channel = null;
     _setState(HbpConnectionState.disconnected);
   }
 
@@ -84,7 +77,7 @@ class HbpClient {
 
   /// Send an HBP v2 request frame and await the matching response
   Future<HbpFrame> send(HbpFrame frame) async {
-    if (_state != HbpConnectionState.connected) {
+    if (_state != HbpConnectionState.connected || _channel == null) {
       throw StateError('HbpClient is not connected (state: $_state)');
     }
 
@@ -98,7 +91,8 @@ class HbpClient {
       const Duration(seconds: 10),
       onTimeout: () {
         _pending.remove(frame.txId);
-        throw TimeoutException('HBP v2 request timed out: ${frame.module}.${frame.op}');
+        throw TimeoutException(
+            'HBP v2 request timed out: ${frame.module}.${frame.op}');
       },
     );
   }
@@ -140,7 +134,7 @@ class HbpClient {
   void _startHeartbeat() {
     _heartbeat?.cancel();
     _heartbeat = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (_state == HbpConnectionState.connected) {
+      if (_state == HbpConnectionState.connected && _channel != null) {
         _channel?.sink.add(Uint8List.fromList(HbpFrame.ping().encode()));
       }
     });

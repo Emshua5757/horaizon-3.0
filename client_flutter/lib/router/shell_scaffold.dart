@@ -6,9 +6,9 @@ import '../core/hbp/hbp_client.dart';
 import '../features/governor/governor_provider.dart';
 
 /// StateProvider for expanding/minimizing the desktop navigation sidebar.
-final isSidebarExpandedProvider = StateProvider<bool>((ref) => false);
+final isSidebarExpandedProvider = StateProvider<bool>((ref) => true);
 
-/// Responsive navigation shell strictly translating Google Stitch desktop & mobile designs.
+/// Responsive navigation shell strictly matching Google Stitch 'Desktop | Dashboard - Telemetry Sidebar'.
 class ShellScaffold extends ConsumerWidget {
   final Widget child;
 
@@ -22,8 +22,8 @@ class ShellScaffold extends ConsumerWidget {
       path: '/dashboard',
     ),
     _Dest(
-      icon: Icons.auto_awesome_outlined,
-      selectedIcon: Icons.auto_awesome_rounded,
+      icon: Icons.psychology_outlined,
+      selectedIcon: Icons.psychology_rounded,
       label: 'JOSH',
       path: '/chat',
     ),
@@ -63,19 +63,19 @@ class ShellScaffold extends ConsumerWidget {
 
     if (!isMobile) {
       return Scaffold(
-        backgroundColor: const Color(0xFF090D16),
+        backgroundColor: const Color(0xFF050508),
         body: Row(
           children: [
-            // Glassmorphic Desktop Side Navigation Sidebar (Expanded vs Minimized Rail)
+            // Glassmorphic Obsidian Sidebar matching Stitch
             AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeInOut,
-              width: isExpanded ? 240 : 72,
+              width: isExpanded ? 260 : 72,
               decoration: BoxDecoration(
-                color: const Color(0xFF070A10),
+                color: const Color(0xFF051424).withValues(alpha: 0.95),
                 border: Border(
                   right: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.08),
+                    color: Colors.white.withValues(alpha: 0.1),
                     width: 1,
                   ),
                 ),
@@ -83,16 +83,17 @@ class ShellScaffold extends ConsumerWidget {
               child: Column(
                 children: [
                   const SizedBox(height: 16),
-                  // Top Profile Avatar Emblem
-                  _SidebarProfile(isExpanded: isExpanded, connState: connState),
-                  const SizedBox(height: 20),
+                  
+                  // Brand Header matching Stitch
+                  _SidebarBrandHeader(isExpanded: isExpanded),
+                  const SizedBox(height: 24),
 
-                  // 4 Primary Global Navigation Destinations
+                  // Primary Navigation Items
                   Expanded(
                     child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       itemCount: _destinations.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, i) {
                         final d = _destinations[i];
                         final isSelected = selectedIndex == i;
@@ -106,14 +107,14 @@ class ShellScaffold extends ConsumerWidget {
                     ),
                   ),
 
-                  // Sidebar Telemetry Readouts at Bottom (Stitch Desktop Design)
-                  _SidebarTelemetry(isExpanded: isExpanded),
+                  // Bottom System Telemetry Card matching Stitch
+                  _SidebarTelemetryCard(isExpanded: isExpanded),
                   const SizedBox(height: 16),
                 ],
               ),
             ),
 
-            // Main Screen Canvas with Stitch Top Header
+            // Main Screen Canvas with Top App Header
             Expanded(
               child: Column(
                 children: [
@@ -127,9 +128,9 @@ class ShellScaffold extends ConsumerWidget {
       );
     }
 
-    // Mobile Layout strictly matching Google Stitch `Mobile | Dashboard - Compact`
+    // Mobile Navigation Shell
     return Scaffold(
-      backgroundColor: const Color(0xFF090D16),
+      backgroundColor: const Color(0xFF050508),
       body: SafeArea(
         child: Column(
           children: [
@@ -145,7 +146,7 @@ class ShellScaffold extends ConsumerWidget {
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF090D16),
+              color: const Color(0xFF050508),
               border: Border(
                 top: BorderSide(
                   color: cs.primary.withValues(alpha: 0.2),
@@ -174,108 +175,201 @@ class ShellScaffold extends ConsumerWidget {
   }
 }
 
-/// Sidebar Telemetry Readouts at bottom of Rail strictly matching Stitch Screenshot 2.
-class _SidebarTelemetry extends ConsumerWidget {
+/// Brand Header matching Google Stitch (`dataset` emblem + title).
+class _SidebarBrandHeader extends ConsumerWidget {
   final bool isExpanded;
 
-  const _SidebarTelemetry({required this.isExpanded});
+  const _SidebarBrandHeader({required this.isExpanded});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final status = ref.watch(governorStatusProvider).valueOrNull;
-    final cpu = status?.cpuUsagePct.toStringAsFixed(0) ?? '18';
-    final mem = ((status?.totalRamMb ?? 2140) / 1024).toStringAsFixed(1);
-    final temp = status?.socTempC.toStringAsFixed(0) ?? '42';
-    final ping = status?.tailscaleLatencyMs ?? 12;
-
-    if (isExpanded) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Divider(color: Colors.white10),
-            const SizedBox(height: 8),
-            _TelemetryLine(label: 'CPU', value: '$cpu%'),
-            _TelemetryLine(label: 'MEM', value: '${mem}G', color: const Color(0xFF00E5FF)),
-            _TelemetryLine(label: 'TMP', value: '$temp°', color: const Color(0xFF2DD4BF)),
-            _TelemetryLine(label: 'PNG', value: '${ping}ms', color: const Color(0xFF00E5FF)),
-          ],
-        ),
+    if (!isExpanded) {
+      return IconButton(
+        icon: const Icon(Icons.dataset_rounded, color: Color(0xFF00E5FF), size: 24),
+        onPressed: () => ref.read(isSidebarExpandedProvider.notifier).state = true,
+        tooltip: 'Expand Sidebar',
       );
     }
 
-    return Column(
-      children: [
-        const Divider(indent: 12, endIndent: 12, color: Colors.white10),
-        const SizedBox(height: 6),
-        _TelemetryMiniBlock(label: 'CPU', value: '$cpu%'),
-        const SizedBox(height: 6),
-        _TelemetryMiniBlock(label: 'MEM', value: '${mem}G', color: const Color(0xFF00E5FF)),
-        const SizedBox(height: 6),
-        _TelemetryMiniBlock(label: 'TMP', value: '$temp°', color: const Color(0xFF2DD4BF)),
-        const SizedBox(height: 6),
-        _TelemetryMiniBlock(label: 'PNG', value: '${ping}ms', color: const Color(0xFF00E5FF)),
-      ],
-    );
-  }
-}
-
-class _TelemetryMiniBlock extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color? color;
-
-  const _TelemetryMiniBlock({
-    required this.label,
-    required this.value,
-    this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white38, fontSize: 8, fontWeight: FontWeight.bold),
-        ),
-        Text(
-          value,
-          style: TextStyle(color: color ?? Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-        ),
-      ],
-    );
-  }
-}
-
-class _TelemetryLine extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color? color;
-
-  const _TelemetryLine({
-    required this.label,
-    required this.value,
-    this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10)),
-          Text(value, style: TextStyle(color: color ?? Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+          const Icon(Icons.dataset_rounded, color: Color(0xFF00E5FF), size: 24),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'horAIzon 3.0',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -0.5,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_left_rounded, color: Colors.white54, size: 20),
+            onPressed: () => ref.read(isSidebarExpandedProvider.notifier).state = false,
+            tooltip: 'Collapse Sidebar',
+          ),
         ],
       ),
     );
   }
 }
 
-/// Desktop Header matching Stitch Screenshot 2 (`Workspace > Dashboard` + Search + Bell + Connect Node).
+/// System Telemetry Footer Block matching Stitch.
+class _SidebarTelemetryCard extends ConsumerWidget {
+  final bool isExpanded;
+
+  const _SidebarTelemetryCard({required this.isExpanded});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status = ref.watch(governorStatusProvider).valueOrNull;
+    final cpuPct = status?.cpuUsagePct ?? 18.0;
+    final cpuStr = cpuPct.toStringAsFixed(0);
+    final usedRamGb = ((status?.totalRamMb ?? 2140.0) / 1024.0).toStringAsFixed(1);
+    final totalRamGb = ((status?.ramCeilingMb ?? 7168.0) / 1024.0).toStringAsFixed(1);
+    final tempStr = (status?.socTempC ?? 41.8).toStringAsFixed(1);
+    final pingMs = status?.tailscaleLatencyMs ?? 12;
+
+    if (!isExpanded) {
+      return Column(
+        children: [
+          Divider(indent: 12, endIndent: 12, color: Colors.white.withValues(alpha: 0.1)),
+          const SizedBox(height: 4),
+          _MiniTelemetryTag(label: 'CPU', value: '$cpuStr%'),
+          const SizedBox(height: 4),
+          _MiniTelemetryTag(label: 'MEM', value: '${usedRamGb}G', color: const Color(0xFF00E5FF)),
+          const SizedBox(height: 4),
+          _MiniTelemetryTag(label: 'TMP', value: '$tempStr°', color: const Color(0xFF3CE36A)),
+          const SizedBox(height: 4),
+          _MiniTelemetryTag(label: 'PNG', value: '${pingMs}ms', color: const Color(0xFF00E5FF)),
+        ],
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'SYSTEM TELEMETRY',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                Text(
+                  'Operational',
+                  style: TextStyle(color: Color(0xFF3CE36A), fontSize: 9, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // CPU Line
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('CPU', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                Text('$cpuStr%', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 3),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                value: (cpuPct / 100.0).clamp(0.0, 1.0),
+                backgroundColor: Colors.white.withValues(alpha: 0.05),
+                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3CE36A)),
+                minHeight: 3,
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // MEM Line
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('MEM', style: TextStyle(color: Colors.white54, fontSize: 10)),
+                Text('$usedRamGb/${totalRamGb}GB', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 3),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                value: ((status?.totalRamMb ?? 2140.0) / (status?.ramCeilingMb ?? 7168.0)).clamp(0.0, 1.0),
+                backgroundColor: Colors.white.withValues(alpha: 0.05),
+                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00E5FF)),
+                minHeight: 3,
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Temp & Latency Split
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('TEMP', style: TextStyle(color: Colors.white54, fontSize: 8)),
+                    Text('$tempStr°C', style: const TextStyle(color: Color(0xFF3CE36A), fontSize: 10, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text('PING', style: TextStyle(color: Colors.white54, fontSize: 8)),
+                    Text('${pingMs}ms', style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 10, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniTelemetryTag extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color? color;
+
+  const _MiniTelemetryTag({required this.label, required this.value, this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(color: Colors.white38, fontSize: 8, fontWeight: FontWeight.bold)),
+        Text(value, style: TextStyle(color: color ?? Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
+}
+
+/// Desktop Header strictly matching Google Stitch (`<-` `->` `Workspace > Dashboard` + Search + Bell).
 class _DesktopHeader extends StatelessWidget {
   final String title;
 
@@ -286,18 +380,33 @@ class _DesktopHeader extends StatelessWidget {
     return Container(
       height: 54,
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: const BoxDecoration(
-        color: Color(0xFF090D16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF050508).withValues(alpha: 0.8),
         border: Border(
           bottom: BorderSide(
-            color: Colors.white10,
+            color: Colors.white.withValues(alpha: 0.05),
             width: 1,
           ),
         ),
       ),
       child: Row(
         children: [
-          // Breadcrumb Title (`Workspace > Dashboard`)
+          // Back & Forward navigation buttons matching Stitch screenshot
+          IconButton(
+            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white54, size: 18),
+            onPressed: () => context.canPop() ? context.pop() : null,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            tooltip: 'Back',
+          ),
+          const IconButton(
+            icon: Icon(Icons.arrow_forward_rounded, color: Colors.white38, size: 18),
+            onPressed: null,
+            padding: EdgeInsets.zero,
+            constraints: BoxConstraints(minWidth: 32, minHeight: 32),
+            tooltip: 'Forward',
+          ),
+          const SizedBox(width: 8),
           RichText(
             text: TextSpan(
               children: [
@@ -313,7 +422,6 @@ class _DesktopHeader extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          // Action Buttons: Search, Bell, Connect Node
           IconButton(
             icon: const Icon(Icons.search_rounded, color: Colors.white70, size: 20),
             onPressed: () {},
@@ -323,94 +431,6 @@ class _DesktopHeader extends StatelessWidget {
             icon: const Icon(Icons.notifications_outlined, color: Colors.white70, size: 20),
             onPressed: () {},
             tooltip: 'Notifications',
-          ),
-          const SizedBox(width: 8),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.hub_outlined, size: 14, color: Color(0xFF00E5FF)),
-            label: const Text('Connect Node', style: TextStyle(color: Color(0xFF00E5FF), fontSize: 12, fontWeight: FontWeight.bold)),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Color(0xFF00E5FF)),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-            ),
-            onPressed: () {},
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Sidebar Profile Emblem matching Stitch Screenshot 2.
-class _SidebarProfile extends StatelessWidget {
-  final bool isExpanded;
-  final HbpConnectionState connState;
-
-  const _SidebarProfile({
-    required this.isExpanded,
-    required this.connState,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final (statusColor, statusText) = switch (connState) {
-      HbpConnectionState.connected    => (const Color(0xFF2DD4BF), 'RPi5 Connected'),
-      HbpConnectionState.connecting   => (Colors.amber, 'Connecting...'),
-      HbpConnectionState.reconnecting => (Colors.orange, 'Retrying...'),
-      HbpConnectionState.disconnected => (const Color(0xFFEF4444), 'RPi5 Disconnected'),
-    };
-
-    if (!isExpanded) {
-      return Tooltip(
-        message: 'Joshua B. Ygot ($statusText)',
-        child: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: const Color(0xFF1E293B),
-            border: Border.all(color: statusColor, width: 1.5),
-          ),
-          child: const Center(
-            child: Icon(Icons.person_rounded, size: 20, color: Color(0xFF00E5FF)),
-          ),
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFF1E293B),
-              border: Border.all(color: statusColor, width: 1.5),
-            ),
-            child: const Center(
-              child: Icon(Icons.person_rounded, size: 20, color: Color(0xFF00E5FF)),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Joshua B. Ygot',
-                  style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  statusText,
-                  style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.w600),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
           ),
         ],
       ),
@@ -425,9 +445,9 @@ class _MobileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
-        color: Color(0xFF090D16),
-        border: Border(bottom: BorderSide(color: Colors.white10, width: 1)),
+      decoration: BoxDecoration(
+        color: const Color(0xFF050508),
+        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05), width: 1)),
       ),
       child: Row(
         children: [
@@ -455,11 +475,11 @@ class _MobileHeader extends StatelessWidget {
             padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFF2DD4BF), width: 1.5),
+              border: Border.all(color: const Color(0xFF3CE36A), width: 1.5),
             ),
             child: const CircleAvatar(
               radius: 14,
-              backgroundColor: Color(0xFF1E293B),
+              backgroundColor: Color(0xFF122131),
               child: Icon(Icons.person_rounded, size: 16, color: Color(0xFF00E5FF)),
             ),
           ),
@@ -478,7 +498,7 @@ class _MobileFloatingPill extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final status = ref.watch(governorStatusProvider).valueOrNull;
     final (color, label) = switch (connState) {
-      HbpConnectionState.connected    => (const Color(0xFF2DD4BF), 'RPi5: ${status?.tailscaleLatencyMs ?? 5}MS | ONLINE'),
+      HbpConnectionState.connected    => (const Color(0xFF3CE36A), 'RPi5: ${status?.tailscaleLatencyMs ?? 12}MS | ONLINE'),
       HbpConnectionState.connecting   => (Colors.amber, 'RPi5: CONNECTING...'),
       HbpConnectionState.reconnecting => (Colors.orange, 'RPi5: RETRYING...'),
       HbpConnectionState.disconnected => (const Color(0xFFEF4444), 'RPi5: OFFLINE'),
@@ -487,7 +507,7 @@ class _MobileFloatingPill extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F172A).withValues(alpha: 0.9),
+        color: const Color(0xFF122131).withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withValues(alpha: 0.5), width: 1),
         boxShadow: [

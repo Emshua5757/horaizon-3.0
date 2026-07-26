@@ -120,11 +120,12 @@ shua.crypto.*          ← Python: portfolio aggregator
 | Operation | Direction | Description |
 | :--- | :--- | :--- |
 | `governor.ping` | C→S | Heartbeat check |
-| `governor.status` | C→S | Returns all module process states |
+| `governor.status` | C→S | Returns all module process states and hardware/Ollama telemetry |
 | `governor.module.wake` | C→S | SIGCONT a suspended module |
 | `governor.module.sleep` | C→S | SIGSTOP a module |
 | `governor.ollama.load` | C→S | Load a named Ollama model |
 | `governor.ollama.evict` | C→S | Evict current Ollama model (keep_alive: 0) |
+| `governor.ollama.offload_target` | C→S | Toggle inference target (RPi5 Edge vs Laptop GPU) |
 | `governor.ai.route` | C→S | Route a prompt through the intent classifier |
 | `governor.logs.subscribe` | C→S | Subscribe/filter live WebSocket log stream |
 | `governor.log.emit` | C→S | Ingest client log event into Governor |
