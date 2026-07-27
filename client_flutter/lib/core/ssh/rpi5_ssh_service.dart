@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -32,16 +33,31 @@ class Rpi5SshService {
       final socket = await SSHSocket.connect(
         host,
         port,
-        timeout: const Duration(seconds: 5),
+        timeout: const Duration(seconds: 2),
       );
+
+      List<SSHKeyPair> keyPairs = [];
+      try {
+        final home = Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'] ?? '';
+        if (home.isNotEmpty) {
+          final ed25519File = File('$home/.ssh/id_ed25519');
+          final rsaFile = File('$home/.ssh/id_rsa');
+          if (ed25519File.existsSync()) {
+            keyPairs = SSHKeyPair.fromPem(ed25519File.readAsStringSync());
+          } else if (rsaFile.existsSync()) {
+            keyPairs = SSHKeyPair.fromPem(rsaFile.readAsStringSync());
+          }
+        }
+      } catch (_) {}
 
       _client = SSHClient(
         socket,
         username: username,
+        identities: keyPairs.isNotEmpty ? keyPairs : null,
         onPasswordRequest: password != null ? () => password! : null,
       );
 
-      _shellSession = await _client!.shell();
+      _shellSession = await _client!.shell().timeout(const Duration(seconds: 2));
 
       _shellSession!.stdout.listen(
         (bytes) => _outputController.add(utf8.decode(bytes, allowMalformed: true)),
@@ -55,6 +71,7 @@ class Rpi5SshService {
       return true;
     } catch (e) {
       _outputController.add('\n[SSH Connection to $username@$host:$port failed -> $e]\n');
+      disconnect();
       return false;
     }
   }

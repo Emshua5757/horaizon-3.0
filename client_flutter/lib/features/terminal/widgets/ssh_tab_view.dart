@@ -22,6 +22,26 @@ class _SshTabViewState extends State<SshTabView> {
   final TextEditingController _stdinController = TextEditingController();
 
   @override
+  void didUpdateWidget(covariant SshTabView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.sshHistory.length != oldWidget.sshHistory.length) {
+      _scrollToBottom();
+    }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _scrollController.dispose();
     _stdinController.dispose();
@@ -33,6 +53,7 @@ class _SshTabViewState extends State<SshTabView> {
     if (text.isNotEmpty) {
       _stdinController.clear();
       widget.onCommandSubmitted(text);
+      _scrollToBottom();
     }
   }
 
