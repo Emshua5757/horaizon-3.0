@@ -6,7 +6,7 @@ class AppConfig {
   final int governorPort;
 
   const AppConfig({
-    this.governorHost = '127.0.0.1',
+    this.governorHost = '100.67.11.0',
     this.governorPort = 7700,
   });
 
@@ -19,7 +19,8 @@ class AppConfig {
   /// Load user preference configuration from SharedPreferences
   static Future<AppConfig> load() async {
     final prefs = await SharedPreferences.getInstance();
-    final host = prefs.getString(_keyHost) ?? '127.0.0.1';
+    final savedHost = prefs.getString(_keyHost);
+    final host = (savedHost == null || savedHost == '127.0.0.1') ? '100.67.11.0' : savedHost;
     final port = prefs.getInt(_keyPort) ?? 7700;
     return AppConfig(governorHost: host, governorPort: port);
   }

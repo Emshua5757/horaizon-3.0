@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:messagepack/messagepack.dart';
 import '../../core/hbp/hbp_client_provider.dart';
@@ -136,8 +136,17 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
 
   Future<GovernorStatus> _fetch() async {
     try {
-      final hbpState = ref.watch(hbpClientProvider);
-      final client = hbpState.valueOrNull;
+      var client = ref.read(hbpClientProvider).valueOrNull;
+
+      if (client == null || client.currentState != HbpConnectionState.connected) {
+        debugPrint('[HBP Client] Governor disconnected — retrying HBP WebSocket connection...');
+        ref.invalidate(hbpClientProvider);
+        try {
+          client = await ref.read(hbpClientProvider.future).timeout(const Duration(seconds: 3));
+        } catch (e) {
+          debugPrint('[HBP Client] Reconnect attempt failed: $e');
+        }
+      }
 
       if (client == null || client.currentState != HbpConnectionState.connected) {
         return state.valueOrNull ?? GovernorStatus.mock();
@@ -147,10 +156,15 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
       final resp = await client.send(frame);
 
       if (resp.isError || resp.payload.isEmpty) {
+        // ignore: avoid_print
+        print('[HBP Client] Empty/Error response for governor.status (Err: ${resp.error})');
         return state.valueOrNull ?? GovernorStatus.mock();
       }
 
       final map = Unpacker(Uint8List.fromList(resp.payload)).unpackMap();
+      // ignore: avoid_print
+      print('[HBP TELEMETRY LIVE] Received frame payload: $map');
+
       final modulesList = (map['modules'] as List? ?? [])
           .map((m) => ModuleStatus.fromMap(m as Map))
           .toList();
@@ -158,12 +172,14 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
       final isLaptop = map['is_laptop_offload'] as bool? ?? true;
       final modelName = ollama?['loaded_model'] as String? ?? 'qwen2.5:1.5b';
 
+      final liveLatencyMs = client.lastLatencyMs;
+
       return GovernorStatus(
         cpuUsagePct: (map['cpu_pct'] as num?)?.toDouble() ?? 18.0,
         totalRamMb: (map['total_ram_mb'] as num?)?.toDouble() ?? 2140.0,
         ramCeilingMb: 7168.0,
         socTempC: (map['temp_c'] as num?)?.toDouble() ?? 41.8,
-        tailscaleLatencyMs: map['latency_ms'] as int? ?? 12,
+        tailscaleLatencyMs: liveLatencyMs > 0 ? liveLatencyMs : (map['latency_ms'] as int? ?? 12),
         lastBackupTime: map['last_backup'] as String? ?? '03:00 AM (Zstd Encrypted)',
         modules: modulesList.isEmpty ? GovernorStatus.mock().modules : modulesList,
         loadedModel: isLaptop ? '$modelName (Laptop Offload)' : '$modelName (RPi5 Edge)',

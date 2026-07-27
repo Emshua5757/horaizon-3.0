@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../core/hbp/hbp_client_provider.dart';
 import '../core/hbp/hbp_client.dart';
 import '../features/governor/governor_provider.dart';
+import '../shared/widgets/connection_status_banner.dart';
 
 /// StateProvider for expanding/minimizing the desktop navigation sidebar.
 final isSidebarExpandedProvider = StateProvider<bool>((ref) => true);
@@ -80,37 +81,39 @@ class ShellScaffold extends ConsumerWidget {
                   ),
                 ),
               ),
-              child: Column(
-                children: [
-                  const SizedBox(height: 16),
-                  
-                  // Brand Header matching Stitch
-                  _SidebarBrandHeader(isExpanded: isExpanded),
-                  const SizedBox(height: 24),
+              child: ClipRect(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 16),
+                    
+                    // Brand Header matching Stitch
+                    _SidebarBrandHeader(isExpanded: isExpanded),
+                    const SizedBox(height: 24),
 
-                  // Primary Navigation Items
-                  Expanded(
-                    child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      itemCount: _destinations.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, i) {
-                        final d = _destinations[i];
-                        final isSelected = selectedIndex == i;
-                        return _NavTile(
-                          destination: d,
-                          isSelected: isSelected,
-                          isExpanded: isExpanded,
-                          onTap: () => context.go(d.path),
-                        );
-                      },
+                    // Primary Navigation Items
+                    Expanded(
+                      child: ListView.separated(
+                        padding: EdgeInsets.symmetric(horizontal: isExpanded ? 12 : 14),
+                        itemCount: _destinations.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, i) {
+                          final d = _destinations[i];
+                          final isSelected = selectedIndex == i;
+                          return _NavTile(
+                            destination: d,
+                            isSelected: isSelected,
+                            isExpanded: isExpanded,
+                            onTap: () => context.go(d.path),
+                          );
+                        },
+                      ),
                     ),
-                  ),
 
-                  // Bottom System Telemetry Card matching Stitch
-                  _SidebarTelemetryCard(isExpanded: isExpanded),
-                  const SizedBox(height: 16),
-                ],
+                    // Bottom System Telemetry Card matching Stitch
+                    _SidebarTelemetryCard(isExpanded: isExpanded),
+                    const SizedBox(height: 16),
+                  ],
+                ),
               ),
             ),
 
@@ -118,6 +121,7 @@ class ShellScaffold extends ConsumerWidget {
             Expanded(
               child: Column(
                 children: [
+                  const ConnectionStatusBanner(),
                   _DesktopHeader(title: _destinations[selectedIndex].label),
                   Expanded(child: child),
                 ],
@@ -130,10 +134,11 @@ class ShellScaffold extends ConsumerWidget {
 
     // Mobile Navigation Shell
     return Scaffold(
-      backgroundColor: const Color(0xFF050508),
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
+            const ConnectionStatusBanner(),
             const _MobileHeader(),
             Expanded(child: child),
           ],
@@ -183,44 +188,67 @@ class _SidebarBrandHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (!isExpanded) {
-      return IconButton(
-        icon: const Icon(Icons.dataset_rounded, color: Color(0xFF00E5FF), size: 24),
-        onPressed: () => ref.read(isSidebarExpandedProvider.notifier).state = true,
-        tooltip: 'Expand Sidebar',
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          const Icon(Icons.dataset_rounded, color: Color(0xFF00E5FF), size: 24),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Text(
-              'horAIzon 3.0',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                letterSpacing: -0.5,
-              ),
-              overflow: TextOverflow.ellipsis,
+    return SizedBox(
+      height: 40,
+      width: isExpanded ? 260 : 72,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: isExpanded ? 16 : 0),
+        child: Row(
+          mainAxisAlignment: isExpanded ? MainAxisAlignment.start : MainAxisAlignment.center,
+          children: [
+            IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              icon: const Icon(Icons.dataset_rounded, color: Color(0xFF00E5FF), size: 24),
+              onPressed: () {
+                ref.read(isSidebarExpandedProvider.notifier).state = !isExpanded;
+              },
+              tooltip: isExpanded ? 'Collapse Sidebar' : 'Expand Sidebar',
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.chevron_left_rounded, color: Colors.white54, size: 20),
-            onPressed: () => ref.read(isSidebarExpandedProvider.notifier).state = false,
-            tooltip: 'Collapse Sidebar',
-          ),
-        ],
+            if (isExpanded)
+              Expanded(
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: isExpanded ? 1.0 : 0.0,
+                  curve: Curves.easeInOut,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 10),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'horAIzon 3.0',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: -0.5,
+                            ),
+                            overflow: TextOverflow.clip,
+                            maxLines: 1,
+                            softWrap: false,
+                          ),
+                        ),
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: const Icon(Icons.chevron_left_rounded, color: Colors.white54, size: 20),
+                          onPressed: () => ref.read(isSidebarExpandedProvider.notifier).state = false,
+                          tooltip: 'Collapse Sidebar',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// System Telemetry Footer Block matching Stitch.
+/// System Telemetry Footer Block matching Stitch with smooth AnimatedCrossFade.
 class _SidebarTelemetryCard extends ConsumerWidget {
   final bool isExpanded;
 
@@ -236,119 +264,128 @@ class _SidebarTelemetryCard extends ConsumerWidget {
     final tempStr = (status?.socTempC ?? 41.8).toStringAsFixed(1);
     final pingMs = status?.tailscaleLatencyMs ?? 12;
 
-    if (!isExpanded) {
-      return Column(
-        children: [
-          Divider(indent: 12, endIndent: 12, color: Colors.white.withValues(alpha: 0.1)),
-          const SizedBox(height: 4),
-          _MiniTelemetryTag(label: 'CPU', value: '$cpuStr%'),
-          const SizedBox(height: 4),
-          _MiniTelemetryTag(label: 'MEM', value: '${usedRamGb}G', color: const Color(0xFF00E5FF)),
-          const SizedBox(height: 4),
-          _MiniTelemetryTag(label: 'TMP', value: '$tempStr°', color: const Color(0xFF3CE36A)),
-          const SizedBox(height: 4),
-          _MiniTelemetryTag(label: 'PNG', value: '${pingMs}ms', color: const Color(0xFF00E5FF)),
-        ],
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-        ),
+    return AnimatedCrossFade(
+      duration: const Duration(milliseconds: 200),
+      crossFadeState: isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+      firstChild: SizedBox(
+        width: 72,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'SYSTEM TELEMETRY',
-                  style: TextStyle(
-                    color: Colors.white54,
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.8,
-                  ),
-                ),
-                Text(
-                  'Operational',
-                  style: TextStyle(color: Color(0xFF3CE36A), fontSize: 9, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-
-            // CPU Line
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('CPU', style: TextStyle(color: Colors.white54, fontSize: 10)),
-                Text('$cpuStr%', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 3),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(2),
-              child: LinearProgressIndicator(
-                value: (cpuPct / 100.0).clamp(0.0, 1.0),
-                backgroundColor: Colors.white.withValues(alpha: 0.05),
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3CE36A)),
-                minHeight: 3,
-              ),
-            ),
-            const SizedBox(height: 8),
-
-            // MEM Line
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('MEM', style: TextStyle(color: Colors.white54, fontSize: 10)),
-                Text('$usedRamGb/${totalRamGb}GB', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 3),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(2),
-              child: LinearProgressIndicator(
-                value: ((status?.totalRamMb ?? 2140.0) / (status?.ramCeilingMb ?? 7168.0)).clamp(0.0, 1.0),
-                backgroundColor: Colors.white.withValues(alpha: 0.05),
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00E5FF)),
-                minHeight: 3,
-              ),
-            ),
-            const SizedBox(height: 8),
-
-            // Temp & Latency Split
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('TEMP', style: TextStyle(color: Colors.white54, fontSize: 8)),
-                    Text('$tempStr°C', style: const TextStyle(color: Color(0xFF3CE36A), fontSize: 10, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text('PING', style: TextStyle(color: Colors.white54, fontSize: 8)),
-                    Text('${pingMs}ms', style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 10, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ],
-            ),
+            Divider(indent: 12, endIndent: 12, color: Colors.white.withValues(alpha: 0.1)),
+            const SizedBox(height: 4),
+            _MiniTelemetryTag(label: 'CPU', value: '$cpuStr%'),
+            const SizedBox(height: 4),
+            _MiniTelemetryTag(label: 'MEM', value: '${usedRamGb}G', color: const Color(0xFF00E5FF)),
+            const SizedBox(height: 4),
+            _MiniTelemetryTag(label: 'TMP', value: '$tempStr°', color: const Color(0xFF3CE36A)),
+            const SizedBox(height: 4),
+            _MiniTelemetryTag(label: 'PNG', value: '${pingMs}ms', color: const Color(0xFF00E5FF)),
           ],
         ),
       ),
-    );
-  }
+      secondChild: SizedBox(
+        width: 236,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'SYSTEM TELEMETRY',
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  Text(
+                    'Operational',
+                    style: TextStyle(color: Color(0xFF3CE36A), fontSize: 9, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              // CPU Line
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('CPU', style: TextStyle(color: Colors.white70, fontSize: 10)),
+                  Text('$cpuStr%', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 3),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(
+                  value: (cpuPct / 100.0).clamp(0.0, 1.0),
+                  backgroundColor: Colors.white.withValues(alpha: 0.1),
+                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3CE36A)),
+                  minHeight: 3,
+                ),
+              ),
+              const SizedBox(height: 6),
+
+              // MEM Line
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('MEM', style: TextStyle(color: Colors.white70, fontSize: 10)),
+                  Text('$usedRamGb/${totalRamGb}GB', style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 10, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 3),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(
+                  value: (status?.ramCeilingMb != null && status!.ramCeilingMb > 0)
+                      ? (status.totalRamMb / status.ramCeilingMb).clamp(0.0, 1.0)
+                      : 0.3,
+                  backgroundColor: Colors.white.withValues(alpha: 0.1),
+                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00E5FF)),
+                  minHeight: 3,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              // Bottom Stats Row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('TEMP', style: TextStyle(color: Colors.white54, fontSize: 8)),
+                      Text('$tempStr°C', style: const TextStyle(color: Color(0xFF3CE36A), fontSize: 10, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text('PING', style: TextStyle(color: Colors.white54, fontSize: 8)),
+                      Text('${pingMs}ms', style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 10, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
 }
 
 class _MiniTelemetryTag extends StatelessWidget {
@@ -560,12 +597,9 @@ class _NavTile extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: EdgeInsets.symmetric(
-            horizontal: isExpanded ? 14 : 0,
-            vertical: 10,
-          ),
+        child: Container(
+          height: 44,
+          padding: EdgeInsets.symmetric(horizontal: isExpanded ? 12 : 0),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
             color: isSelected ? activeColor.withValues(alpha: 0.15) : Colors.transparent,
@@ -579,16 +613,27 @@ class _NavTile extends StatelessWidget {
                 color: isSelected ? activeColor : Colors.white54,
                 size: 22,
               ),
-              if (isExpanded) ...[
-                const SizedBox(width: 12),
-                Text(
-                  destination.label,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: isSelected ? activeColor : Colors.white70,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              if (isExpanded)
+                Expanded(
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: isExpanded ? 1.0 : 0.0,
+                    curve: Curves.easeInOut,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 12),
+                      child: Text(
+                        destination.label,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: isSelected ? activeColor : Colors.white70,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                        overflow: TextOverflow.clip,
+                        maxLines: 1,
+                        softWrap: false,
+                      ),
+                    ),
                   ),
                 ),
-              ],
             ],
           ),
         ),

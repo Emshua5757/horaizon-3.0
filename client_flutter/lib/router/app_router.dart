@@ -7,6 +7,7 @@ import '../features/settings/settings_screen.dart';
 import '../features/chat/global_chat_screen.dart';
 import '../features/terminal/terminal_screen.dart';
 import '../features/diary/diary_screen.dart';
+import '../features/diary/block_gallery_screen.dart';
 import 'splash_screen.dart';
 import 'shell_scaffold.dart';
 
@@ -46,6 +47,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/diary',
             builder: (_, __) => const DiaryScreen(),
+          ),
+          GoRoute(
+            path: '/dev/blocks',
+            builder: (_, __) => const BlockGalleryScreen(),
           ),
         ],
       ),

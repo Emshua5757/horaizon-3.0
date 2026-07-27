@@ -31,8 +31,8 @@
 - **STRICT Left Sidebar Navigation (Identical Across ALL Screens):**
   - **Top:** Logo `horAIzon 3.0`, User Avatar (`Joshua B. Ygot`), and Green LED badge (`RPi5 Connected: 100.67.11.0:7700`).
   - **Navigation Scope (Strictly 4 Items):**
-    1. 📊 **Dashboard** (`/`)
-    2. 💬 **AI Chat** (`/chat`)
+    1. 📊 **Dashboard** (`/dashboard`)
+    2. 🧠 **AI Models** (`/models` or `/chat`)
     3. 💻 **Terminal** (`/terminal`)
     4. ⚙️ **Settings** (`/settings`)
   - **NO extra vertical sub-nav bars, NO extra secondary sidebars on inner pages!**
@@ -68,8 +68,8 @@
   - User Avatar (`Joshua B. Ygot`).
   - Status LED: Glowing Green (RPi5 Connected) or Flashing Red (Disconnected).
 - **Destinations (4 Scope Limit):**
-  1. 📊 **Dashboard** (`/`) — Hub, hardware metrics, AI aggregator, module launchers.
-  2. 💬 **AI Chat** (`/chat`) — Governor AI Intent Router & integrated MCP tool suite.
+  1. 📊 **Dashboard** (`/dashboard`) — Hub, hardware metrics, AI aggregator, module launchers.
+  2. 🧠 **AI Models** (`/models` or `/chat`) — Governor AI Intent Router & integrated MCP tool suite.
   3. 💻 **Terminal** (`/terminal`) — Multi-tab console shell & log stream.
   4. ⚙️ **Settings** (`/settings`) — ThemeCompiler picker, HBP config, Biometric auth.
 - **Footer:**
@@ -124,29 +124,29 @@ Each card controls a supervised microservice process via Linux `cgroups v2` (`SI
 
 ---
 
-## 3. Sub-Module Detailed Screens
+## 3. Sub-Module Detailed Screens & Launchpad Views
 
 ### 3.1 `shua_diary` Screen & Native Block Gallery (`/diary`)
 - **Left Pane (Entry List):** Search bar, entry timeline list, mood filter pills, and annual activity heatmap row.
 - **Main Pane (Block Editor):** Vertical reorderable list rendering native block widgets (`DiaryMarkdownBlock`, `DiaryCodeBlock`, `DiaryImageBlock`, `DiaryAudioBlock`, `DiaryChartBlock`).
 - **Floating Action / Toolbar:** `+ Add Block` button opens the **Block Picker BottomSheet Gallery**:
-  - Displays all 36 native block types in a `GridView` with category tabs (`Text & Input`, `Layout`, `Controls`, `Media`, `Data & Charts`, `Misc`).
+  - Displays native block types in a `GridView` with category tabs (`Text & Input`, `Layout`, `Controls`, `Media`, `Data & Charts`, `Misc`).
 - **Right Drawer:** AI Assistant drawer for entry summarization and block mutations (JBC engine).
 
-### 3.2 `shua_code_viz` Screen (`/code/topology`)
+### 3.2 Governor Operations & Telemetry View (`/governor/status`)
+- **3-Node Topology Canvas:** Diagram showing real-time links between MSI Laptop (Heavy LLM), Raspberry Pi 5 (Governor), and Moto G84 (Mobile Client).
+- **Live Telemetry Stream:** Terminal window streaming Rust `tracing` logs from `activity.db` & `important.log` with filter chips (`hbp`, `cgroups`, `ollama`, `dream_loop`) and level toggles (`INFO`, `WARN`, `ERROR`).
+- **ADR-002 Disaster Recovery Panel:** Last snapshot timestamp, SQLite `VACUUM INTO` status, and manual `Trigger Nightly Backup` button.
+
+### 3.3 `shua_code_viz` Screen (`/code/topology`)
 - **Interactive Node Canvas:** Pan/zoom graph displaying source code functions, classes, and caller edges.
 - **Color Coding:** Cyclomatic complexity (Green < 5, Amber 5–10, Red > 10).
 - **Symbol Inspector Drawer:** Displays symbol signature, side-effect flags (IO, network, state mutation), caller references, and file line number.
 
-### 3.3 `shua_resume` Builder Screen (`/resume/editor`)
+### 3.4 `shua_resume` Builder Screen (`/resume/editor`)
 - **Matrix Editor Tabs:** Forms for Experience, Projects, Skills, Education.
 - **Compiler & Tailor Panel:** Job Description text input box, Jaccard keyword score meter (%), Typst template picker (`default`, `modern`, `minimalist`), and `Compile PDF` button.
 - **Live PDF Preview Drawer:** Real-time PDF exhibit renderer with `Download PDF` and `Share` actions.
-
-### 3.4 Governor Operations & Telemetry Screen (`/governor/status`)
-- **3-Node Topology Canvas:** Diagram showing real-time links between MSI Laptop (Heavy LLM), Raspberry Pi 5 (Governor), and Moto G84 (Mobile Client).
-- **Live Telemetry Stream:** Terminal window streaming Rust `tracing` logs from `activity.db` & `important.log` with filter chips (`hbp`, `cgroups`, `ollama`, `dream_loop`) and level toggles (`INFO`, `WARN`, `ERROR`).
-- **ADR-002 Disaster Recovery Panel:** Last snapshot timestamp, SQLite `VACUUM INTO` status, and manual `Trigger Nightly Backup` button.
 
 ---
 
