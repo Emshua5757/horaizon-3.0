@@ -215,11 +215,11 @@ class _SidebarBrandHeader extends ConsumerWidget {
                     padding: const EdgeInsets.only(left: 10),
                     child: Row(
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: Text(
                             'horAIzon 3.0',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: Theme.of(context).colorScheme.onSurface,
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                               letterSpacing: -0.5,
@@ -232,7 +232,7 @@ class _SidebarBrandHeader extends ConsumerWidget {
                         IconButton(
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
-                          icon: const Icon(Icons.chevron_left_rounded, color: Colors.white54, size: 20),
+                          icon: Icon(Icons.chevron_left_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 20),
                           onPressed: () => ref.read(isSidebarExpandedProvider.notifier).state = false,
                           tooltip: 'Collapse Sidebar',
                         ),
@@ -432,42 +432,42 @@ class _DesktopHeader extends StatelessWidget {
         children: [
           // Back & Forward navigation buttons matching Stitch screenshot
           IconButton(
-            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white54, size: 18),
+            icon: Icon(Icons.arrow_back_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 18),
             onPressed: () => context.canPop() ? context.pop() : null,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             tooltip: 'Back',
           ),
-          const IconButton(
-            icon: Icon(Icons.arrow_forward_rounded, color: Colors.white38, size: 18),
+          IconButton(
+            icon: Icon(Icons.arrow_forward_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5), size: 18),
             onPressed: null,
             padding: EdgeInsets.zero,
-            constraints: BoxConstraints(minWidth: 32, minHeight: 32),
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             tooltip: 'Forward',
           ),
           const SizedBox(width: 8),
           RichText(
             text: TextSpan(
               children: [
-                const TextSpan(
+                TextSpan(
                   text: 'Workspace  ›  ',
-                  style: TextStyle(color: Colors.white38, fontSize: 13),
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
                 ),
                 TextSpan(
                   text: title,
-                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 13, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
           ),
           const Spacer(),
           IconButton(
-            icon: const Icon(Icons.search_rounded, color: Colors.white70, size: 20),
+            icon: Icon(Icons.search_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 20),
             onPressed: () {},
             tooltip: 'Search',
           ),
           IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.white70, size: 20),
+            icon: Icon(Icons.notifications_outlined, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 20),
             onPressed: () {},
             tooltip: 'Notifications',
           ),
@@ -592,7 +592,8 @@ class _NavTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    const activeColor = Color(0xFF00E5FF);
+    final cs = theme.colorScheme;
+    final activeColor = cs.primary;
 
     return Tooltip(
       message: isExpanded ? '' : destination.label,
@@ -612,7 +613,7 @@ class _NavTile extends StatelessWidget {
             children: [
               Icon(
                 isSelected ? destination.selectedIcon : destination.icon,
-                color: isSelected ? activeColor : Colors.white54,
+                color: isSelected ? activeColor : cs.onSurfaceVariant,
                 size: 22,
               ),
               if (isExpanded)
@@ -626,7 +627,7 @@ class _NavTile extends StatelessWidget {
                       child: Text(
                         destination.label,
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: isSelected ? activeColor : Colors.white70,
+                          color: isSelected ? activeColor : cs.onSurfaceVariant,
                           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                         ),
                         overflow: TextOverflow.clip,
