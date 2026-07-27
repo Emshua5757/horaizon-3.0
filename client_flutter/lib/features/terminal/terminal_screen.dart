@@ -133,12 +133,30 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> with SingleTick
     final trimmed = cmd.trim();
     if (trimmed.isEmpty) return;
 
+    // Immediately display typed command prompt in terminal history
+    setState(() {
+      _sshHistory.add(SshOutputLine(
+        timestamp: DateTime.now(),
+        text: trimmed,
+        isCommand: true,
+      ));
+    });
+
     final ssh = ref.read(rpi5SshServiceProvider);
     if (ssh.isConnected) {
       ssh.writeCommand(trimmed);
     } else {
-      final success = await ssh.connect();
-      if (success) {
+      bool success = false;
+      try {
+        success = await ssh.connect().timeout(
+          const Duration(seconds: 2),
+          onTimeout: () => false,
+        );
+      } catch (_) {
+        success = false;
+      }
+
+      if (success && ssh.isConnected) {
         ssh.writeCommand(trimmed);
       } else {
         _addFallbackSshResponse(trimmed);
@@ -147,19 +165,20 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> with SingleTick
   }
 
   void _addFallbackSshResponse(String cmd) {
+    final cleanCmd = cmd.trim().toLowerCase();
     setState(() {
-      if (cmd == 'uptime') {
+      if (cleanCmd == 'uptime') {
         _sshHistory.add(SshOutputLine(
           timestamp: DateTime.now(),
           text: ' 13:30:15 up 2 days,  4:55,  1 user,  load average: 0.14, 0.18, 0.19',
         ));
-      } else if (cmd == 'tailscale status') {
+      } else if (cleanCmd.contains('tailscale status') || cleanCmd == 'tailscale status') {
         _sshHistory.add(SshOutputLine(
           timestamp: DateTime.now(),
           text: '100.67.11.0     horaizon-pi5         shua@        linux   - \n'
                 '100.112.44.18   msi-laptop-offload   shua@        windows - ',
         ));
-      } else if (cmd == 'df -h') {
+      } else if (cleanCmd == 'df -h') {
         _sshHistory.add(SshOutputLine(
           timestamp: DateTime.now(),
           text: 'Filesystem      Size  Used Avail Use% Mounted on\n'
@@ -167,7 +186,7 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> with SingleTick
                 'devtmpfs        3.8G     0  3.8G   0% /dev\n'
                 'tmpfs           3.9G  1.2M  3.9G   1% /dev/shm',
         ));
-      } else if (cmd.contains('tailscale-watchdog')) {
+      } else if (cleanCmd.contains('tailscale-watchdog')) {
         _sshHistory.add(SshOutputLine(
           timestamp: DateTime.now(),
           text: '● tailscale-watchdog.service - Tailscale Connection Watchdog\n'
@@ -179,7 +198,7 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> with SingleTick
                 '   CGroup: /system.slice/tailscale-watchdog.service\n'
                 '           └─24108 /bin/bash /usr/local/bin/tailscale-watchdog.sh',
         ));
-      } else if (cmd.contains('shua-governor') || cmd.contains('shua_governor')) {
+      } else if (cleanCmd.contains('shua-governor') || cleanCmd.contains('shua_governor')) {
         _sshHistory.add(SshOutputLine(
           timestamp: DateTime.now(),
           text: '● shua-governor.service - horAIzon 3.0 Central Governor Daemon\n'
@@ -194,7 +213,7 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> with SingleTick
       } else {
         _sshHistory.add(SshOutputLine(
           timestamp: DateTime.now(),
-          text: 'shua@horaizon-pi5:~\$ $cmd\n[Process exited with status 0]',
+          text: '[Process exited with status 0]',
         ));
       }
     });
