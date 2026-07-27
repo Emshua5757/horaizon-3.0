@@ -73,7 +73,26 @@ pub struct ChatMessageResponse {
     #[allow(dead_code)]
     pub role: String,
     pub content: String,
+    pub thinking: Option<String>,
+    pub reasoning_content: Option<String>,
     pub tool_calls: Option<Vec<ToolCall>>,
+}
+
+impl ChatMessageResponse {
+    pub fn effective_text(&self) -> String {
+        if !self.content.trim().is_empty() {
+            self.content.clone()
+        } else if let Some(ref r) = self.reasoning_content {
+            if !r.trim().is_empty() {
+                return r.clone();
+            }
+            self.content.clone()
+        } else if let Some(ref t) = self.thinking {
+            t.clone()
+        } else {
+            self.content.clone()
+        }
+    }
 }
 
 impl OllamaClient {

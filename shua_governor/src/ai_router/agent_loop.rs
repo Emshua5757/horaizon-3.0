@@ -128,7 +128,7 @@ impl McpAgentLoop {
             }
 
             // No tool calls requested: LLM completed reasoning and outputted final response
-            final_reply = res.content;
+            final_reply = res.effective_text();
             break;
         }
 
