@@ -85,6 +85,17 @@ class OllamaAiService {
     );
   }
 
+  /// Probe candidate URLs for target node (LAN IP primary, Tailscale IP secondary)
+  Future<String?> resolveWorkingBaseUrl(AiOffloadTarget node) async {
+    for (final candidate in node.candidateUrls) {
+      try {
+        final res = await _defaultClient.get(Uri.parse('$candidate/api/tags')).timeout(const Duration(milliseconds: 800));
+        if (res.statusCode == 200) return candidate;
+      } catch (_) {}
+    }
+    return null;
+  }
+
   Future<Stream<OllamaStreamChunk>?> _tryStreamNode({
     required AiOffloadTarget node,
     required String modelName,
@@ -210,17 +221,6 @@ class OllamaAiService {
     );
 
     return controller.stream;
-  }
-
-  /// Probe candidate URLs for target node (LAN IP primary, Tailscale IP secondary)
-  Future<String?> resolveWorkingBaseUrl(AiOffloadTarget node) async {
-    for (final candidate in node.candidateUrls) {
-      try {
-        final res = await _defaultClient.get(Uri.parse('$candidate/api/tags')).timeout(const Duration(milliseconds: 800));
-        if (res.statusCode == 200) return candidate;
-      } catch (_) {}
-    }
-    return null;
   }
 
   /// Probe active Ollama endpoint and return available node or fallback

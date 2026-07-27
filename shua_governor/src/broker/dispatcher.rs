@@ -142,12 +142,13 @@ impl CpuTracker {
         {
             #[repr(C)]
             #[derive(Copy, Clone, Default)]
+            #[allow(clippy::upper_case_acronyms)]
             struct FILETIME {
                 dw_low: u32,
                 dw_high: u32,
             }
             impl FILETIME {
-                fn to_u64(&self) -> u64 {
+                fn to_u64(self) -> u64 {
                     ((self.dw_high as u64) << 32) | (self.dw_low as u64)
                 }
             }
