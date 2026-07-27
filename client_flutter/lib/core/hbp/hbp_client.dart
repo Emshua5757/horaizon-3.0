@@ -22,6 +22,9 @@ class HbpClient {
   HbpConnectionState _state = HbpConnectionState.disconnected;
   final Map<String, Completer<HbpFrame>> _pending = {};
   final _eventController = StreamController<HbpFrame>.broadcast();
+  int _lastLatencyMs = 12;
+
+  int get lastLatencyMs => _lastLatencyMs;
 
   HbpClient(
     this._config, {
@@ -44,12 +47,16 @@ class HbpClient {
 
     _setState(HbpConnectionState.connecting);
     final uri = Uri.parse(_config.governorWsUrl);
+    // ignore: avoid_print
+    print('[HBP Client] Attempting connection to $uri ...');
 
     try {
       _channel = _channelFactory(uri);
-      await _channel!.ready;
+      await _channel!.ready.timeout(const Duration(seconds: 4));
       _setState(HbpConnectionState.connected);
       _reconnectAttempts = 0;
+      // ignore: avoid_print
+      print('[HBP Client] SUCCESS: Connected to $uri ✓');
 
       _sub = _channel!.stream.listen(
         _onMessage,
@@ -59,6 +66,8 @@ class HbpClient {
 
       _startHeartbeat();
     } catch (e) {
+      // ignore: avoid_print
+      print('[HBP Client ERROR] Failed to connect to $uri -> $e');
       _setState(HbpConnectionState.disconnected);
       _scheduleReconnect();
     }
@@ -81,13 +90,14 @@ class HbpClient {
       throw StateError('HbpClient is not connected (state: $_state)');
     }
 
+    final startMs = DateTime.now().millisecondsSinceEpoch;
     final completer = Completer<HbpFrame>();
     _pending[frame.txId] = completer;
 
     _channel!.sink.add(Uint8List.fromList(frame.encode()));
 
     // Timeout after 10s if no response
-    return completer.future.timeout(
+    final resp = await completer.future.timeout(
       const Duration(seconds: 10),
       onTimeout: () {
         _pending.remove(frame.txId);
@@ -95,14 +105,26 @@ class HbpClient {
             'HBP v2 request timed out: ${frame.module}.${frame.op}');
       },
     );
+
+    _lastLatencyMs = DateTime.now().millisecondsSinceEpoch - startMs;
+    return resp;
   }
 
   // ---- internal handlers ----
 
   void _onMessage(dynamic message) {
-    if (message is! List<int>) return;
+    List<int>? bytes;
+    if (message is List<int>) {
+      bytes = message;
+    } else if (message is Uint8List) {
+      bytes = message.toList();
+    }
+    if (bytes == null || bytes.isEmpty) return;
+
     try {
-      final frame = HbpFrame.decode(message);
+      final frame = HbpFrame.decode(bytes);
+      // ignore: avoid_print
+      print('[HBP Client Incoming] Decoded frame op: ${frame.op}, txId: ${frame.txId}');
 
       if (frame.isPong) return; // Heartbeat response
 

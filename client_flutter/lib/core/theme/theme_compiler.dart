@@ -1,78 +1,62 @@
 import 'package:flutter/material.dart';
+import 'app_theme_preset.dart';
 
 enum SurfaceMode { cyberObsidian, oledPureBlack, midnightSpace, warmLight }
 
 enum TypographyProfile { modernOutfit, cyberMono, editorialLora }
 
-/// Pure mathematical compiler translating primary/secondary seeds and surface modes
-/// into a full Material 3 ThemeData object with glowing borders and glassmorphism.
+/// Pure mathematical compiler translating any AppThemePreset + Brightness variant
+/// into a full Material 3 ThemeData object.
 class ThemeCompiler {
   static ThemeData compile({
+    required AppThemePreset preset,
     required Brightness brightness,
-    required Color primarySeed,
-    Color? secondarySeed,
-    SurfaceMode surfaceMode = SurfaceMode.cyberObsidian,
-    TypographyProfile typography = TypographyProfile.modernOutfit,
+    Color? customPrimarySeed,
+    Color? customSecondarySeed,
     double textScale = 1.0,
-    bool enableGlowBorders = true,
   }) {
-    // 1. Primary HCT scheme generation
+    final variant = preset.getVariant(brightness);
+
+    final primaryColor = customPrimarySeed ?? variant.primary;
+    final secondaryColor = customSecondarySeed ?? variant.secondary;
+
     var scheme = ColorScheme.fromSeed(
-      seedColor: primarySeed,
+      seedColor: primaryColor,
       brightness: brightness,
     );
 
-    // 2. Graft explicit secondary seed if specified to bypass HCT shifting
-    if (secondarySeed != null) {
-      final secScheme = ColorScheme.fromSeed(
-        seedColor: secondarySeed,
-        brightness: brightness,
-      );
-      scheme = scheme.copyWith(
-        secondary: secondarySeed,
-        onSecondary: secScheme.onPrimary,
-        secondaryContainer: secScheme.primaryContainer,
-        onSecondaryContainer: secScheme.onPrimaryContainer,
-      );
-    }
-
-    // 3. Customize scaffold & canvas based on SurfaceMode
-    final scaffoldBg = switch (surfaceMode) {
-      SurfaceMode.cyberObsidian => const Color(0xFF0D0D12),
-      SurfaceMode.oledPureBlack => Colors.black,
-      SurfaceMode.midnightSpace => const Color(0xFF121826),
-      SurfaceMode.warmLight     => const Color(0xFFF7F5F0),
-    };
-
     scheme = scheme.copyWith(
-      surface: scaffoldBg,
-      onSurface: brightness == Brightness.dark ? Colors.white : Colors.black87,
+      primary: primaryColor,
+      secondary: secondaryColor,
+      surface: variant.scaffoldBg,
+      surfaceContainerLow: variant.cardBg,
+      onSurface: variant.onSurface,
+      onSurfaceVariant: variant.onSurfaceVariant,
+      outlineVariant: variant.effects.cardBorder.color,
     );
 
-    // 4. Typography profile selection
-    final textTheme = _buildTextTheme(typography, brightness);
+    final textTheme = _buildTextTheme(variant.fontFamily, brightness, textScale);
 
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor: scaffoldBg,
+      scaffoldBackgroundColor: variant.scaffoldBg,
       textTheme: textTheme,
+      extensions: [
+        variant.effects,
+        variant.semantic,
+      ],
       cardTheme: CardThemeData(
         elevation: 0,
-        color: scheme.surfaceContainerLow.withValues(alpha: 0.85),
+        color: variant.cardBg,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: enableGlowBorders
-                ? primarySeed.withValues(alpha: 0.35)
-                : scheme.outlineVariant.withValues(alpha: 0.3),
-            width: enableGlowBorders ? 1.5 : 1.0,
-          ),
+          borderRadius: BorderRadius.circular(variant.effects.cardRadius),
+          side: variant.effects.cardBorder,
         ),
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: scaffoldBg,
-        foregroundColor: scheme.onSurface,
+        backgroundColor: variant.scaffoldBg,
+        foregroundColor: variant.onSurface,
         elevation: 0,
         scrolledUnderElevation: 1,
         titleTextStyle: textTheme.titleLarge?.copyWith(
@@ -82,71 +66,67 @@ class ThemeCompiler {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: primarySeed,
-          foregroundColor: Colors.black,
+          backgroundColor: primaryColor,
+          foregroundColor: brightness == Brightness.dark ? Colors.black : Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(variant.effects.buttonRadius),
           ),
           textStyle: const TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: scheme.onSurface,
+          foregroundColor: variant.onSurface,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          side: BorderSide(color: primarySeed.withValues(alpha: 0.5), width: 1.5),
+          side: BorderSide(color: primaryColor.withValues(alpha: 0.5), width: 1.5),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(variant.effects.buttonRadius),
           ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: scheme.surfaceContainerLow.withValues(alpha: 0.6),
+        fillColor: variant.cardBg,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(variant.effects.buttonRadius),
           borderSide: BorderSide(color: scheme.outlineVariant),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(variant.effects.buttonRadius),
           borderSide: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.4)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: primarySeed, width: 2),
+          borderRadius: BorderRadius.circular(variant.effects.buttonRadius),
+          borderSide: BorderSide(color: primaryColor, width: 2),
         ),
-      ),
-      listTileTheme: ListTileThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        iconColor: primarySeed,
-      ),
-      dividerTheme: DividerThemeData(
-        color: scheme.outlineVariant.withValues(alpha: 0.25),
-        thickness: 1,
-      ),
-      navigationRailTheme: NavigationRailThemeData(
-        backgroundColor: scaffoldBg,
-        selectedIconTheme: IconThemeData(color: primarySeed),
-        selectedLabelTextStyle: TextStyle(
-          color: primarySeed,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: scaffoldBg,
-        indicatorColor: scheme.primaryContainer,
       ),
     );
   }
 
-  static TextTheme _buildTextTheme(TypographyProfile profile, Brightness brightness) {
-    final base = brightness == Brightness.dark ? ThemeData.dark().textTheme : ThemeData.light().textTheme;
-    final family = switch (profile) {
-      TypographyProfile.modernOutfit   => 'Outfit',
-      TypographyProfile.cyberMono     => 'JetBrainsMono',
-      TypographyProfile.editorialLora => 'Lora',
-    };
-    return base.apply(fontFamily: family);
+  static TextTheme _buildTextTheme(String fontFamily, Brightness brightness, double scale) {
+    final base = brightness == Brightness.dark ? Typography.whiteMountainView : Typography.blackMountainView;
+
+    TextTheme applyFamily(TextTheme t) {
+      return t.apply(fontFamily: fontFamily);
+    }
+
+    final tt = applyFamily(base);
+    if (scale == 1.0) return tt;
+
+    return tt.copyWith(
+      displayLarge: tt.displayLarge?.copyWith(fontSize: (tt.displayLarge?.fontSize ?? 57) * scale),
+      displayMedium: tt.displayMedium?.copyWith(fontSize: (tt.displayMedium?.fontSize ?? 45) * scale),
+      displaySmall: tt.displaySmall?.copyWith(fontSize: (tt.displaySmall?.fontSize ?? 36) * scale),
+      headlineLarge: tt.headlineLarge?.copyWith(fontSize: (tt.headlineLarge?.fontSize ?? 32) * scale),
+      headlineMedium: tt.headlineMedium?.copyWith(fontSize: (tt.headlineMedium?.fontSize ?? 28) * scale),
+      headlineSmall: tt.headlineSmall?.copyWith(fontSize: (tt.headlineSmall?.fontSize ?? 24) * scale),
+      titleLarge: tt.titleLarge?.copyWith(fontSize: (tt.titleLarge?.fontSize ?? 22) * scale),
+      titleMedium: tt.titleMedium?.copyWith(fontSize: (tt.titleMedium?.fontSize ?? 16) * scale),
+      titleSmall: tt.titleSmall?.copyWith(fontSize: (tt.titleSmall?.fontSize ?? 14) * scale),
+      bodyLarge: tt.bodyLarge?.copyWith(fontSize: (tt.bodyLarge?.fontSize ?? 16) * scale),
+      bodyMedium: tt.bodyMedium?.copyWith(fontSize: (tt.bodyMedium?.fontSize ?? 14) * scale),
+      bodySmall: tt.bodySmall?.copyWith(fontSize: (tt.bodySmall?.fontSize ?? 12) * scale),
+    );
   }
 }
