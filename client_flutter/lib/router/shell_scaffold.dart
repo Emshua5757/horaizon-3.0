@@ -152,10 +152,10 @@ class ShellScaffold extends ConsumerWidget {
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF050508),
+              color: cs.surfaceContainerLow,
               border: Border(
                 top: BorderSide(
-                  color: cs.primary.withValues(alpha: 0.2),
+                  color: cs.outlineVariant,
                   width: 1,
                 ),
               ),
@@ -164,12 +164,12 @@ class ShellScaffold extends ConsumerWidget {
               selectedIndex: selectedIndex,
               onDestinationSelected: (i) => context.go(_destinations[i].path),
               backgroundColor: Colors.transparent,
-              indicatorColor: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+              indicatorColor: cs.primary.withValues(alpha: 0.15),
               elevation: 0,
               destinations: _destinations
                   .map((d) => NavigationDestination(
-                        icon: Icon(d.icon, color: Colors.white54),
-                        selectedIcon: Icon(d.selectedIcon, color: const Color(0xFF00E5FF)),
+                        icon: Icon(d.icon, color: cs.onSurfaceVariant),
+                        selectedIcon: Icon(d.selectedIcon, color: cs.primary),
                         label: d.label,
                       ))
                   .toList(),
@@ -490,30 +490,34 @@ class _MobileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<AppSemanticPalette>();
+    final successColor = semantic?.success ?? cs.primary;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF050508),
-        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05), width: 1)),
+        color: cs.surfaceContainerLow,
+        border: Border(bottom: BorderSide(color: cs.outlineVariant, width: 1)),
       ),
       child: Row(
         children: [
-          const Column(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'horAIzon 3.0',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: -0.5),
+                style: TextStyle(color: cs.onSurface, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: -0.5),
               ),
               Text(
                 'AI OPERATING SYSTEM',
-                style: TextStyle(color: Color(0xFF00E5FF), fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                style: TextStyle(color: cs.primary, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1.2),
               ),
             ],
           ),
           const Spacer(),
           IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Color(0xFF00E5FF), size: 22),
+            icon: Icon(Icons.notifications_outlined, color: cs.primary, size: 22),
             onPressed: () {},
             tooltip: 'Notifications',
           ),
@@ -522,12 +526,12 @@ class _MobileHeader extends StatelessWidget {
             padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFF3CE36A), width: 1.5),
+              border: Border.all(color: successColor, width: 1.5),
             ),
-            child: const CircleAvatar(
+            child: CircleAvatar(
               radius: 14,
-              backgroundColor: Color(0xFF122131),
-              child: Icon(Icons.person_rounded, size: 16, color: Color(0xFF00E5FF)),
+              backgroundColor: cs.surface,
+              child: Icon(Icons.person_rounded, size: 16, color: cs.primary),
             ),
           ),
         ],
@@ -543,18 +547,19 @@ class _MobileFloatingPill extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     final status = ref.watch(governorStatusProvider).valueOrNull;
     final (color, label) = switch (connState) {
-      HbpConnectionState.connected    => (const Color(0xFF3CE36A), 'RPi5: ${status?.tailscaleLatencyMs ?? 12}MS | ONLINE'),
+      HbpConnectionState.connected    => (cs.primary, 'RPi5: ${status?.tailscaleLatencyMs ?? 12}MS | ONLINE'),
       HbpConnectionState.connecting   => (Colors.amber, 'RPi5: CONNECTING...'),
       HbpConnectionState.reconnecting => (Colors.orange, 'RPi5: RETRYING...'),
-      HbpConnectionState.disconnected => (const Color(0xFFEF4444), 'RPi5: OFFLINE'),
+      HbpConnectionState.disconnected => (cs.error, 'RPi5: OFFLINE'),
     };
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF122131).withValues(alpha: 0.9),
+        color: cs.surfaceContainerLow.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withValues(alpha: 0.5), width: 1),
         boxShadow: [
