@@ -141,36 +141,39 @@ class _AiAggregatorHeroState extends ConsumerState<AiAggregatorHero> {
         children: [
           Row(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.smart_toy_rounded, color: cs.primary, size: 14),
-                      const SizedBox(width: 6),
-                      Text(
-                        'SHUA GOVERNOR',
-                        style: TextStyle(
-                          color: cs.primary,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.2,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.smart_toy_rounded, color: cs.primary, size: 14),
+                        const SizedBox(width: 6),
+                        Text(
+                          'SHUA GOVERNOR',
+                          style: TextStyle(
+                            color: cs.primary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.2,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    'AI Aggregator',
-                    style: TextStyle(
-                      color: cs.onSurface,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 3),
+                    Text(
+                      'AI Aggregator',
+                      style: TextStyle(
+                        color: cs.onSurface,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
@@ -179,6 +182,7 @@ class _AiAggregatorHeroState extends ConsumerState<AiAggregatorHero> {
                   border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     CircleAvatar(radius: 3, backgroundColor: badgeColor),
                     const SizedBox(width: 6),

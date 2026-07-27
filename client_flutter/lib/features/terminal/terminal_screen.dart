@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/hbp/hbp_client.dart';
 import '../../core/hbp/hbp_client_provider.dart';
 import '../../core/ssh/rpi5_ssh_service.dart';
+import '../../core/logging/governor_logger.dart';
 import 'models/telemetry_log_item.dart';
 import 'widgets/ssh_tab_view.dart';
 import 'widgets/telemetry_tab_view.dart';
@@ -21,6 +22,7 @@ class TerminalScreen extends ConsumerStatefulWidget {
 class _TerminalScreenState extends ConsumerState<TerminalScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   StreamSubscription<String>? _sshSub;
+  StreamSubscription<StructuredLogEntry>? _loggerSub;
 
   final List<TelemetryLogItem> _logs = [
     TelemetryLogItem(
@@ -87,6 +89,23 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> with SingleTick
     _tabController = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initSshStream();
+      _initLoggerStream();
+    });
+  }
+
+  void _initLoggerStream() {
+    _loggerSub = ref.read(governorLoggerProvider).logStream.listen((entry) {
+      if (mounted) {
+        setState(() {
+          _logs.add(TelemetryLogItem(
+            timestamp: entry.timestamp,
+            subsystem: entry.subsystem.toUpperCase(),
+            level: entry.level.name.toUpperCase(),
+            message: entry.message,
+            metadata: entry.metadata,
+          ));
+        });
+      }
     });
   }
 
@@ -112,6 +131,7 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> with SingleTick
   @override
   void dispose() {
     _sshSub?.cancel();
+    _loggerSub?.cancel();
     _tabController.dispose();
     super.dispose();
   }
