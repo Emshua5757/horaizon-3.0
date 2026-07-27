@@ -85,13 +85,22 @@ class OllamaAiService {
     );
   }
 
-  /// Probe candidate URLs for target node (LAN IP primary, Tailscale IP secondary)
+  /// Probe candidate URLs concurrently (Tailscale 100.67.11.0 & LAN IP) for instant node resolution
   Future<String?> resolveWorkingBaseUrl(AiOffloadTarget node) async {
-    for (final candidate in node.candidateUrls) {
+    final futures = node.candidateUrls.map((candidate) async {
       try {
-        final res = await _defaultClient.get(Uri.parse('$candidate/api/tags')).timeout(const Duration(milliseconds: 2500));
+        final pingUrl = candidate.contains(':7700')
+            ? candidate.replaceAll(':7700', ':11434')
+            : candidate;
+        final res = await _defaultClient.get(Uri.parse('$pingUrl/api/tags')).timeout(const Duration(milliseconds: 1500));
         if (res.statusCode == 200) return candidate;
       } catch (_) {}
+      return null;
+    });
+
+    final results = await Future.wait(futures);
+    for (final res in results) {
+      if (res != null) return res;
     }
     return null;
   }

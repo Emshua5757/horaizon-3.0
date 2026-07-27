@@ -20,7 +20,9 @@ class FormattedMarkdownContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: blocks.map((block) {
-        if (block.isCodeBlock) {
+        if (block.isThinkingBlock) {
+          return _ThinkingCard(text: block.text);
+        } else if (block.isCodeBlock) {
           return _CodeBlockCard(
             language: block.language,
             code: block.text,
@@ -70,11 +72,19 @@ class FormattedMarkdownContent extends StatelessWidget {
     }
 
     if (currentBuffer.isNotEmpty) {
-      blocks.add(_ParsedBlock(
-        isCodeBlock: inCode,
-        language: inCode ? currentLang : '',
-        text: currentBuffer.join('\n'),
-      ));
+      final text = currentBuffer.join('\n');
+      if (text.contains('<think>') || text.contains('🛠️ **[MCP Tool')) {
+        blocks.add(_ParsedBlock(
+          isThinkingBlock: true,
+          text: text,
+        ));
+      } else {
+        blocks.add(_ParsedBlock(
+          isCodeBlock: inCode,
+          language: inCode ? currentLang : '',
+          text: text,
+        ));
+      }
     }
 
     return blocks;
@@ -83,14 +93,96 @@ class FormattedMarkdownContent extends StatelessWidget {
 
 class _ParsedBlock {
   final bool isCodeBlock;
+  final bool isThinkingBlock;
   final String language;
   final String text;
 
   _ParsedBlock({
-    required this.isCodeBlock,
+    this.isCodeBlock = false,
+    this.isThinkingBlock = false,
     this.language = '',
     required this.text,
   });
+}
+
+class _ThinkingCard extends StatefulWidget {
+  final String text;
+
+  const _ThinkingCard({required this.text});
+
+  @override
+  State<_ThinkingCard> createState() => _ThinkingCardState();
+}
+
+class _ThinkingCardState extends State<_ThinkingCard> {
+  bool _expanded = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final cleanedText = widget.text
+        .replaceAll('<think>', '')
+        .replaceAll('</think>', '')
+        .trim();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHigh.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  Icon(Icons.psychology_rounded, size: 16, color: cs.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'THINKING PHASE & AGENT CHAIN-OF-THOUGHT',
+                    style: TextStyle(
+                      color: cs.primary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.8,
+                      fontFamily: 'JetBrainsMono',
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    _expanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                    size: 18,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_expanded) ...[
+            const Divider(height: 1, thickness: 1),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: SelectableText(
+                cleanedText,
+                style: TextStyle(
+                  color: cs.onSurfaceVariant,
+                  fontSize: 11.5,
+                  height: 1.45,
+                  fontFamily: 'JetBrainsMono',
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 class _CodeBlockCard extends StatefulWidget {

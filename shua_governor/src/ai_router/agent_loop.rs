@@ -38,16 +38,8 @@ impl McpAgentLoop {
         );
 
         let mut messages = vec![
-            ChatMessage {
-                role: "system".into(),
-                content: system_prompt,
-                tool_calls: None,
-            },
-            ChatMessage {
-                role: "user".into(),
-                content: prompt.to_string(),
-                tool_calls: None,
-            },
+            ChatMessage::system(system_prompt),
+            ChatMessage::user(prompt),
         ];
 
         // Fetch MCP tools for active scope
@@ -127,11 +119,7 @@ impl McpAgentLoop {
                         let tool_res = McpExecutor::execute(&mcp_call, process_manager, ollama_lifecycle).await;
 
                         // Append tool execution result JSON to message context for next turn
-                        messages.push(ChatMessage {
-                            role: "tool".into(),
-                            content: format!("Tool '{}' Result:\n{}", tool_name, tool_res.result),
-                            tool_calls: None,
-                        });
+                        messages.push(ChatMessage::tool(format!("Tool '{}' Result:\n{}", tool_name, tool_res.result)));
                     }
 
                     continue;
