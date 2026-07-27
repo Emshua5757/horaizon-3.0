@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_semantic_palette.dart';
 import '../../governor/governor_provider.dart';
 
-/// Refined Welcome Header dynamically adapting to Theme Preset and AppSemanticPalette.
+/// Refined Welcome Header dynamically adapting to Theme Preset, supporting responsive wrapping.
 class DashboardWelcomeHeader extends ConsumerWidget {
   const DashboardWelcomeHeader({super.key});
 
@@ -15,11 +15,14 @@ class DashboardWelcomeHeader extends ConsumerWidget {
 
     final successColor = semantic?.success ?? cs.primary;
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      runSpacing: 12,
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               'Welcome back, Joshua',
@@ -32,6 +35,7 @@ class DashboardWelcomeHeader extends ConsumerWidget {
             ),
             const SizedBox(height: 6),
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   Icons.schedule_rounded,
@@ -50,7 +54,6 @@ class DashboardWelcomeHeader extends ConsumerWidget {
             ),
           ],
         ),
-        const Spacer(),
 
         // Sleek Telemetry Refresh Pill Button
         InkWell(

@@ -5,6 +5,7 @@ import '../core/hbp/hbp_client_provider.dart';
 import '../core/hbp/hbp_client.dart';
 import '../features/governor/governor_provider.dart';
 import '../shared/widgets/connection_status_banner.dart';
+import '../shared/widgets/telemetry_sparkline.dart';
 import '../core/theme/app_semantic_palette.dart';
 
 /// StateProvider for expanding/minimizing the desktop navigation sidebar.
@@ -248,8 +249,7 @@ class _SidebarBrandHeader extends ConsumerWidget {
     );
   }
 }
-
-/// System Telemetry Footer Block matching Stitch with smooth AnimatedCrossFade.
+/// System Telemetry Footer Block with Windows Task Manager style mini sparklines.
 class _SidebarTelemetryCard extends ConsumerWidget {
   final bool isExpanded;
 
@@ -262,8 +262,10 @@ class _SidebarTelemetryCard extends ConsumerWidget {
     final cs = theme.colorScheme;
     final semantic = theme.extension<AppSemanticPalette>();
 
-    final successColor = semantic?.success ?? cs.primary;
-    final infoColor = semantic?.info ?? cs.secondary;
+    final successColor = semantic?.success ?? const Color(0xFF10B981);
+    final infoColor = semantic?.info ?? const Color(0xFF00E5FF);
+    const tempColor = Color(0xFFF59E0B);
+    const pingColor = Color(0xFFA855F7);
 
     final cpuPct = status?.cpuUsagePct ?? 18.0;
     final cpuStr = cpuPct.toStringAsFixed(0);
@@ -271,6 +273,11 @@ class _SidebarTelemetryCard extends ConsumerWidget {
     final totalRamGb = ((status?.ramCeilingMb ?? 7168.0) / 1024.0).toStringAsFixed(1);
     final tempStr = (status?.socTempC ?? 41.8).toStringAsFixed(1);
     final pingMs = status?.tailscaleLatencyMs ?? 12;
+
+    final cpuHist = status?.cpuHistory ?? [12.0, 15.0, 18.0, 14.0, 16.0, 18.0];
+    final ramHist = status?.ramHistory ?? [2100.0, 2120.0, 2140.0, 2130.0, 2140.0];
+    final tempHist = status?.tempHistory ?? [40.5, 41.0, 41.5, 41.8, 41.6];
+    final pingHist = status?.latencyHistory ?? [14.0, 12.0, 13.0, 12.0, 12.0];
 
     return AnimatedCrossFade(
       duration: const Duration(milliseconds: 200),
@@ -281,123 +288,138 @@ class _SidebarTelemetryCard extends ConsumerWidget {
           children: [
             Divider(indent: 12, endIndent: 12, color: cs.outlineVariant),
             const SizedBox(height: 4),
-            _MiniTelemetryTag(label: 'CPU', value: '$cpuStr%'),
-            const SizedBox(height: 4),
-            _MiniTelemetryTag(label: 'MEM', value: '${usedRamGb}G', color: infoColor),
-            const SizedBox(height: 4),
-            _MiniTelemetryTag(label: 'TMP', value: '$tempStr°', color: successColor),
-            const SizedBox(height: 4),
-            _MiniTelemetryTag(label: 'PNG', value: '${pingMs}ms', color: infoColor),
+            _MiniTelemetryTag(label: 'CPU', value: '$cpuStr%', values: cpuHist, color: successColor),
+            const SizedBox(height: 6),
+            _MiniTelemetryTag(label: 'MEM', value: '${usedRamGb}G', values: ramHist, color: infoColor),
+            const SizedBox(height: 6),
+            _MiniTelemetryTag(label: 'TMP', value: '$tempStr°', values: tempHist, color: tempColor),
+            const SizedBox(height: 6),
+            _MiniTelemetryTag(label: 'PNG', value: '${pingMs}ms', values: pingHist, color: pingColor),
           ],
         ),
       ),
       secondChild: ClipRect(
-        child: OverflowBox(
-          minWidth: 0,
-          maxWidth: 236,
-          alignment: Alignment.centerLeft,
-          child: SizedBox(
-            width: 236,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: cs.surface.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: cs.outlineVariant),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            'SYSTEM TELEMETRY',
-                            style: TextStyle(
-                              color: cs.onSurfaceVariant,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.8,
-                            ),
-                            overflow: TextOverflow.clip,
-                            maxLines: 1,
+        child: SizedBox(
+          width: 236,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: cs.surface.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: cs.outlineVariant),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'SYSTEM TELEMETRY',
+                          style: TextStyle(
+                            color: cs.onSurfaceVariant,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.8,
                           ),
+                          overflow: TextOverflow.clip,
+                          maxLines: 1,
                         ),
-                        Text(
-                          'Operational',
-                          style: TextStyle(color: successColor, fontSize: 9, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    // CPU Line
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('CPU', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10)),
-                        Text('$cpuStr%', style: TextStyle(color: cs.onSurface, fontSize: 10, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
-                      child: LinearProgressIndicator(
-                        value: (cpuPct / 100.0).clamp(0.0, 1.0),
-                        backgroundColor: cs.onSurface.withValues(alpha: 0.08),
-                        valueColor: AlwaysStoppedAnimation<Color>(successColor),
-                        minHeight: 3,
                       ),
-                    ),
-                    const SizedBox(height: 6),
-
-                    // MEM Line
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('MEM', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10)),
-                        Text('$usedRamGb/${totalRamGb}GB', style: TextStyle(color: infoColor, fontSize: 10, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
-                      child: LinearProgressIndicator(
-                        value: (status?.ramCeilingMb != null && status!.ramCeilingMb > 0)
-                            ? (status.totalRamMb / status.ramCeilingMb).clamp(0.0, 1.0)
-                            : 0.3,
-                        backgroundColor: cs.onSurface.withValues(alpha: 0.08),
-                        valueColor: AlwaysStoppedAnimation<Color>(infoColor),
-                        minHeight: 3,
+                      Text(
+                        'Operational',
+                        style: TextStyle(color: successColor, fontSize: 9, fontWeight: FontWeight.bold),
                       ),
-                    ),
-                    const SizedBox(height: 8),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
 
-                    // Bottom Stats Row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
+                  // CPU Windows Task Manager Style Sparkline
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('CPU UTILIZATION', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 9, fontWeight: FontWeight.bold)),
+                      Text('$cpuStr%', style: TextStyle(color: successColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  TelemetrySparkline(
+                    values: cpuHist,
+                    lineColor: successColor,
+                    height: 24,
+                    minVal: 0,
+                    maxVal: 100,
+                  ),
+                  const SizedBox(height: 8),
+
+                  // MEM Windows Task Manager Style Sparkline
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('MEMORY USAGE', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 9, fontWeight: FontWeight.bold)),
+                      Text('$usedRamGb/${totalRamGb}GB', style: TextStyle(color: infoColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  TelemetrySparkline(
+                    values: ramHist,
+                    lineColor: infoColor,
+                    height: 24,
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Bottom Grid: RPi5 Temp & Latency Sparklines
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('TEMP', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 8)),
-                            Text('$tempStr°C', style: TextStyle(color: successColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('TEMP', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 8, fontWeight: FontWeight.bold)),
+                                Text('$tempStr°C', style: const TextStyle(color: tempColor, fontSize: 9, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            TelemetrySparkline(
+                              values: tempHist,
+                              lineColor: tempColor,
+                              height: 18,
+                              showGrid: false,
+                            ),
                           ],
                         ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('PING', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 8)),
-                            Text('${pingMs}ms', style: TextStyle(color: infoColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('PING', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 8, fontWeight: FontWeight.bold)),
+                                Text('${pingMs}ms', style: const TextStyle(color: pingColor, fontSize: 9, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            TelemetrySparkline(
+                              values: pingHist,
+                              lineColor: pingColor,
+                              height: 18,
+                              showGrid: false,
+                            ),
                           ],
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
@@ -410,18 +432,43 @@ class _SidebarTelemetryCard extends ConsumerWidget {
 class _MiniTelemetryTag extends StatelessWidget {
   final String label;
   final String value;
+  final List<double>? values;
   final Color? color;
 
-  const _MiniTelemetryTag({required this.label, required this.value, this.color});
+  const _MiniTelemetryTag({
+    required this.label,
+    required this.value,
+    this.values,
+    this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Column(
-      children: [
-        Text(label, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 8, fontWeight: FontWeight.bold)),
-        Text(value, style: TextStyle(color: color ?? cs.onSurface, fontSize: 9, fontWeight: FontWeight.bold)),
-      ],
+    final activeColor = color ?? cs.primary;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(label, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 8, fontWeight: FontWeight.bold)),
+              Text(value, style: TextStyle(color: activeColor, fontSize: 9, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          if (values != null && values!.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            TelemetrySparkline(
+              values: values!,
+              lineColor: activeColor,
+              height: 12,
+              showGrid: false,
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

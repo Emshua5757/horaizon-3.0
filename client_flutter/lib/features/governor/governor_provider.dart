@@ -5,6 +5,7 @@ import 'package:messagepack/messagepack.dart';
 import '../../core/hbp/hbp_client_provider.dart';
 import '../../core/hbp/hbp_client.dart';
 import '../../core/hbp/hbp_frame.dart';
+import '../../core/theme/theme_provider.dart';
 
 enum ModuleState { running, sleeping, stopped, unknown }
 
@@ -22,8 +23,8 @@ class ModuleStatus {
     required this.name,
     required this.state,
     this.pid,
-    this.ramMb = 0.0,
-    this.cpuPercent = 0.0,
+    required this.ramMb,
+    required this.cpuPercent,
     this.uptimeS,
     this.healthOk = true,
     this.restartCount = 0,
@@ -61,6 +62,11 @@ class GovernorStatus {
   final bool isIntentRouterActive;
   final bool isLaptopOffload;
 
+  final List<double> cpuHistory;
+  final List<double> ramHistory;
+  final List<double> tempHistory;
+  final List<double> latencyHistory;
+
   const GovernorStatus({
     this.cpuUsagePct = 18.0,
     this.totalRamMb = 2140.0,
@@ -73,6 +79,10 @@ class GovernorStatus {
     this.ollamaRamMb = 1840.0,
     this.isIntentRouterActive = true,
     this.isLaptopOffload = true,
+    this.cpuHistory = const [12.0, 15.0, 18.0, 14.0, 16.0, 18.0],
+    this.ramHistory = const [2100.0, 2120.0, 2140.0, 2130.0, 2140.0],
+    this.tempHistory = const [40.5, 41.0, 41.5, 41.8, 41.6],
+    this.latencyHistory = const [14.0, 12.0, 13.0, 12.0, 12.0],
   });
 
   GovernorStatus copyWith({
@@ -87,6 +97,10 @@ class GovernorStatus {
     double? ollamaRamMb,
     bool? isIntentRouterActive,
     bool? isLaptopOffload,
+    List<double>? cpuHistory,
+    List<double>? ramHistory,
+    List<double>? tempHistory,
+    List<double>? latencyHistory,
   }) {
     return GovernorStatus(
       cpuUsagePct: cpuUsagePct ?? this.cpuUsagePct,
@@ -100,6 +114,10 @@ class GovernorStatus {
       ollamaRamMb: ollamaRamMb ?? this.ollamaRamMb,
       isIntentRouterActive: isIntentRouterActive ?? this.isIntentRouterActive,
       isLaptopOffload: isLaptopOffload ?? this.isLaptopOffload,
+      cpuHistory: cpuHistory ?? this.cpuHistory,
+      ramHistory: ramHistory ?? this.ramHistory,
+      tempHistory: tempHistory ?? this.tempHistory,
+      latencyHistory: latencyHistory ?? this.latencyHistory,
     );
   }
 
@@ -107,8 +125,8 @@ class GovernorStatus {
         isLaptopOffload: true,
         modules: [
           ModuleStatus(name: 'shua_diary', state: ModuleState.running, ramMb: 142.0, cpuPercent: 1.2, healthOk: true),
-          ModuleStatus(name: 'shua_code_viz', state: ModuleState.sleeping, ramMb: 0.0, cpuPercent: 0.0, healthOk: true),
-          ModuleStatus(name: 'shua_resume', state: ModuleState.running, ramMb: 88.0, cpuPercent: 0.4, healthOk: true),
+          ModuleStatus(name: 'shua_code_visualizer', state: ModuleState.sleeping, ramMb: 380.0, cpuPercent: 0.0, healthOk: true),
+          ModuleStatus(name: 'shua_resume', state: ModuleState.running, ramMb: 96.0, cpuPercent: 0.4, healthOk: true),
         ],
       );
 }
@@ -118,52 +136,56 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
 
   @override
   Future<GovernorStatus> build() async {
-    _startPolling();
+    final pollSeconds = ref.watch(themeProvider.select((s) => s.telemetryPollingSeconds));
+    _startPolling(pollSeconds);
     ref.onDispose(() => _pollTimer?.cancel());
     return _fetch();
   }
 
-  void _startPolling() {
+  void _startPolling(double seconds) {
     _pollTimer?.cancel();
-    // 2-second safe polling interval (0.5 Hz) for Raspberry Pi 5
-    _pollTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+    final ms = (seconds * 1000).round().clamp(100, 10000);
+    _pollTimer = Timer.periodic(Duration(milliseconds: ms), (_) async {
       final current = state.valueOrNull ?? GovernorStatus.mock();
       final updated = await _fetch();
-      // Keep local toggle state if modified
       state = AsyncData(updated.copyWith(isLaptopOffload: current.isLaptopOffload));
     });
   }
 
+  List<double> _appendHistory(List<double> existing, double newVal) {
+    final list = List<double>.from(existing);
+    list.add(newVal);
+    if (list.length > 20) {
+      list.removeAt(0);
+    }
+    return list;
+  }
+
   Future<GovernorStatus> _fetch() async {
+    final current = state.valueOrNull ?? GovernorStatus.mock();
+
     try {
       var client = ref.read(hbpClientProvider).valueOrNull;
 
       if (client == null || client.currentState != HbpConnectionState.connected) {
-        debugPrint('[HBP Client] Governor disconnected — retrying HBP WebSocket connection...');
         ref.invalidate(hbpClientProvider);
         try {
           client = await ref.read(hbpClientProvider.future).timeout(const Duration(seconds: 3));
-        } catch (e) {
-          debugPrint('[HBP Client] Reconnect attempt failed: $e');
-        }
+        } catch (_) {}
       }
 
       if (client == null || client.currentState != HbpConnectionState.connected) {
-        return state.valueOrNull ?? GovernorStatus.mock();
+        return current;
       }
 
       final frame = HbpFrame.request('shua.governor', 'status', const []);
       final resp = await client.send(frame);
 
       if (resp.isError || resp.payload.isEmpty) {
-        // ignore: avoid_print
-        print('[HBP Client] Empty/Error response for governor.status (Err: ${resp.error})');
-        return state.valueOrNull ?? GovernorStatus.mock();
+        return current;
       }
 
       final map = Unpacker(Uint8List.fromList(resp.payload)).unpackMap();
-      // ignore: avoid_print
-      print('[HBP TELEMETRY LIVE] Received frame payload: $map');
 
       final modulesList = (map['modules'] as List? ?? [])
           .map((m) => ModuleStatus.fromMap(m as Map))
@@ -172,23 +194,30 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
       final isLaptop = map['is_laptop_offload'] as bool? ?? true;
       final modelName = ollama?['loaded_model'] as String? ?? 'qwen2.5:1.5b';
 
-      final liveLatencyMs = client.lastLatencyMs;
+      final cpu = (map['cpu_pct'] as num?)?.toDouble() ?? current.cpuUsagePct;
+      final ram = (map['total_ram_mb'] as num?)?.toDouble() ?? current.totalRamMb;
+      final temp = (map['temp_c'] as num?)?.toDouble() ?? current.socTempC;
+      final ping = client.lastLatencyMs.toDouble();
 
       return GovernorStatus(
-        cpuUsagePct: (map['cpu_pct'] as num?)?.toDouble() ?? 18.0,
-        totalRamMb: (map['total_ram_mb'] as num?)?.toDouble() ?? 2140.0,
-        ramCeilingMb: 7168.0,
-        socTempC: (map['temp_c'] as num?)?.toDouble() ?? 41.8,
-        tailscaleLatencyMs: liveLatencyMs > 0 ? liveLatencyMs : (map['latency_ms'] as int? ?? 12),
+        cpuUsagePct: cpu,
+        totalRamMb: ram,
+        ramCeilingMb: (map['ram_ceiling_mb'] as num?)?.toDouble() ?? 7168.0,
+        socTempC: temp,
+        tailscaleLatencyMs: ping.toInt(),
         lastBackupTime: map['last_backup'] as String? ?? '03:00 AM (Zstd Encrypted)',
-        modules: modulesList.isEmpty ? GovernorStatus.mock().modules : modulesList,
+        modules: modulesList.isEmpty ? current.modules : modulesList,
         loadedModel: isLaptop ? '$modelName (Laptop Offload)' : '$modelName (RPi5 Edge)',
         ollamaRamMb: (ollama?['ram_mb'] as num?)?.toDouble() ?? 1840.0,
         isIntentRouterActive: map['router_active'] as bool? ?? true,
         isLaptopOffload: isLaptop,
+        cpuHistory: _appendHistory(current.cpuHistory, cpu),
+        ramHistory: _appendHistory(current.ramHistory, ram),
+        tempHistory: _appendHistory(current.tempHistory, temp),
+        latencyHistory: _appendHistory(current.latencyHistory, ping),
       );
     } catch (_) {
-      return state.valueOrNull ?? GovernorStatus.mock();
+      return current;
     }
   }
 
@@ -196,7 +225,6 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
     state = await AsyncValue.guard(_fetch);
   }
 
-  /// Select active Ollama model
   Future<void> selectModel(String modelName) async {
     final current = state.valueOrNull ?? GovernorStatus.mock();
     final suffix = current.isLaptopOffload ? '(Laptop Offload)' : '(RPi5 Edge)';
@@ -205,13 +233,15 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
     try {
       final client = ref.read(hbpClientProvider).valueOrNull;
       if (client != null && client.currentState == HbpConnectionState.connected) {
-        final payload = _encodeMap({'model': modelName});
-        await client.send(HbpFrame.request('shua.governor', 'ollama.load', payload));
+        final p = Packer();
+        p.packMapLength(1);
+        p.packString('model');
+        p.packString(modelName);
+        await client.send(HbpFrame.request('shua.governor', 'ollama.load', p.takeBytes()));
       }
     } catch (_) {}
   }
 
-  /// Toggle inference offload target between Laptop GPU and RPi5 Edge Node
   Future<void> toggleOffloadTarget(bool isLaptop) async {
     final current = state.valueOrNull ?? GovernorStatus.mock();
     final rawModel = (current.loadedModel ?? 'qwen2.5:1.5b').split(' ').first;
@@ -225,54 +255,72 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
     try {
       final client = ref.read(hbpClientProvider).valueOrNull;
       if (client != null && client.currentState == HbpConnectionState.connected) {
-        final payload = _encodeMap({'is_laptop_offload': isLaptop});
-        await client.send(HbpFrame.request('shua.governor', 'ollama.offload_target', payload));
+        final p = Packer();
+        p.packMapLength(1);
+        p.packString('is_laptop_offload');
+        p.packBool(isLaptop);
+        await client.send(HbpFrame.request('shua.governor', 'ollama.offload_target', p.takeBytes()));
       }
     } catch (_) {}
   }
 
   Future<void> wakeModule(String name) async {
+    final current = state.valueOrNull ?? GovernorStatus.mock();
+    final updated = current.modules.map((m) {
+      if (m.name == name) {
+        return ModuleStatus(
+          name: m.name,
+          state: ModuleState.running,
+          ramMb: m.ramMb > 0 ? m.ramMb : 128.0,
+          cpuPercent: 1.5,
+          healthOk: true,
+        );
+      }
+      return m;
+    }).toList();
+
+    state = AsyncData(current.copyWith(modules: updated));
+
     try {
       final client = ref.read(hbpClientProvider).valueOrNull;
       if (client != null && client.currentState == HbpConnectionState.connected) {
-        final payload = _encodeMap({'module': name});
-        await client.send(HbpFrame.request('shua.governor', 'module.wake', payload));
+        final p = Packer();
+        p.packMapLength(1);
+        p.packString('name');
+        p.packString(name);
+        await client.send(HbpFrame.request('shua.governor', 'process.wake', p.takeBytes()));
       }
     } catch (_) {}
-    await refresh();
   }
 
   Future<void> sleepModule(String name) async {
+    final current = state.valueOrNull ?? GovernorStatus.mock();
+    final updated = current.modules.map((m) {
+      if (m.name == name) {
+        return ModuleStatus(
+          name: m.name,
+          state: ModuleState.sleeping,
+          ramMb: m.ramMb,
+          cpuPercent: 0.0,
+          healthOk: true,
+        );
+      }
+      return m;
+    }).toList();
+
+    state = AsyncData(current.copyWith(modules: updated));
+
     try {
       final client = ref.read(hbpClientProvider).valueOrNull;
       if (client != null && client.currentState == HbpConnectionState.connected) {
-        final payload = _encodeMap({'module': name});
-        await client.send(HbpFrame.request('shua.governor', 'module.sleep', payload));
+        final p = Packer();
+        p.packMapLength(1);
+        p.packString('name');
+        p.packString(name);
+        await client.send(HbpFrame.request('shua.governor', 'process.sleep', p.takeBytes()));
       }
     } catch (_) {}
-    await refresh();
   }
 }
 
-final governorStatusProvider =
-    AsyncNotifierProvider<GovernorStatusNotifier, GovernorStatus>(
-  GovernorStatusNotifier.new,
-);
-
-List<int> _encodeMap(Map<String, dynamic> m) {
-  final p = Packer();
-  p.packMapLength(m.length);
-  m.forEach((k, v) {
-    p.packString(k);
-    if (v is String) {
-      p.packString(v);
-    } else if (v is int) {
-      p.packInt(v);
-    } else if (v is bool) {
-      p.packBool(v);
-    } else {
-      p.packNull();
-    }
-  });
-  return p.takeBytes();
-}
+final governorStatusProvider = AsyncNotifierProvider<GovernorStatusNotifier, GovernorStatus>(GovernorStatusNotifier.new);

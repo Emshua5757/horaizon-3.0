@@ -17,6 +17,11 @@ class ThemeState {
   final int animationMs;
   final double textScale;
   final bool enableGlowBorders;
+  final bool enableHoverScaling;
+  final double hoverScaleFactor;
+  final int circadianDayStartHour;
+  final int circadianNightStartHour;
+  final double telemetryPollingSeconds;
 
   ThemeState({
     required this.presetId,
@@ -26,6 +31,11 @@ class ThemeState {
     this.animationMs = 300,
     this.textScale = 1.0,
     this.enableGlowBorders = true,
+    this.enableHoverScaling = true,
+    this.hoverScaleFactor = 1.008,
+    this.circadianDayStartHour = 6,
+    this.circadianNightStartHour = 18,
+    this.telemetryPollingSeconds = 2.0,
   });
 
   AppThemePreset get preset => ThemePresetRegistry.getById(presetId);
@@ -36,14 +46,18 @@ class ThemeState {
       BrightnessMode.light => Brightness.light,
       BrightnessMode.dark => Brightness.dark,
       BrightnessMode.system => WidgetsBinding.instance.platformDispatcher.platformBrightness,
-      BrightnessMode.circadianAuto => _calculateCircadianBrightness(),
+      BrightnessMode.circadianAuto => calculateCircadianBrightness(circadianDayStartHour, circadianNightStartHour),
     };
   }
 
-  /// Calculates daytime (06:00 - 18:00 -> Light) vs nighttime (18:00 - 06:00 -> Dark)
-  static Brightness _calculateCircadianBrightness() {
+  /// Calculates daytime (dayStart .. nightStart -> Light) vs nighttime (nightStart .. dayStart -> Dark)
+  static Brightness calculateCircadianBrightness(int dayStart, int nightStart) {
     final hour = DateTime.now().hour;
-    return (hour >= 6 && hour < 18) ? Brightness.light : Brightness.dark;
+    if (dayStart < nightStart) {
+      return (hour >= dayStart && hour < nightStart) ? Brightness.light : Brightness.dark;
+    } else {
+      return (hour >= dayStart || hour < nightStart) ? Brightness.light : Brightness.dark;
+    }
   }
 
   /// Instantly compiles the preset + active brightness into a Flutter ThemeData.
@@ -63,6 +77,11 @@ class ThemeState {
     int? animationMs,
     double? textScale,
     bool? enableGlowBorders,
+    bool? enableHoverScaling,
+    double? hoverScaleFactor,
+    int? circadianDayStartHour,
+    int? circadianNightStartHour,
+    double? telemetryPollingSeconds,
   }) {
     return ThemeState(
       presetId: presetId ?? this.presetId,
@@ -72,6 +91,11 @@ class ThemeState {
       animationMs: animationMs ?? this.animationMs,
       textScale: textScale ?? this.textScale,
       enableGlowBorders: enableGlowBorders ?? this.enableGlowBorders,
+      enableHoverScaling: enableHoverScaling ?? this.enableHoverScaling,
+      hoverScaleFactor: hoverScaleFactor ?? this.hoverScaleFactor,
+      circadianDayStartHour: circadianDayStartHour ?? this.circadianDayStartHour,
+      circadianNightStartHour: circadianNightStartHour ?? this.circadianNightStartHour,
+      telemetryPollingSeconds: telemetryPollingSeconds ?? this.telemetryPollingSeconds,
     );
   }
 }
@@ -116,6 +140,11 @@ class ThemeNotifier extends Notifier<ThemeState> {
           animationMs: m['anim'] as int? ?? 300,
           textScale: (m['scale'] as num?)?.toDouble() ?? 1.0,
           enableGlowBorders: m['glow'] as bool? ?? true,
+          enableHoverScaling: m['h_scale'] as bool? ?? true,
+          hoverScaleFactor: (m['h_fac'] as num?)?.toDouble() ?? 1.008,
+          circadianDayStartHour: m['c_day'] as int? ?? 6,
+          circadianNightStartHour: m['c_night'] as int? ?? 18,
+          telemetryPollingSeconds: (m['t_poll'] as num?)?.toDouble() ?? 2.0,
         );
       }
     } catch (_) {}
@@ -131,6 +160,11 @@ class ThemeNotifier extends Notifier<ThemeState> {
       'anim': state.animationMs,
       'scale': state.textScale,
       'glow': state.enableGlowBorders,
+      'h_scale': state.enableHoverScaling,
+      'h_fac': state.hoverScaleFactor,
+      'c_day': state.circadianDayStartHour,
+      'c_night': state.circadianNightStartHour,
+      't_poll': state.telemetryPollingSeconds,
     };
     await prefs.setString(_prefKey, jsonEncode(m));
   }
@@ -142,6 +176,19 @@ class ThemeNotifier extends Notifier<ThemeState> {
 
   void setBrightnessMode(BrightnessMode mode) {
     state = state.copyWith(brightnessMode: mode);
+    _saveToPrefs();
+  }
+
+  void setCircadianHours({required int dayStart, required int nightStart}) {
+    state = state.copyWith(
+      circadianDayStartHour: dayStart,
+      circadianNightStartHour: nightStart,
+    );
+    _saveToPrefs();
+  }
+
+  void setTelemetryPollingSeconds(double seconds) {
+    state = state.copyWith(telemetryPollingSeconds: seconds);
     _saveToPrefs();
   }
 
@@ -157,6 +204,16 @@ class ThemeNotifier extends Notifier<ThemeState> {
 
   void toggleGlowBorders({required bool enabled}) {
     state = state.copyWith(enableGlowBorders: enabled);
+    _saveToPrefs();
+  }
+
+  void toggleHoverScaling({required bool enabled}) {
+    state = state.copyWith(enableHoverScaling: enabled);
+    _saveToPrefs();
+  }
+
+  void setHoverScaleFactor(double factor) {
+    state = state.copyWith(hoverScaleFactor: factor);
     _saveToPrefs();
   }
 

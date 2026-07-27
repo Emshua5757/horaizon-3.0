@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'app_theme_preset.dart';
 
 enum SurfaceMode { cyberObsidian, oledPureBlack, midnightSpace, warmLight }
@@ -6,7 +7,7 @@ enum SurfaceMode { cyberObsidian, oledPureBlack, midnightSpace, warmLight }
 enum TypographyProfile { modernOutfit, cyberMono, editorialLora }
 
 /// Pure mathematical compiler translating any AppThemePreset + Brightness variant
-/// into a full Material 3 ThemeData object.
+/// into a full Material 3 ThemeData object with distinct GoogleFonts per preset.
 class ThemeCompiler {
   static ThemeData compile({
     required AppThemePreset preset,
@@ -107,11 +108,13 @@ class ThemeCompiler {
   static TextTheme _buildTextTheme(String fontFamily, Brightness brightness, double scale) {
     final base = brightness == Brightness.dark ? Typography.whiteMountainView : Typography.blackMountainView;
 
-    TextTheme applyFamily(TextTheme t) {
-      return t.apply(fontFamily: fontFamily);
+    TextTheme tt = base;
+    try {
+      tt = GoogleFonts.getTextTheme(fontFamily, base);
+    } catch (_) {
+      tt = base.apply(fontFamily: fontFamily);
     }
 
-    final tt = applyFamily(base);
     if (scale == 1.0) return tt;
 
     return tt.copyWith(

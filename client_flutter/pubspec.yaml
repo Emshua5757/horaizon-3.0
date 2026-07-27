@@ -27,6 +27,9 @@ dependencies:
   # Local persistence (user preferences only: theme, host IP, etc. — NO DB)
   shared_preferences: ^2.3.1
 
+  # Native SSH protocol engine for RPi 5 terminal shell
+  dartssh2: ^2.9.0
+
   # Biometric authentication (Face ID / Touch ID / Fingerprint fallback)
   local_auth: ^2.2.0
 

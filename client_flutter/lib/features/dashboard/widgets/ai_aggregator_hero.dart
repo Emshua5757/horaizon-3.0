@@ -54,25 +54,28 @@ class AiAggregatorHero extends ConsumerWidget {
                     color: isSelected ? cs.primary : cs.outlineVariant,
                   ),
                 ),
-                child: ListTile(
-                  dense: true,
-                  title: Text(
-                    m.name,
-                    style: TextStyle(
-                      color: isSelected ? cs.primary : cs.onSurface,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
+                child: Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    dense: true,
+                    title: Text(
+                      m.name,
+                      style: TextStyle(
+                        color: isSelected ? cs.primary : cs.onSurface,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
                     ),
+                    subtitle: Text(
+                      '${m.desc} • ~${m.ramMb} MB',
+                      style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11),
+                    ),
+                    trailing: isSelected ? Icon(Icons.check_circle_rounded, color: cs.primary, size: 18) : null,
+                    onTap: () {
+                      ref.read(governorStatusProvider.notifier).refresh();
+                      Navigator.of(ctx).pop();
+                    },
                   ),
-                  subtitle: Text(
-                    '${m.desc} • ~${m.ramMb} MB',
-                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11),
-                  ),
-                  trailing: isSelected ? Icon(Icons.check_circle_rounded, color: cs.primary, size: 18) : null,
-                  onTap: () {
-                    ref.read(governorStatusProvider.notifier).refresh();
-                    Navigator.of(ctx).pop();
-                  },
                 ),
               );
             }).toList(),

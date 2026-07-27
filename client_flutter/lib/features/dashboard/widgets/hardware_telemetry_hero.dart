@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_semantic_palette.dart';
+import '../../../shared/widgets/telemetry_sparkline.dart';
 import '../../governor/governor_provider.dart';
 import 'stitch_card.dart';
 
-/// RPi5 Edge Node Hardware Telemetry Hero Card strictly matching Google Stitch layout
-/// and dynamically adapting to active Theme Preset and AppSemanticPalette.
+/// RPi5 Edge Node Hardware Telemetry Hero Card with Windows Task Manager style mini sparklines.
 class HardwareTelemetryHero extends StatelessWidget {
   final GovernorStatus status;
 
@@ -17,10 +17,11 @@ class HardwareTelemetryHero extends StatelessWidget {
 
     final usedRamGb = (status.totalRamMb / 1024.0).toStringAsFixed(1);
     final totalRamGb = (status.ramCeilingMb / 1024.0).toStringAsFixed(1);
-    final ramRatio = status.ramCeilingMb > 0 ? status.totalRamMb / status.ramCeilingMb : 0.3;
 
-    final successColor = semantic?.success ?? cs.primary;
-    final infoColor = semantic?.info ?? cs.secondary;
+    final successColor = semantic?.success ?? const Color(0xFF10B981);
+    final infoColor = semantic?.info ?? const Color(0xFF00E5FF);
+    const tempColor = Color(0xFFF59E0B);
+    const pingColor = Color(0xFFA855F7);
 
     return StitchCard(
       padding: const EdgeInsets.all(20),
@@ -71,7 +72,7 @@ class HardwareTelemetryHero extends StatelessWidget {
           ),
           const SizedBox(height: 18),
 
-          // 2x2 Telemetry Grid
+          // 2x2 Telemetry Task Manager Sparkline Grid
           Row(
             children: [
               // CPU Load Box
@@ -90,20 +91,18 @@ class HardwareTelemetryHero extends StatelessWidget {
                           Icon(Icons.trending_up_rounded, color: successColor, size: 14),
                         ],
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       Text(
                         '${status.cpuUsagePct.toStringAsFixed(0)}%',
                         style: TextStyle(color: cs.onSurface, fontSize: 22, fontWeight: FontWeight.w700),
                       ),
-                      const SizedBox(height: 10),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: (status.cpuUsagePct / 100.0).clamp(0.0, 1.0),
-                          backgroundColor: cs.onSurface.withValues(alpha: 0.08),
-                          valueColor: AlwaysStoppedAnimation<Color>(successColor),
-                          minHeight: 4,
-                        ),
+                      const SizedBox(height: 8),
+                      TelemetrySparkline(
+                        values: status.cpuHistory,
+                        lineColor: successColor,
+                        height: 32,
+                        minVal: 0,
+                        maxVal: 100,
                       ),
                     ],
                   ),
@@ -121,7 +120,7 @@ class HardwareTelemetryHero extends StatelessWidget {
                         'System Memory',
                         style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w500),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       RichText(
                         text: TextSpan(
                           children: [
@@ -136,15 +135,11 @@ class HardwareTelemetryHero extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: ramRatio.clamp(0.0, 1.0),
-                          backgroundColor: cs.onSurface.withValues(alpha: 0.08),
-                          valueColor: AlwaysStoppedAnimation<Color>(infoColor),
-                          minHeight: 4,
-                        ),
+                      const SizedBox(height: 8),
+                      TelemetrySparkline(
+                        values: status.ramHistory,
+                        lineColor: infoColor,
+                        height: 32,
                       ),
                     ],
                   ),
@@ -162,14 +157,28 @@ class HardwareTelemetryHero extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'SoC Temp',
-                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w500),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'SoC Temp',
+                              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w500),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${status.socTempC.toStringAsFixed(1)}°C',
+                            style: const TextStyle(color: tempColor, fontSize: 14, fontWeight: FontWeight.w700),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${status.socTempC.toStringAsFixed(1)}°C',
-                        style: TextStyle(color: successColor, fontSize: 20, fontWeight: FontWeight.w700),
+                      const SizedBox(height: 6),
+                      TelemetrySparkline(
+                        values: status.tempHistory,
+                        lineColor: tempColor,
+                        height: 28,
                       ),
                     ],
                   ),
@@ -183,14 +192,28 @@ class HardwareTelemetryHero extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Tailscale Latency',
-                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w500),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'Latency',
+                              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w500),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${status.tailscaleLatencyMs}ms',
+                            style: const TextStyle(color: pingColor, fontSize: 14, fontWeight: FontWeight.w700),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${status.tailscaleLatencyMs}ms',
-                        style: TextStyle(color: infoColor, fontSize: 20, fontWeight: FontWeight.w700),
+                      const SizedBox(height: 6),
+                      TelemetrySparkline(
+                        values: status.latencyHistory,
+                        lineColor: pingColor,
+                        height: 28,
                       ),
                     ],
                   ),

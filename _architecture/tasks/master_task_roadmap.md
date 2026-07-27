@@ -22,7 +22,8 @@ This roadmap enforces **ADR-001 (Native Flutter over SDUI)**: all UI screens are
 | **TASK-009** | `client_flutter` | Dart / Flutter | Core HBP v2 Client, WebSocket Channel & MessagePack Codec | [x] Completed |
 | **TASK-010** | `client_flutter` | Dart / Flutter | GoRouter, Splash Screen & Material 3 HCT Dark Theme | [x] Completed |
 | **TASK-011** | `client_flutter` | Dart / Flutter | Dashboard & Governor Process Manager Screens | [ ] Next Up |
-| **TASK-012** | `client_flutter` | Dart / Flutter | Settings Screen & Connection Quality Banner | [ ] Planned |
+| **TASK-011B** | `client_flutter` | Dart / Flutter | Native Telemetry & Interactive Terminal Screen (`/terminal`) | [x] Completed |
+| **TASK-012** | `client_flutter` | Dart / Flutter | Settings Screen & Connection Quality Banner | [x] Completed |
 | **TASK-013** | Infrastructure | Rust + Ollama | Local AI Coding Agent Pipeline & Context Injection | [ ] Planned |
 | **TASK-014** | `shua_aspnet_portal` | C# / ASP.NET Core | Remote Web Portal for Governor & Telemetry Dashboard | [ ] Planned |
 
