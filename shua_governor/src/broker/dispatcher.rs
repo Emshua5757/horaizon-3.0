@@ -498,16 +498,19 @@ impl Dispatcher {
                         crate::ollama::client::OllamaClient::new(self.ollama.client().base_url())
                     };
 
-                    let messages = vec![crate::ollama::client::ChatMessage {
-                        role: "user".into(),
-                        content: req.prompt.clone(),
-                    }];
-
-                    let reply = match client.chat(&budget.model, messages, 0).await {
-                        Ok(res) => res,
+                    let scope = req.context_hint.as_deref().unwrap_or("governor");
+                    let (reply, iterations, tools_called) = match crate::ai_router::agent_loop::McpAgentLoop::run(
+                        &req.prompt,
+                        scope,
+                        &budget.model,
+                        &client,
+                        &self.process_manager,
+                        &self.ollama,
+                    ).await {
+                        Ok(res) => (res.final_reply, res.iterations, res.tools_called),
                         Err(e) => {
-                            warn!(subsystem = "dispatcher", error = %e, "Ollama chat fallback to stub");
-                            format!("[AI Router Stub ({})] Intent: {}", intent.as_str(), req.prompt)
+                            warn!(subsystem = "dispatcher", error = %e, "MCP agent loop error");
+                            (format!("[AI Router Stub ({})] Intent: {}", intent.as_str(), req.prompt), 1, vec![])
                         }
                     };
 
@@ -516,6 +519,8 @@ impl Dispatcher {
                         "model_used": budget.model,
                         "intent": intent.as_str(),
                         "reply": reply,
+                        "iterations": iterations,
+                        "tools_called": tools_called,
                         "duration_ms": duration_ms
                     });
                     let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
