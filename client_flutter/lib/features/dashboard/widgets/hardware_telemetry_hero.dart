@@ -198,7 +198,6 @@ class HardwareTelemetryHero extends StatelessWidget {
               ),
             ],
           ),
-          const Spacer(),
           const SizedBox(height: 16),
 
           // Footer Sync Badge

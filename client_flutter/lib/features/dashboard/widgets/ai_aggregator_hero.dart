@@ -231,7 +231,6 @@ class AiAggregatorHero extends ConsumerWidget {
               ],
             ),
           ),
-          const Spacer(),
           const SizedBox(height: 18),
 
           // Interactive Action Buttons
