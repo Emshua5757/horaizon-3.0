@@ -210,6 +210,7 @@ pub struct Dispatcher {
     process_manager: Arc<ProcessManager>,
     ollama: Arc<OllamaLifecycle>,
     config: Arc<RwLock<AppConfig>>,
+    mcp_aggregator: Arc<crate::mcp::aggregator::McpAggregator>,
     cpu_tracker: CpuTracker,
 }
 
@@ -227,6 +228,7 @@ impl Dispatcher {
             process_manager,
             ollama,
             config,
+            mcp_aggregator: Arc::new(crate::mcp::aggregator::McpAggregator::new()),
             cpu_tracker: CpuTracker::new(),
         }
     }
@@ -523,6 +525,31 @@ impl Dispatcher {
                         &frame.mod_,
                         &frame.op,
                         "ERR_MALFORMED_PAYLOAD",
+                    ))
+                }
+            }
+
+            "governor.mcp.tools" | "mcp.tools" => {
+                #[derive(serde::Deserialize)]
+                struct ScopeReq { scope: Option<String> }
+                let scope = frame.decode_payload::<ScopeReq>().ok().and_then(|r| r.scope).unwrap_or_else(|| "governor".into());
+                let all_tools = self.mcp_aggregator.get_system_tools();
+                let filtered = crate::mcp::scope_filter::ScopeFilter::filter_tools(all_tools, &scope);
+                let payload = HbpFrame::encode_payload(&filtered).unwrap_or_default();
+                Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+            }
+
+            "governor.mcp.call" | "mcp.call" => {
+                if let Ok(call) = frame.decode_payload::<crate::mcp::McpToolCall>() {
+                    let resp = crate::mcp::executor::McpExecutor::execute(&call, &self.process_manager, &self.ollama).await;
+                    let payload = HbpFrame::encode_payload(&resp).unwrap_or_default();
+                    Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                } else {
+                    Some(HbpFrame::error_response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        "ERR_MALFORMED_MCP_CALL_PAYLOAD",
                     ))
                 }
             }

@@ -93,12 +93,13 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> with SingleTick
   void _initSshStream() {
     final ssh = ref.read(rpi5SshServiceProvider);
     _sshSub = ssh.outputStream.listen((chunk) {
-      if (chunk.isNotEmpty) {
+      final cleaned = Rpi5SshService.stripAnsiCodes(chunk).trimRight();
+      if (cleaned.isNotEmpty) {
         if (mounted) {
           setState(() {
             _sshHistory.add(SshOutputLine(
               timestamp: DateTime.now(),
-              text: chunk.trimRight(),
+              text: cleaned,
             ));
           });
         }

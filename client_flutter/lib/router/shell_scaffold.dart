@@ -529,12 +529,22 @@ class _DesktopHeader extends StatelessWidget {
           const Spacer(),
           IconButton(
             icon: Icon(Icons.search_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 20),
-            onPressed: () {},
+            onPressed: () {
+              // TODO: Implement Global Command Palette / Search Modal (TASK-022)
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Global Search / Command Palette coming soon.')),
+              );
+            },
             tooltip: 'Search',
           ),
           IconButton(
             icon: Icon(Icons.notifications_outlined, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 20),
-            onPressed: () {},
+            onPressed: () {
+              // TODO: Implement Central Notification & Alert Drawer (TASK-023)
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Notification Center coming soon.')),
+              );
+            },
             tooltip: 'Notifications',
           ),
         ],
@@ -576,7 +586,12 @@ class _MobileHeader extends StatelessWidget {
           const Spacer(),
           IconButton(
             icon: Icon(Icons.notifications_outlined, color: cs.primary, size: 22),
-            onPressed: () {},
+            onPressed: () {
+              // TODO: Implement Central Notification & Alert Drawer (TASK-023)
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Notification Center coming soon.')),
+              );
+            },
             tooltip: 'Notifications',
           ),
           const SizedBox(width: 8),

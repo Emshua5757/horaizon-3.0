@@ -1,26 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_effects_theme.dart';
 import '../../../core/theme/app_semantic_palette.dart';
+import '../../chat/models/chat_message.dart';
+import '../../chat/providers/global_chat_provider.dart';
 import '../../governor/governor_provider.dart';
 import 'stitch_card.dart';
 
-/// Shua Governor AI Aggregator Hero Card with model selector modal and Laptop Offload toggle,
-/// dynamically adapting to active Theme Preset and AppSemanticPalette.
-class AiAggregatorHero extends ConsumerWidget {
+/// Shua Governor AI Aggregator Hero Card with model selector modal, Laptop Offload toggle,
+/// and live Mini Chat Preview connected to GlobalChatProvider.
+class AiAggregatorHero extends ConsumerStatefulWidget {
   final GovernorStatus status;
 
   const AiAggregatorHero({super.key, required this.status});
 
+  @override
+  ConsumerState<AiAggregatorHero> createState() => _AiAggregatorHeroState();
+}
+
+class _AiAggregatorHeroState extends ConsumerState<AiAggregatorHero> {
+  final TextEditingController _miniPromptController = TextEditingController();
+
+  @override
+  void dispose() {
+    _miniPromptController.dispose();
+    super.dispose();
+  }
+
   static const _availableModels = [
+    _ModelOption(name: 'qwen2.5-coder:7b', desc: 'Code & Technical Architecture Specialist', ramMb: 4420),
+    _ModelOption(name: 'qwen2.5:3b', desc: 'Balanced Local Reasoning & Chat', ramMb: 2450),
     _ModelOption(name: 'qwen2.5:1.5b', desc: 'Fast Edge Dialogue & Routing', ramMb: 1840),
-    _ModelOption(name: 'llama3.2:1b', desc: 'Meta Lightweight Dialogue', ramMb: 1320),
-    _ModelOption(name: 'deepseek-r1:1.5b', desc: 'Reasoning & Logic Synthesizer', ramMb: 1950),
-    _ModelOption(name: 'phi3:mini', desc: 'Microsoft SLM Code Specialist', ramMb: 2300),
+    _ModelOption(name: 'llama3.1:8b', desc: 'Meta High-Capacity Reasoning', ramMb: 4800),
   ];
 
   void _showModelSelectorModal(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
+    final activeModel = ref.read(globalChatProvider).selectedModel;
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -44,7 +62,7 @@ class AiAggregatorHero extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: _availableModels.map((m) {
-              final isSelected = (status.loadedModel ?? '').contains(m.name);
+              final isSelected = activeModel == m.name;
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(
@@ -72,7 +90,7 @@ class AiAggregatorHero extends ConsumerWidget {
                     ),
                     trailing: isSelected ? Icon(Icons.check_circle_rounded, color: cs.primary, size: 18) : null,
                     onTap: () {
-                      ref.read(governorStatusProvider.notifier).refresh();
+                      ref.read(globalChatProvider.notifier).setSelectedModel(m.name);
                       Navigator.of(ctx).pop();
                     },
                   ),
@@ -85,8 +103,17 @@ class AiAggregatorHero extends ConsumerWidget {
     );
   }
 
+  void _submitMiniPrompt() {
+    final text = _miniPromptController.text.trim();
+    if (text.isNotEmpty) {
+      _miniPromptController.clear();
+      ref.read(globalChatProvider.notifier).sendMessage(text);
+      context.go('/chat');
+    }
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final semantic = Theme.of(context).extension<AppSemanticPalette>();
     final effects = Theme.of(context).extension<AppEffectsTheme>();
@@ -94,12 +121,18 @@ class AiAggregatorHero extends ConsumerWidget {
     final successColor = semantic?.success ?? cs.primary;
     final infoColor = semantic?.info ?? cs.secondary;
 
-    final activeModel = status.loadedModel ?? 'qwen2.5:1.5b';
-    final vramMb = status.ollamaRamMb ?? 1840.0;
-    final isLaptop = status.isLaptopOffload;
+    final chatState = ref.watch(globalChatProvider);
+    final (lastUser, lastAssistant) = chatState.lastExchange;
 
-    final badgeText = isLaptop ? 'MSI Laptop Offload' : 'RPi5 Local Engine';
-    final badgeColor = isLaptop ? infoColor : successColor;
+    final target = chatState.offloadTarget;
+    final activeModel = chatState.selectedModel;
+    final vramMb = widget.status.ollamaRamMb ?? 1840.0;
+
+    final (badgeText, badgeColor) = switch (target) {
+      AiOffloadTarget.auto => ('Auto (Governor Router)', cs.primary),
+      AiOffloadTarget.rpi5 => ('RPi5 Local Engine', successColor),
+      AiOffloadTarget.windowsHost => ('Windows Host Offload', infoColor),
+    };
 
     return StitchCard(
       padding: const EdgeInsets.all(20),
@@ -160,7 +193,7 @@ class AiAggregatorHero extends ConsumerWidget {
           ),
           const SizedBox(height: 18),
 
-          // Active Model Box
+          // Active Model & Parameter Controls Box
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -234,9 +267,113 @@ class AiAggregatorHero extends ConsumerWidget {
               ],
             ),
           ),
+          const SizedBox(height: 14),
+
+          // Mini Chat Preview Connected to Global Chat State
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.6)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.chat_bubble_outline_rounded, size: 14, color: cs.primary),
+                        const SizedBox(width: 6),
+                        Text(
+                          'MINI AI CHAT PREVIEW',
+                          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+                        ),
+                      ],
+                    ),
+                    InkWell(
+                      onTap: () => context.go('/chat'),
+                      child: Text(
+                        'Full Chat Page ↗',
+                        style: TextStyle(color: cs.primary, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                if (lastUser != null) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('👤 ', style: TextStyle(fontSize: 11)),
+                      Expanded(
+                        child: Text(
+                          lastUser.content,
+                          style: TextStyle(color: cs.onSurface, fontSize: 11, fontWeight: FontWeight.w600),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                ],
+                if (lastAssistant != null) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('🤖 ', style: TextStyle(fontSize: 11)),
+                      Expanded(
+                        child: Text(
+                          lastAssistant.content.isEmpty ? 'Typing...' : lastAssistant.content,
+                          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else if (lastUser == null) ...[
+                  Text(
+                    'No chat messages yet. Enter prompt below to start.',
+                    style: TextStyle(color: cs.onSurfaceVariant.withValues(alpha: 0.6), fontSize: 11, fontStyle: FontStyle.italic),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _miniPromptController,
+                        style: TextStyle(color: cs.onSurface, fontSize: 11),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          hintText: 'Type prompt to JOSH...',
+                          hintStyle: TextStyle(color: cs.onSurfaceVariant.withValues(alpha: 0.5), fontSize: 11),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(6),
+                            borderSide: BorderSide(color: cs.outlineVariant),
+                          ),
+                        ),
+                        onSubmitted: (_) => _submitMiniPrompt(),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    IconButton(
+                      icon: Icon(Icons.send_rounded, size: 16, color: cs.primary),
+                      onPressed: _submitMiniPrompt,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 18),
 
-          // Interactive Action Buttons
+          // Action Buttons
           Wrap(
             spacing: 10,
             runSpacing: 10,
@@ -252,24 +389,16 @@ class AiAggregatorHero extends ConsumerWidget {
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ),
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: cs.onSurface,
-                  side: BorderSide(color: cs.outlineVariant),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(effects?.buttonRadius ?? 8)),
-                ),
-                onPressed: () {},
-                child: const Text('Evict', style: TextStyle(fontSize: 12)),
-              ),
               OutlinedButton.icon(
                 icon: Icon(
-                  isLaptop ? Icons.developer_board_rounded : Icons.laptop_mac_rounded,
+                  target == AiOffloadTarget.auto
+                      ? Icons.auto_awesome_rounded
+                      : (target == AiOffloadTarget.windowsHost ? Icons.laptop_mac_rounded : Icons.developer_board_rounded),
                   size: 14,
                   color: cs.primary,
                 ),
                 label: Text(
-                  isLaptop ? 'Switch to RPi5 Edge' : 'Switch to Laptop Offload',
+                  'Route: ${target.shortLabel}',
                   style: TextStyle(color: cs.onSurface, fontSize: 12),
                 ),
                 style: OutlinedButton.styleFrom(
@@ -277,7 +406,14 @@ class AiAggregatorHero extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(effects?.buttonRadius ?? 8)),
                 ),
-                onPressed: () => ref.read(governorStatusProvider.notifier).toggleOffloadTarget(!isLaptop),
+                onPressed: () {
+                  final nextTarget = switch (target) {
+                    AiOffloadTarget.auto => AiOffloadTarget.rpi5,
+                    AiOffloadTarget.rpi5 => AiOffloadTarget.windowsHost,
+                    AiOffloadTarget.windowsHost => AiOffloadTarget.auto,
+                  };
+                  ref.read(globalChatProvider.notifier).setOffloadTarget(nextTarget);
+                },
               ),
             ],
           ),

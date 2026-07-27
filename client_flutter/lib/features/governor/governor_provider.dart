@@ -5,6 +5,7 @@ import 'package:messagepack/messagepack.dart';
 import '../../core/hbp/hbp_client_provider.dart';
 import '../../core/hbp/hbp_client.dart';
 import '../../core/hbp/hbp_frame.dart';
+import '../../core/logging/governor_logger.dart';
 import '../../core/theme/theme_provider.dart';
 
 enum ModuleState { running, sleeping, stopped, unknown }
@@ -163,6 +164,7 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
 
   Future<GovernorStatus> _fetch() async {
     final current = state.valueOrNull ?? GovernorStatus.mock();
+    final logger = ref.read(governorLoggerProvider);
 
     try {
       var client = ref.read(hbpClientProvider).valueOrNull;
@@ -199,6 +201,14 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
       final temp = (map['temp_c'] as num?)?.toDouble() ?? current.socTempC;
       final ping = client.lastLatencyMs.toDouble();
 
+      if (temp > 65.0) {
+        logger.log(
+          subsystem: 'GOVERNOR',
+          level: LogLevel.warn,
+          message: 'RPi 5 SoC Temperature elevated: ${temp.toStringAsFixed(1)}°C',
+        );
+      }
+
       return GovernorStatus(
         cpuUsagePct: cpu,
         totalRamMb: ram,
@@ -216,7 +226,12 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
         tempHistory: _appendHistory(current.tempHistory, temp),
         latencyHistory: _appendHistory(current.latencyHistory, ping),
       );
-    } catch (_) {
+    } catch (e) {
+      logger.log(
+        subsystem: 'GOVERNOR',
+        level: LogLevel.error,
+        message: 'Failed fetching Governor status over HBP v2: $e',
+      );
       return current;
     }
   }
@@ -227,8 +242,15 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
 
   Future<void> selectModel(String modelName) async {
     final current = state.valueOrNull ?? GovernorStatus.mock();
+    final logger = ref.read(governorLoggerProvider);
     final suffix = current.isLaptopOffload ? '(Laptop Offload)' : '(RPi5 Edge)';
     state = AsyncData(current.copyWith(loadedModel: '$modelName $suffix'));
+
+    logger.log(
+      subsystem: 'GOVERNOR',
+      level: LogLevel.info,
+      message: 'Governor requesting model load: $modelName',
+    );
 
     try {
       final client = ref.read(hbpClientProvider).valueOrNull;
@@ -239,11 +261,14 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
         p.packString(modelName);
         await client.send(HbpFrame.request('shua.governor', 'ollama.load', p.takeBytes()));
       }
-    } catch (_) {}
+    } catch (e) {
+      logger.log(subsystem: 'GOVERNOR', level: LogLevel.error, message: 'Model load RPC error: $e');
+    }
   }
 
   Future<void> toggleOffloadTarget(bool isLaptop) async {
     final current = state.valueOrNull ?? GovernorStatus.mock();
+    final logger = ref.read(governorLoggerProvider);
     final rawModel = (current.loadedModel ?? 'qwen2.5:1.5b').split(' ').first;
     final newModelStr = isLaptop ? '$rawModel (Laptop Offload)' : '$rawModel (RPi5 Edge)';
 
@@ -251,6 +276,12 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
       isLaptopOffload: isLaptop,
       loadedModel: newModelStr,
     ));
+
+    logger.log(
+      subsystem: 'GOVERNOR',
+      level: LogLevel.info,
+      message: 'Toggled Governor offload target: ${isLaptop ? "Laptop Offload" : "RPi5 Edge"}',
+    );
 
     try {
       final client = ref.read(hbpClientProvider).valueOrNull;
@@ -266,6 +297,7 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
 
   Future<void> wakeModule(String name) async {
     final current = state.valueOrNull ?? GovernorStatus.mock();
+    final logger = ref.read(governorLoggerProvider);
     final updated = current.modules.map((m) {
       if (m.name == name) {
         return ModuleStatus(
@@ -281,6 +313,12 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
 
     state = AsyncData(current.copyWith(modules: updated));
 
+    logger.log(
+      subsystem: 'GOVERNOR',
+      level: LogLevel.info,
+      message: 'Governor waking up microservice: $name',
+    );
+
     try {
       final client = ref.read(hbpClientProvider).valueOrNull;
       if (client != null && client.currentState == HbpConnectionState.connected) {
@@ -290,11 +328,14 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
         p.packString(name);
         await client.send(HbpFrame.request('shua.governor', 'process.wake', p.takeBytes()));
       }
-    } catch (_) {}
+    } catch (e) {
+      logger.log(subsystem: 'GOVERNOR', level: LogLevel.error, message: 'Wake process RPC error: $e');
+    }
   }
 
   Future<void> sleepModule(String name) async {
     final current = state.valueOrNull ?? GovernorStatus.mock();
+    final logger = ref.read(governorLoggerProvider);
     final updated = current.modules.map((m) {
       if (m.name == name) {
         return ModuleStatus(
@@ -310,6 +351,12 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
 
     state = AsyncData(current.copyWith(modules: updated));
 
+    logger.log(
+      subsystem: 'GOVERNOR',
+      level: LogLevel.info,
+      message: 'Governor putting microservice to sleep: $name',
+    );
+
     try {
       final client = ref.read(hbpClientProvider).valueOrNull;
       if (client != null && client.currentState == HbpConnectionState.connected) {
@@ -319,7 +366,9 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
         p.packString(name);
         await client.send(HbpFrame.request('shua.governor', 'process.sleep', p.takeBytes()));
       }
-    } catch (_) {}
+    } catch (e) {
+      logger.log(subsystem: 'GOVERNOR', level: LogLevel.error, message: 'Sleep process RPC error: $e');
+    }
   }
 }
 
