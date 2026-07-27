@@ -5,6 +5,7 @@ import '../core/hbp/hbp_client_provider.dart';
 import '../core/hbp/hbp_client.dart';
 import '../features/governor/governor_provider.dart';
 import '../shared/widgets/connection_status_banner.dart';
+import '../core/theme/app_semantic_palette.dart';
 
 /// StateProvider for expanding/minimizing the desktop navigation sidebar.
 final isSidebarExpandedProvider = StateProvider<bool>((ref) => true);
@@ -257,6 +258,13 @@ class _SidebarTelemetryCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final status = ref.watch(governorStatusProvider).valueOrNull;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final semantic = theme.extension<AppSemanticPalette>();
+
+    final successColor = semantic?.success ?? cs.primary;
+    final infoColor = semantic?.info ?? cs.secondary;
+
     final cpuPct = status?.cpuUsagePct ?? 18.0;
     final cpuStr = cpuPct.toStringAsFixed(0);
     final usedRamGb = ((status?.totalRamMb ?? 2140.0) / 1024.0).toStringAsFixed(1);
@@ -271,15 +279,15 @@ class _SidebarTelemetryCard extends ConsumerWidget {
         width: 72,
         child: Column(
           children: [
-            Divider(indent: 12, endIndent: 12, color: Colors.white.withValues(alpha: 0.1)),
+            Divider(indent: 12, endIndent: 12, color: cs.outlineVariant),
             const SizedBox(height: 4),
             _MiniTelemetryTag(label: 'CPU', value: '$cpuStr%'),
             const SizedBox(height: 4),
-            _MiniTelemetryTag(label: 'MEM', value: '${usedRamGb}G', color: const Color(0xFF00E5FF)),
+            _MiniTelemetryTag(label: 'MEM', value: '${usedRamGb}G', color: infoColor),
             const SizedBox(height: 4),
-            _MiniTelemetryTag(label: 'TMP', value: '$tempStr°', color: const Color(0xFF3CE36A)),
+            _MiniTelemetryTag(label: 'TMP', value: '$tempStr°', color: successColor),
             const SizedBox(height: 4),
-            _MiniTelemetryTag(label: 'PNG', value: '${pingMs}ms', color: const Color(0xFF00E5FF)),
+            _MiniTelemetryTag(label: 'PNG', value: '${pingMs}ms', color: infoColor),
           ],
         ),
       ),
@@ -288,104 +296,104 @@ class _SidebarTelemetryCard extends ConsumerWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'SYSTEM TELEMETRY',
-                    style: TextStyle(
-                      color: Colors.white54,
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.8,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: cs.surface.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: cs.outlineVariant),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'SYSTEM TELEMETRY',
+                      style: TextStyle(
+                        color: cs.onSurfaceVariant,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.8,
+                      ),
                     ),
-                  ),
-                  Text(
-                    'Operational',
-                    style: TextStyle(color: Color(0xFF3CE36A), fontSize: 9, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              // CPU Line
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('CPU', style: TextStyle(color: Colors.white70, fontSize: 10)),
-                  Text('$cpuStr%', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              const SizedBox(height: 3),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: LinearProgressIndicator(
-                  value: (cpuPct / 100.0).clamp(0.0, 1.0),
-                  backgroundColor: Colors.white.withValues(alpha: 0.1),
-                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3CE36A)),
-                  minHeight: 3,
+                    Text(
+                      'Operational',
+                      style: TextStyle(color: successColor, fontSize: 9, fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 6),
+                const SizedBox(height: 8),
 
-              // MEM Line
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('MEM', style: TextStyle(color: Colors.white70, fontSize: 10)),
-                  Text('$usedRamGb/${totalRamGb}GB', style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 10, fontWeight: FontWeight.bold)),
-                ],
-              ),
-              const SizedBox(height: 3),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: LinearProgressIndicator(
-                  value: (status?.ramCeilingMb != null && status!.ramCeilingMb > 0)
-                      ? (status.totalRamMb / status.ramCeilingMb).clamp(0.0, 1.0)
-                      : 0.3,
-                  backgroundColor: Colors.white.withValues(alpha: 0.1),
-                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00E5FF)),
-                  minHeight: 3,
+                // CPU Line
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('CPU', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10)),
+                    Text('$cpuStr%', style: TextStyle(color: cs.onSurface, fontSize: 10, fontWeight: FontWeight.bold)),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 8),
+                const SizedBox(height: 3),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    value: (cpuPct / 100.0).clamp(0.0, 1.0),
+                    backgroundColor: cs.onSurface.withValues(alpha: 0.08),
+                    valueColor: AlwaysStoppedAnimation<Color>(successColor),
+                    minHeight: 3,
+                  ),
+                ),
+                const SizedBox(height: 6),
 
-              // Bottom Stats Row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('TEMP', style: TextStyle(color: Colors.white54, fontSize: 8)),
-                      Text('$tempStr°C', style: const TextStyle(color: Color(0xFF3CE36A), fontSize: 10, fontWeight: FontWeight.bold)),
-                    ],
+                // MEM Line
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('MEM', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10)),
+                    Text('$usedRamGb/${totalRamGb}GB', style: TextStyle(color: infoColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    value: (status?.ramCeilingMb != null && status!.ramCeilingMb > 0)
+                        ? (status.totalRamMb / status.ramCeilingMb).clamp(0.0, 1.0)
+                        : 0.3,
+                    backgroundColor: cs.onSurface.withValues(alpha: 0.08),
+                    valueColor: AlwaysStoppedAnimation<Color>(infoColor),
+                    minHeight: 3,
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Text('PING', style: TextStyle(color: Colors.white54, fontSize: 8)),
-                      Text('${pingMs}ms', style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 10, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(height: 8),
+
+                // Bottom Stats Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('TEMP', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 8)),
+                        Text('$tempStr°C', style: TextStyle(color: successColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('PING', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 8)),
+                        Text('${pingMs}ms', style: TextStyle(color: infoColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 }
 
 class _MiniTelemetryTag extends StatelessWidget {
