@@ -84,7 +84,7 @@ async fn handle_connection(
             Ok(Message::Binary(bytes)) => {
                 match HbpFrame::decode(&bytes) {
                     Ok(frame) => {
-                        let resp = dispatcher.dispatch(frame, tx.clone()).await;
+                        let resp = dispatcher.dispatch_with_peer(frame, tx.clone(), Some(peer_addr.ip())).await;
                         if let Some(response_frame) = resp {
                             match response_frame.encode() {
                                 Ok(encoded) => {

@@ -234,11 +234,12 @@ impl Dispatcher {
         }
     }
 
-    /// Route an incoming frame. Returns an optional response frame.
-    pub async fn dispatch(
+    /// Route an incoming frame with client peer IP context.
+    pub async fn dispatch_with_peer(
         &self,
         frame: HbpFrame,
         client_tx: UnboundedSender<Vec<u8>>,
+        peer_ip: Option<std::net::IpAddr>,
     ) -> Option<HbpFrame> {
         let msg_type = MsgType::try_from(frame.t).unwrap_or(MsgType::Request);
         if msg_type == MsgType::Ping {
@@ -255,7 +256,7 @@ impl Dispatcher {
         );
 
         match frame.mod_.as_str() {
-            "shua.governor" => self.handle_governor(frame, client_tx).await,
+            "shua.governor" => self.handle_governor(frame, client_tx, peer_ip).await,
             other => {
                 warn!(subsystem = "dispatcher", module = other, "Unknown target module");
                 Some(HbpFrame::error_response(
@@ -268,10 +269,20 @@ impl Dispatcher {
         }
     }
 
+    #[allow(dead_code)]
+    pub async fn dispatch(
+        &self,
+        frame: HbpFrame,
+        client_tx: UnboundedSender<Vec<u8>>,
+    ) -> Option<HbpFrame> {
+        self.dispatch_with_peer(frame, client_tx, None).await
+    }
+
     async fn handle_governor(
         &self,
         frame: HbpFrame,
         client_tx: UnboundedSender<Vec<u8>>,
+        peer_ip: Option<std::net::IpAddr>,
     ) -> Option<HbpFrame> {
         match frame.op.as_str() {
             "ping" => Some(HbpFrame::pong()),
@@ -480,9 +491,18 @@ impl Dispatcher {
                     let start = std::time::Instant::now();
                     let intent = IntentClassifier::classify(&req.prompt, req.context_hint.as_deref());
 
-                    let offload_url = req.offload_device_url.as_deref();
+                    let raw_offload = req.offload_device_url.as_deref();
+                    let resolved_offload = raw_offload.map(|url| {
+                        if let Some(ip) = peer_ip {
+                            if (url.contains("127.0.0.1") || url.contains("localhost")) && !ip.is_loopback() {
+                                return url.replace("127.0.0.1", &ip.to_string())
+                                          .replace("localhost", &ip.to_string());
+                            }
+                        }
+                        url.to_string()
+                    });
 
-                    let budget = PromptBudget::for_intent(&intent, offload_url);
+                    let budget = PromptBudget::for_intent(&intent, resolved_offload.as_deref());
 
                     info!(
                         subsystem = "dispatcher",
