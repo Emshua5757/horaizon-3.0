@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/app_semantic_palette.dart';
 import '../../governor/governor_provider.dart';
 import 'stitch_card.dart';
 
-/// RPi5 Edge Node Hardware Telemetry Hero Card strictly matching Google Stitch layout.
+/// RPi5 Edge Node Hardware Telemetry Hero Card strictly matching Google Stitch layout
+/// and dynamically adapting to active Theme Preset and AppSemanticPalette.
 class HardwareTelemetryHero extends StatelessWidget {
   final GovernorStatus status;
 
@@ -10,9 +12,15 @@ class HardwareTelemetryHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<AppSemanticPalette>();
+
     final usedRamGb = (status.totalRamMb / 1024.0).toStringAsFixed(1);
     final totalRamGb = (status.ramCeilingMb / 1024.0).toStringAsFixed(1);
     final ramRatio = status.ramCeilingMb > 0 ? status.totalRamMb / status.ramCeilingMb : 0.3;
+
+    final successColor = semantic?.success ?? cs.primary;
+    final infoColor = semantic?.info ?? cs.secondary;
 
     return StitchCard(
       padding: const EdgeInsets.all(20),
@@ -30,18 +38,17 @@ class HardwareTelemetryHero extends StatelessWidget {
                   Text(
                     'RPI5 EDGE NODE',
                     style: TextStyle(
-                      color: const Color(0xFFC8C5CB).withValues(alpha: 0.7),
+                      color: cs.onSurfaceVariant,
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.2,
-                      fontFamily: 'Geist',
                     ),
                   ),
                   const SizedBox(height: 3),
-                  const Text(
+                  Text(
                     'Hardware Telemetry',
                     style: TextStyle(
-                      color: Color(0xFFD4E4FA),
+                      color: cs.onSurface,
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
                     ),
@@ -51,12 +58,12 @@ class HardwareTelemetryHero extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF00E5FF).withValues(alpha: 0.1),
+                  color: cs.primary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.developer_board_rounded,
-                  color: Color(0xFF00E5FF),
+                  color: cs.primary,
                   size: 20,
                 ),
               ),
@@ -73,28 +80,28 @@ class HardwareTelemetryHero extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Row(
+                      Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
                             'CPU Load',
-                            style: TextStyle(color: Color(0xFFC8C5CB), fontSize: 11, fontWeight: FontWeight.w500),
+                            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w500),
                           ),
-                          Icon(Icons.trending_up_rounded, color: Color(0xFF3CE36A), size: 14),
+                          Icon(Icons.trending_up_rounded, color: successColor, size: 14),
                         ],
                       ),
                       const SizedBox(height: 6),
                       Text(
                         '${status.cpuUsagePct.toStringAsFixed(0)}%',
-                        style: const TextStyle(color: Color(0xFFD4E4FA), fontSize: 22, fontWeight: FontWeight.w700),
+                        style: TextStyle(color: cs.onSurface, fontSize: 22, fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 10),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
                           value: (status.cpuUsagePct / 100.0).clamp(0.0, 1.0),
-                          backgroundColor: Colors.white.withValues(alpha: 0.08),
-                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3CE36A)),
+                          backgroundColor: cs.onSurface.withValues(alpha: 0.08),
+                          valueColor: AlwaysStoppedAnimation<Color>(successColor),
                           minHeight: 4,
                         ),
                       ),
@@ -110,9 +117,9 @@ class HardwareTelemetryHero extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'System Memory',
-                        style: TextStyle(color: Color(0xFFC8C5CB), fontSize: 11, fontWeight: FontWeight.w500),
+                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w500),
                       ),
                       const SizedBox(height: 6),
                       RichText(
@@ -120,11 +127,11 @@ class HardwareTelemetryHero extends StatelessWidget {
                           children: [
                             TextSpan(
                               text: usedRamGb,
-                              style: const TextStyle(color: Color(0xFFD4E4FA), fontSize: 22, fontWeight: FontWeight.w700),
+                              style: TextStyle(color: cs.onSurface, fontSize: 22, fontWeight: FontWeight.w700),
                             ),
                             TextSpan(
                               text: ' / $totalRamGb GB',
-                              style: TextStyle(color: const Color(0xFFC8C5CB).withValues(alpha: 0.6), fontSize: 12),
+                              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
                             ),
                           ],
                         ),
@@ -134,8 +141,8 @@ class HardwareTelemetryHero extends StatelessWidget {
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
                           value: ramRatio.clamp(0.0, 1.0),
-                          backgroundColor: Colors.white.withValues(alpha: 0.08),
-                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00E5FF)),
+                          backgroundColor: cs.onSurface.withValues(alpha: 0.08),
+                          valueColor: AlwaysStoppedAnimation<Color>(infoColor),
                           minHeight: 4,
                         ),
                       ),
@@ -155,14 +162,14 @@ class HardwareTelemetryHero extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'SoC Temp',
-                        style: TextStyle(color: Color(0xFFC8C5CB), fontSize: 11, fontWeight: FontWeight.w500),
+                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w500),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '${status.socTempC.toStringAsFixed(1)}°C',
-                        style: const TextStyle(color: Color(0xFF3CE36A), fontSize: 20, fontWeight: FontWeight.w700),
+                        style: TextStyle(color: successColor, fontSize: 20, fontWeight: FontWeight.w700),
                       ),
                     ],
                   ),
@@ -176,14 +183,14 @@ class HardwareTelemetryHero extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Tailscale Latency',
-                        style: TextStyle(color: Color(0xFFC8C5CB), fontSize: 11, fontWeight: FontWeight.w500),
+                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w500),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '${status.tailscaleLatencyMs}ms',
-                        style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 20, fontWeight: FontWeight.w700),
+                        style: TextStyle(color: infoColor, fontSize: 20, fontWeight: FontWeight.w700),
                       ),
                     ],
                   ),
@@ -200,16 +207,16 @@ class HardwareTelemetryHero extends StatelessWidget {
               Container(
                 width: 6,
                 height: 6,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Color(0xFF3CE36A),
+                  color: successColor,
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Last Backup: ${status.lastBackupTime}',
-                  style: TextStyle(color: const Color(0xFFC8C5CB).withValues(alpha: 0.5), fontSize: 11),
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -228,12 +235,13 @@ class _TelemetryBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: cs.surface.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: cs.outlineVariant),
       ),
       child: child,
     );

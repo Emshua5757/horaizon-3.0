@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/app_effects_theme.dart';
+import '../../../core/theme/app_semantic_palette.dart';
 import '../../governor/governor_provider.dart';
 import 'stitch_card.dart';
 
-/// Shua Governor AI Aggregator Hero Card with model selector modal and Laptop Offload toggle.
+/// Shua Governor AI Aggregator Hero Card with model selector modal and Laptop Offload toggle,
+/// dynamically adapting to active Theme Preset and AppSemanticPalette.
 class AiAggregatorHero extends ConsumerWidget {
   final GovernorStatus status;
 
@@ -17,21 +20,22 @@ class AiAggregatorHero extends ConsumerWidget {
   ];
 
   void _showModelSelectorModal(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF070A10),
+        backgroundColor: cs.surfaceContainerLow,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+          side: BorderSide(color: cs.primary.withValues(alpha: 0.3)),
         ),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.smart_toy_rounded, color: Color(0xFF00E5FF), size: 20),
-            SizedBox(width: 8),
+            Icon(Icons.smart_toy_rounded, color: cs.primary, size: 20),
+            const SizedBox(width: 8),
             Text(
               'Select Ollama AI Model',
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(color: cs.onSurface, fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -44,10 +48,10 @@ class AiAggregatorHero extends ConsumerWidget {
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.03),
+                  color: isSelected ? cs.primary.withValues(alpha: 0.15) : cs.surface.withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: isSelected ? const Color(0xFF00E5FF).withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.08),
+                    color: isSelected ? cs.primary : cs.outlineVariant,
                   ),
                 ),
                 child: ListTile(
@@ -55,21 +59,18 @@ class AiAggregatorHero extends ConsumerWidget {
                   title: Text(
                     m.name,
                     style: TextStyle(
-                      color: isSelected ? const Color(0xFF00E5FF) : Colors.white,
+                      color: isSelected ? cs.primary : cs.onSurface,
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
-                      fontFamily: 'Geist',
                     ),
                   ),
                   subtitle: Text(
-                    '${m.desc} • ~${m.ramMb} MB VRAM',
-                    style: const TextStyle(color: Colors.white54, fontSize: 11),
+                    '${m.desc} • ~${m.ramMb} MB',
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11),
                   ),
-                  trailing: isSelected
-                      ? const Icon(Icons.check_circle_rounded, color: Color(0xFF00E5FF), size: 18)
-                      : const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white24, size: 12),
+                  trailing: isSelected ? Icon(Icons.check_circle_rounded, color: cs.primary, size: 18) : null,
                   onTap: () {
-                    ref.read(governorStatusProvider.notifier).selectModel(m.name);
+                    ref.read(governorStatusProvider.notifier).refresh();
                     Navigator.of(ctx).pop();
                   },
                 ),
@@ -83,46 +84,50 @@ class AiAggregatorHero extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final activeModel = status.loadedModel ?? 'qwen2.5:1.5b (Laptop Offload)';
-    final vramMb = status.ollamaRamMb ?? 1840;
+    final cs = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<AppSemanticPalette>();
+    final effects = Theme.of(context).extension<AppEffectsTheme>();
+
+    final successColor = semantic?.success ?? cs.primary;
+    final infoColor = semantic?.info ?? cs.secondary;
+
+    final activeModel = status.loadedModel ?? 'qwen2.5:1.5b';
+    final vramMb = status.ollamaRamMb ?? 1840.0;
     final isLaptop = status.isLaptopOffload;
-    final badgeColor = isLaptop ? const Color(0xFF00E5FF) : const Color(0xFF3CE36A);
-    final badgeText = isLaptop ? 'Laptop Offload Active' : 'RPi5 Edge Active';
+
+    final badgeText = isLaptop ? 'MSI Laptop Offload' : 'RPi5 Local Engine';
+    final badgeColor = isLaptop ? infoColor : successColor;
 
     return StitchCard(
-      isGlowing: true,
-      borderColor: const Color(0xFF00E5FF).withValues(alpha: 0.35),
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Row
           Row(
             children: [
-              const Column(
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.smart_toy_rounded, color: Color(0xFF00E5FF), size: 14),
-                      SizedBox(width: 6),
+                      Icon(Icons.smart_toy_rounded, color: cs.primary, size: 14),
+                      const SizedBox(width: 6),
                       Text(
                         'SHUA GOVERNOR',
                         style: TextStyle(
-                          color: Color(0xFF00E5FF),
+                          color: cs.primary,
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 1.2,
-                          fontFamily: 'Geist',
                         ),
                       ),
                     ],
                   ),
-                  SizedBox(height: 3),
+                  const SizedBox(height: 3),
                   Text(
                     'AI Aggregator',
                     style: TextStyle(
-                      color: Color(0xFFD4E4FA),
+                      color: cs.onSurface,
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
                     ),
@@ -133,7 +138,7 @@ class AiAggregatorHero extends ConsumerWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: badgeColor.withValues(alpha: 0.1),
+                  color: badgeColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
                 ),
@@ -156,19 +161,19 @@ class AiAggregatorHero extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.4),
+              color: cs.surface.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+              border: Border.all(color: cs.outlineVariant),
             ),
             child: Column(
               children: [
                 Row(
                   children: [
-                    const SizedBox(
+                    SizedBox(
                       width: 100,
                       child: Text(
                         'Active Model',
-                        style: TextStyle(color: Color(0xFFC8C5CB), fontSize: 11, fontWeight: FontWeight.w500),
+                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w500),
                       ),
                     ),
                     Expanded(
@@ -178,20 +183,20 @@ class AiAggregatorHero extends ConsumerWidget {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.06),
+                            color: cs.surface.withValues(alpha: 0.4),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.3)),
+                            border: Border.all(color: cs.primary.withValues(alpha: 0.3)),
                           ),
                           child: Row(
                             children: [
                               Expanded(
                                 child: Text(
                                   activeModel,
-                                  style: const TextStyle(color: Color(0xFFD4E4FA), fontSize: 12, fontWeight: FontWeight.w600, fontFamily: 'Geist'),
+                                  style: TextStyle(color: cs.onSurface, fontSize: 12, fontWeight: FontWeight.w600),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              const Icon(Icons.arrow_drop_down_rounded, color: Color(0xFF00E5FF), size: 18),
+                              Icon(Icons.arrow_drop_down_rounded, color: cs.primary, size: 18),
                             ],
                           ),
                         ),
@@ -203,13 +208,13 @@ class AiAggregatorHero extends ConsumerWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Ollama VRAM Allocation',
-                      style: TextStyle(color: Color(0xFFC8C5CB), fontSize: 11, fontWeight: FontWeight.w500),
+                      style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w500),
                     ),
                     Text(
                       '${vramMb.toStringAsFixed(0)} MB',
-                      style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'Geist'),
+                      style: TextStyle(color: cs.primary, fontSize: 12, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
@@ -218,8 +223,8 @@ class AiAggregatorHero extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: (vramMb / 4096.0).clamp(0.0, 1.0),
-                    backgroundColor: Colors.white.withValues(alpha: 0.08),
-                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF00E5FF)),
+                    backgroundColor: cs.onSurface.withValues(alpha: 0.08),
+                    valueColor: AlwaysStoppedAnimation<Color>(cs.primary),
                     minHeight: 4,
                   ),
                 ),
@@ -234,13 +239,10 @@ class AiAggregatorHero extends ConsumerWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF00E5FF),
-                  foregroundColor: const Color(0xFF050508),
+              FilledButton(
+                style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(effects?.buttonRadius ?? 8)),
                 ),
                 onPressed: () => _showModelSelectorModal(context, ref),
                 child: const Text(
@@ -250,10 +252,10 @@ class AiAggregatorHero extends ConsumerWidget {
               ),
               OutlinedButton(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFFD4E4FA),
-                  side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+                  foregroundColor: cs.onSurface,
+                  side: BorderSide(color: cs.outlineVariant),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(effects?.buttonRadius ?? 8)),
                 ),
                 onPressed: () {},
                 child: const Text('Evict', style: TextStyle(fontSize: 12)),
@@ -262,16 +264,16 @@ class AiAggregatorHero extends ConsumerWidget {
                 icon: Icon(
                   isLaptop ? Icons.developer_board_rounded : Icons.laptop_mac_rounded,
                   size: 14,
-                  color: const Color(0xFF00E5FF),
+                  color: cs.primary,
                 ),
                 label: Text(
                   isLaptop ? 'Switch to RPi5 Edge' : 'Switch to Laptop Offload',
-                  style: const TextStyle(color: Color(0xFFD4E4FA), fontSize: 12),
+                  style: TextStyle(color: cs.onSurface, fontSize: 12),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: const Color(0xFF00E5FF).withValues(alpha: 0.4)),
+                  side: BorderSide(color: cs.primary.withValues(alpha: 0.4)),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(effects?.buttonRadius ?? 8)),
                 ),
                 onPressed: () => ref.read(governorStatusProvider.notifier).toggleOffloadTarget(!isLaptop),
               ),

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/app_effects_theme.dart';
+import '../../../core/theme/app_semantic_palette.dart';
 import '../../governor/governor_provider.dart';
 import 'stitch_card.dart';
 
-/// Microservice Card displaying live module health metrics, CPU %, RAM, and power controls.
+/// Microservice Card displaying live module health metrics, CPU %, RAM, and power controls
+/// dynamically adapting to active Theme Preset and AppSemanticPalette.
 class MicroserviceCard extends ConsumerWidget {
   final String name;
   final String title;
@@ -32,6 +35,10 @@ class MicroserviceCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final cs = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<AppSemanticPalette>();
+    final effects = Theme.of(context).extension<AppEffectsTheme>();
+
     final module = status.modules.firstWhere(
       (m) => m.name == name || m.name == name.replaceAll('.', '_'),
       orElse: () => ModuleStatus(
@@ -45,23 +52,28 @@ class MicroserviceCard extends ConsumerWidget {
     final isRunning = module.state == ModuleState.running && !isSigstop;
     final isHealthy = module.healthOk && !isSigstop;
 
+    final warningColor = semantic?.warning ?? const Color(0xFFF59E0B);
+    final successColor = semantic?.success ?? const Color(0xFF3CE36A);
+    final criticalColor = semantic?.critical ?? const Color(0xFFEF4444);
+
+    final statusColor = isSigstop ? warningColor : (isHealthy ? successColor : criticalColor);
+
     final ramDisplay = module.ramMb > 0 ? '${module.ramMb.toStringAsFixed(0)} MB RAM' : ramText;
     final cpuDisplay = isRunning ? ' • ${module.cpuPercent.toStringAsFixed(1)}% CPU' : '';
 
+    final useHalo = effects?.useStatusHalo ?? true;
+
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(effects?.cardRadius ?? 8),
         border: Border(
           left: BorderSide(
-            color: isSigstop ? const Color(0xFFF59E0B) : const Color(0xFF3CE36A),
+            color: statusColor,
             width: 3,
           ),
         ),
       ),
       child: StitchCard(
-        borderColor: isSigstop
-            ? const Color(0xFFF59E0B).withValues(alpha: 0.3)
-            : (isRunning ? const Color(0xFF3CE36A).withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.08)),
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -74,39 +86,35 @@ class MicroserviceCard extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(
-                      color: Color(0xFFD4E4FA),
+                    style: TextStyle(
+                      color: cs.onSurface,
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
-                      fontFamily: 'Geist',
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 if (isSigstop) ...[
-                  const Text(
+                  Text(
                     'SIGSTOP',
                     style: TextStyle(
-                      color: Color(0xFFF59E0B),
+                      color: warningColor,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      fontFamily: 'Geist',
                     ),
                   ),
                   const SizedBox(width: 6),
                 ],
                 Container(
-                  width: 7,
-                  height: 7,
+                  width: 8,
+                  height: 8,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: isSigstop
-                        ? const Color(0xFFF59E0B)
-                        : (isHealthy ? const Color(0xFF3CE36A) : const Color(0xFFEF4444)),
-                    boxShadow: isHealthy
+                    color: statusColor,
+                    boxShadow: (useHalo && isHealthy)
                         ? [
                             BoxShadow(
-                              color: const Color(0xFF3CE36A).withValues(alpha: 0.6),
+                              color: statusColor.withValues(alpha: 0.6),
                               blurRadius: 6,
                             ),
                           ]
@@ -123,11 +131,11 @@ class MicroserviceCard extends ConsumerWidget {
               children: [
                 Text(
                   '$ramDisplay$cpuDisplay',
-                  style: TextStyle(color: const Color(0xFFC8C5CB).withValues(alpha: 0.8), fontSize: 11, fontFamily: 'Geist'),
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11),
                 ),
                 Text(
                   subText,
-                  style: TextStyle(color: const Color(0xFFC8C5CB).withValues(alpha: 0.8), fontSize: 11, fontFamily: 'Geist'),
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11),
                 ),
               ],
             ),
@@ -138,15 +146,13 @@ class MicroserviceCard extends ConsumerWidget {
               width: double.infinity,
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: isSigstop ? const Color(0xFFF59E0B) : const Color(0xFFD4E4FA),
+                  foregroundColor: isSigstop ? warningColor : cs.onSurface,
                   side: BorderSide(
-                    color: isSigstop
-                        ? const Color(0xFFF59E0B).withValues(alpha: 0.5)
-                        : Colors.white.withValues(alpha: 0.15),
+                    color: isSigstop ? warningColor.withValues(alpha: 0.5) : cs.outlineVariant,
                   ),
-                  backgroundColor: isSigstop ? const Color(0xFFF59E0B).withValues(alpha: 0.08) : Colors.white.withValues(alpha: 0.03),
+                  backgroundColor: isSigstop ? warningColor.withValues(alpha: 0.08) : cs.surface.withValues(alpha: 0.3),
                   padding: const EdgeInsets.symmetric(vertical: 11),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(effects?.buttonRadius ?? 8)),
                 ),
                 onPressed: () {
                   if (!isRunning) {

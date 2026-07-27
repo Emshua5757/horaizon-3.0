@@ -16,7 +16,7 @@ class DashboardScreen extends ConsumerWidget {
     final isDesktop = MediaQuery.of(context).size.width >= 900;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF050508),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: statusAsync.when(
         data: (status) => Center(
           child: ConstrainedBox(

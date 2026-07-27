@@ -64,19 +64,19 @@ class ShellScaffold extends ConsumerWidget {
 
     if (!isMobile) {
       return Scaffold(
-        backgroundColor: const Color(0xFF050508),
+        backgroundColor: theme.scaffoldBackgroundColor,
         body: Row(
           children: [
-            // Glassmorphic Obsidian Sidebar matching Stitch
+            // Glassmorphic Sidebar matching active theme preset
             AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeInOut,
               width: isExpanded ? 260 : 72,
               decoration: BoxDecoration(
-                color: const Color(0xFF051424).withValues(alpha: 0.95),
+                color: cs.surfaceContainerLow.withValues(alpha: 0.95),
                 border: Border(
                   right: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.1),
+                    color: cs.outlineVariant,
                     width: 1,
                   ),
                 ),
@@ -397,10 +397,11 @@ class _MiniTelemetryTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
-        Text(label, style: const TextStyle(color: Colors.white38, fontSize: 8, fontWeight: FontWeight.bold)),
-        Text(value, style: TextStyle(color: color ?? Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+        Text(label, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 8, fontWeight: FontWeight.bold)),
+        Text(value, style: TextStyle(color: color ?? cs.onSurface, fontSize: 9, fontWeight: FontWeight.bold)),
       ],
     );
   }
@@ -414,14 +415,15 @@ class _DesktopHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       height: 54,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
-        color: const Color(0xFF050508).withValues(alpha: 0.8),
+        color: cs.surface.withValues(alpha: 0.8),
         border: Border(
           bottom: BorderSide(
-            color: Colors.white.withValues(alpha: 0.05),
+            color: cs.outlineVariant,
             width: 1,
           ),
         ),

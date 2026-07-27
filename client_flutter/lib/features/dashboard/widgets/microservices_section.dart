@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/theme/app_semantic_palette.dart';
 import '../../governor/governor_provider.dart';
 import 'microservice_card.dart';
 
-/// Supervised Microservices Grid section matching Google Stitch specifications.
+/// Supervised Microservices Grid section matching Google Stitch specifications,
+/// dynamically adapting to active Theme Preset and AppSemanticPalette.
 class MicroservicesSection extends StatelessWidget {
   final GovernorStatus status;
   final bool isDesktop;
@@ -16,16 +18,22 @@ class MicroservicesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final semantic = Theme.of(context).extension<AppSemanticPalette>();
+
+    final successColor = semantic?.success ?? cs.primary;
+    final warningColor = semantic?.warning ?? cs.secondary;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Section Header
         Row(
           children: [
-            const Text(
+            Text(
               'Supervised Microservices',
               style: TextStyle(
-                color: Colors.white,
+                color: cs.onSurface,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
@@ -34,7 +42,7 @@ class MicroservicesSection extends StatelessWidget {
             Text(
               '(cgroups v2 Power Control)',
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.4),
+                color: cs.onSurfaceVariant,
                 fontSize: 12,
               ),
             ),
@@ -52,7 +60,7 @@ class MicroservicesSection extends StatelessWidget {
                   name: 'shua_diary',
                   title: 'shua_diary',
                   icon: Icons.book_rounded,
-                  accentColor: const Color(0xFF3CE36A),
+                  accentColor: successColor,
                   status: status,
                   ramText: '142 MB RAM',
                   subText: '384 Entries',
@@ -66,7 +74,7 @@ class MicroservicesSection extends StatelessWidget {
                   name: 'shua_code_viz',
                   title: 'shua_code_viz',
                   icon: Icons.code_rounded,
-                  accentColor: const Color(0xFFF59E0B),
+                  accentColor: warningColor,
                   status: status,
                   ramText: '0 MB RAM (Frozen)',
                   subText: '-',
@@ -81,7 +89,7 @@ class MicroservicesSection extends StatelessWidget {
                   name: 'shua_resume',
                   title: 'shua_resume',
                   icon: Icons.description_rounded,
-                  accentColor: const Color(0xFF3CE36A),
+                  accentColor: successColor,
                   status: status,
                   ramText: '88 MB RAM',
                   subText: '4 Exhibits',
@@ -98,7 +106,7 @@ class MicroservicesSection extends StatelessWidget {
                 name: 'shua_diary',
                 title: 'shua_diary',
                 icon: Icons.book_rounded,
-                accentColor: const Color(0xFF3CE36A),
+                accentColor: successColor,
                 status: status,
                 ramText: '142 MB RAM',
                 subText: '384 Entries',
@@ -110,7 +118,7 @@ class MicroservicesSection extends StatelessWidget {
                 name: 'shua_code_viz',
                 title: 'shua_code_viz',
                 icon: Icons.code_rounded,
-                accentColor: const Color(0xFFF59E0B),
+                accentColor: warningColor,
                 status: status,
                 ramText: '0 MB RAM (Frozen)',
                 subText: '-',
@@ -123,7 +131,7 @@ class MicroservicesSection extends StatelessWidget {
                 name: 'shua_resume',
                 title: 'shua_resume',
                 icon: Icons.description_rounded,
-                accentColor: const Color(0xFF3CE36A),
+                accentColor: successColor,
                 status: status,
                 ramText: '88 MB RAM',
                 subText: '4 Exhibits',

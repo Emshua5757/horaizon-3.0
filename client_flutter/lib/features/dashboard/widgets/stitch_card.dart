@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../../shared/widgets/app_card.dart';
 
-/// Reusable obsidian glassmorphic card matching Google Stitch specifications.
+/// Reusable glassmorphic card matching active theme preset and Google Stitch specifications.
 class StitchCard extends StatelessWidget {
   final Widget child;
   final Color? borderColor;
@@ -19,27 +20,8 @@ class StitchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveBorderColor = borderColor ??
-        (isGlowing
-            ? const Color(0xFF00E5FF).withValues(alpha: 0.3)
-            : Colors.white.withValues(alpha: 0.08));
-
-    return Container(
+    return AppCard(
       padding: padding,
-      decoration: BoxDecoration(
-        color: backgroundColor ?? const Color(0xFF12121A).withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: effectiveBorderColor, width: 1),
-        boxShadow: isGlowing
-            ? [
-                BoxShadow(
-                  color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
-                  blurRadius: 15,
-                  spreadRadius: 0,
-                ),
-              ]
-            : null,
-      ),
       child: child,
     );
   }

@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/app_semantic_palette.dart';
 import '../../governor/governor_provider.dart';
 
-/// Refined Obsidian Horizon Welcome Header strictly matching Stitch specifications.
+/// Refined Welcome Header dynamically adapting to Theme Preset and AppSemanticPalette.
 class DashboardWelcomeHeader extends ConsumerWidget {
   const DashboardWelcomeHeader({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final semantic = theme.extension<AppSemanticPalette>();
+
+    final successColor = semantic?.success ?? cs.primary;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -19,7 +24,7 @@ class DashboardWelcomeHeader extends ConsumerWidget {
             Text(
               'Welcome back, Joshua',
               style: theme.textTheme.headlineMedium?.copyWith(
-                color: const Color(0xFFD4E4FA),
+                color: cs.onSurface,
                 fontWeight: FontWeight.w700,
                 fontSize: 28,
                 letterSpacing: -0.5,
@@ -28,18 +33,17 @@ class DashboardWelcomeHeader extends ConsumerWidget {
             const SizedBox(height: 6),
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.schedule_rounded,
-                  color: Color(0xFF3CE36A),
+                  color: successColor,
                   size: 15,
                 ),
                 const SizedBox(width: 6),
                 Text(
                   'Uptime: 14d 06h 22m',
                   style: TextStyle(
-                    color: const Color(0xFFC8C5CB).withValues(alpha: 0.8),
+                    color: cs.onSurfaceVariant,
                     fontSize: 13,
-                    fontFamily: 'Inter',
                   ),
                 ),
               ],
@@ -55,21 +59,21 @@ class DashboardWelcomeHeader extends ConsumerWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.04),
+              color: cs.surfaceContainerLow,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.1),
+                color: cs.outlineVariant,
               ),
             ),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.refresh_rounded, color: Color(0xFF00E5FF), size: 16),
-                SizedBox(width: 8),
+                Icon(Icons.refresh_rounded, color: cs.primary, size: 16),
+                const SizedBox(width: 8),
                 Text(
                   'Refresh',
                   style: TextStyle(
-                    color: Color(0xFFD4E4FA),
+                    color: cs.onSurface,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
