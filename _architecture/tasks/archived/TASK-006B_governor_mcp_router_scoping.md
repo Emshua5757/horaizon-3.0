@@ -2,11 +2,11 @@
 
 | Field | Value |
 | :--- | :--- |
-| **Status** | [ ] Not started |
+| **Status** | [x] Completed |
 | **Phase** | Phase 1 Follow-up |
 | **Type** | AI-executable |
 | **Language** | Rust |
-| **Target** | `shua_governor/src/mcp/`, `shua_governor/src/routes/ai_proxy.rs` |
+| **Target** | `shua_governor/src/mcp/`, `shua_governor/src/broker/dispatcher.rs` |
 | **Blocks** | TASK-018 |
 | **Prerequisites** | TASK-006 (Ollama AI Intent Router), TASK-007 (AppConfig), `_architecture/contracts/mcp/mcp_master_spec.md` |
 | **References** | `_architecture/contracts/mcp/mcp_master_spec.md` |
@@ -31,30 +31,30 @@
 1. **`mcp/mod.rs`**:
    - Module entrypoint exposing MCP tool registration, scope filtering, and execution.
 2. **`mcp/aggregator.rs`**:
-   - System MCP tool definitions (`governor_get_metrics`, `governor_wake_module`, `governor_sleep_module`, `governor_load_ollama_model`).
+   - System MCP tool definitions (`governor_get_metrics`, `governor_wake_module`, `governor_sleep_module`, `governor_load_ollama_model`, `governor_query_logs`).
    - Dynamic registration interface for submodule MCP tool manifests (`diary_*`, `resume_*`).
 3. **`mcp/scope_filter.rs`**:
    - Filter function `get_tools_for_scope(scope: &str) -> Vec<McpToolSchema>`.
 4. **`mcp/executor.rs`**:
    - Dispatches tool calls chosen by Ollama/Gemini to the local Governor handler or submodule WebSocket RPC via HBP v2 broker.
-5. **AI Proxy Endpoint Update (`src/routes/ai_proxy.rs`)**:
-   - Accepts payload `{ scope: string, prompt: string, model_override?: string }`.
-   - Fetches scoped MCP tool schemas → invokes Ollama or Gemini fallback → executes requested tool calls → returns structured response DTO.
+5. **Broker Integration (`src/broker/dispatcher.rs`)**:
+   - Exposes `governor.mcp.tools` and `governor.mcp.call` RPC handlers over HBP v2.
 
 ---
 
 ## RPC Endpoints Added to Governor HBP v2 Broker
 
 - `governor.mcp.register`: Submodule registers its MCP tool manifest.
-- `governor.ai.chat`: Central context-scoped AI prompt handler.
+- `governor.mcp.tools`: Queries context-scoped MCP tool schemas.
+- `governor.mcp.call`: Dispatches and executes selected MCP tool calls.
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `mcp/aggregator.rs` registers system `governor_*` MCP tools
-- [ ] `mcp/scope_filter.rs` correctly filters tools per `scope` ("governor", "diary", "resume")
-- [ ] Ollama 8B receives strictly context-scoped tools, preventing cross-module command confusion
-- [ ] Centralized Gemini API key configuration in AppConfig provides cloud AI fallback for all modules
-- [ ] Zero compiler warnings (`cargo check`)
-- [ ] Automated tests for scope filter and tool dispatch
+- [x] `mcp/aggregator.rs` registers system `governor_*` MCP tools
+- [x] `mcp/scope_filter.rs` correctly filters tools per `scope` ("governor", "diary", "resume")
+- [x] Ollama 8B receives strictly context-scoped tools, preventing cross-module command confusion
+- [x] Centralized Gemini API key configuration in AppConfig provides cloud AI fallback for all modules
+- [x] Zero compiler warnings (`cargo check`)
+- [x] Automated tests for scope filter and tool dispatch
