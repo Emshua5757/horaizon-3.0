@@ -36,7 +36,9 @@ class GovernorLogger {
     );
 
     // 1. Broadcast to local Flutter UI telemetry listeners
-    _localLogController.add(entry);
+    if (!_localLogController.isClosed) {
+      _localLogController.add(entry);
+    }
 
     if (kDebugMode) {
       debugPrint('[${level.name.toUpperCase()}] [$subsystem] $message ${metadata ?? ''}');

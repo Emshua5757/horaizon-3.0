@@ -145,6 +145,40 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> {
                   tooltip: 'AI Parameters Panel',
                 ),
 
+                // Copy Entire Conversation Transcript Button
+                IconButton(
+                  icon: Icon(Icons.copy_all_rounded, color: cs.primary, size: 20),
+                  tooltip: 'Copy Entire Conversation Transcript',
+                  onPressed: () {
+                    if (chatState.messages.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Chat history is empty.')),
+                      );
+                      return;
+                    }
+
+                    final sb = StringBuffer();
+                    sb.writeln('========================================');
+                    sb.writeln('  horAIzon 3.0 FULL AI CHAT TRANSCRIPT  ');
+                    sb.writeln('  Exported at: ${DateTime.now().toIso8601String()}');
+                    sb.writeln('========================================\n');
+
+                    for (final msg in chatState.messages) {
+                      final sender = msg.role == ChatRole.user ? 'JOSHUA (User)' : 'JOSH AI (${msg.modelName})';
+                      final tokInfo = msg.evalTokensPerSec != null ? ' [${msg.evalTokensPerSec!.toStringAsFixed(1)} tok/s]' : '';
+                      sb.writeln('[$sender - ${msg.timestamp}$tokInfo]');
+                      sb.writeln('Target: ${msg.offloadTarget.shortLabel}');
+                      sb.writeln('Content:\n${msg.content}');
+                      sb.writeln('\n----------------------------------------\n');
+                    }
+
+                    Clipboard.setData(ClipboardData(text: sb.toString()));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Copied full conversation transcript & metadata!')),
+                    );
+                  },
+                ),
+
                 // Clear History Button
                 IconButton(
                   icon: Icon(Icons.delete_sweep_rounded, color: cs.onSurfaceVariant, size: 20),
@@ -453,6 +487,29 @@ class _ChatMessageBubble extends StatelessWidget {
                           Clipboard.setData(ClipboardData(text: message.content));
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Message text copied to clipboard.')),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        icon: Icon(Icons.copy_all_rounded, size: 14, color: cs.primary),
+                        tooltip: 'Copy All (Model, Speed & Response)',
+                        onPressed: () {
+                          final tokInfo = message.evalTokensPerSec != null
+                              ? '${message.evalTokensPerSec!.toStringAsFixed(1)} tok/s'
+                              : 'N/A';
+                          final exportText = '[JOSH AI Message Export]\n'
+                              '• Model: ${message.modelName}\n'
+                              '• Target: ${message.offloadTarget.shortLabel}\n'
+                              '• Performance: $tokInfo\n'
+                              '• Timestamp: ${message.timestamp}\n'
+                              '----------------------------------------\n\n'
+                              '${message.content}';
+                          Clipboard.setData(ClipboardData(text: exportText));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Copied full AI message, model & performance metadata!')),
                           );
                         },
                       ),

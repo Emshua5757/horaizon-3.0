@@ -39,54 +39,64 @@ class FormattedMarkdownContent extends StatelessWidget {
     final lines = input.split('\n');
 
     bool inCode = false;
+    bool inThinking = false;
     String currentLang = '';
     final List<String> currentBuffer = [];
 
+    void flushBuffer() {
+      if (currentBuffer.isEmpty) return;
+      final text = currentBuffer.join('\n').trim();
+      if (text.isNotEmpty) {
+        blocks.add(_ParsedBlock(
+          isCodeBlock: inCode,
+          isThinkingBlock: inThinking,
+          language: inCode ? currentLang : '',
+          text: text,
+        ));
+      }
+      currentBuffer.clear();
+    }
+
     for (final line in lines) {
-      if (line.trim().startsWith('```')) {
+      final trimmed = line.trim();
+
+      if (trimmed.startsWith('<think>')) {
+        flushBuffer();
+        inThinking = true;
+        currentBuffer.add(line.replaceAll('<think>', ''));
+        continue;
+      } else if (trimmed.contains('</think>')) {
+        currentBuffer.add(line.replaceAll('</think>', ''));
+        flushBuffer();
+        inThinking = false;
+        continue;
+      }
+
+      if (trimmed.startsWith('🛠️ **[MCP Tool') || trimmed.startsWith('⚙️ **[Governor Telemetry')) {
+        flushBuffer();
+        blocks.add(_ParsedBlock(
+          isThinkingBlock: true,
+          text: line,
+        ));
+        continue;
+      }
+
+      if (trimmed.startsWith('```')) {
         if (inCode) {
-          // Closing code block
-          blocks.add(_ParsedBlock(
-            isCodeBlock: true,
-            language: currentLang,
-            text: currentBuffer.join('\n'),
-          ));
-          currentBuffer.clear();
+          flushBuffer();
           inCode = false;
           currentLang = '';
         } else {
-          // Opening code block
-          if (currentBuffer.isNotEmpty) {
-            blocks.add(_ParsedBlock(
-              isCodeBlock: false,
-              text: currentBuffer.join('\n'),
-            ));
-            currentBuffer.clear();
-          }
+          flushBuffer();
           inCode = true;
-          currentLang = line.trim().substring(3).trim();
+          currentLang = trimmed.substring(3).trim();
         }
       } else {
         currentBuffer.add(line);
       }
     }
 
-    if (currentBuffer.isNotEmpty) {
-      final text = currentBuffer.join('\n');
-      if (text.contains('<think>') || text.contains('🛠️ **[MCP Tool')) {
-        blocks.add(_ParsedBlock(
-          isThinkingBlock: true,
-          text: text,
-        ));
-      } else {
-        blocks.add(_ParsedBlock(
-          isCodeBlock: inCode,
-          language: inCode ? currentLang : '',
-          text: text,
-        ));
-      }
-    }
-
+    flushBuffer();
     return blocks;
   }
 }

@@ -69,9 +69,9 @@ impl McpAgentLoop {
 
             info!(
                 subsystem = "agent_loop",
-                iteration = iterations,
+                turn = %format!("{}/{}", iterations, max_iterations),
                 model = model,
-                "Executing agent loop iteration"
+                "Executing N-turn agent loop iteration"
             );
 
             let res = match client.chat_with_tools(model, messages.clone(), Some(tools_json.clone()), 0).await {
@@ -87,7 +87,7 @@ impl McpAgentLoop {
                 if !tool_calls.is_empty() {
                     info!(
                         subsystem = "agent_loop",
-                        iteration = iterations,
+                        turn = %format!("{}/{}", iterations, max_iterations),
                         tool_count = tool_calls.len(),
                         "LLM requested MCP tool execution"
                     );
@@ -112,6 +112,7 @@ impl McpAgentLoop {
 
                         info!(
                             subsystem = "agent_loop",
+                            turn = %format!("{}/{}", iterations, max_iterations),
                             tool_name = %tool_name,
                             "Executing local MCP tool on RPi 5"
                         );

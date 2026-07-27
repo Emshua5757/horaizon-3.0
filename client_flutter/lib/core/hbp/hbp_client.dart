@@ -78,7 +78,7 @@ class HbpClient {
   // ---- request / response ----
 
   /// Send an HBP v2 request frame and await the matching response
-  Future<HbpFrame> send(HbpFrame frame) async {
+  Future<HbpFrame> send(HbpFrame frame, {Duration timeout = const Duration(seconds: 120)}) async {
     if (_state != HbpConnectionState.connected || _channel == null) {
       throw StateError('HbpClient is not connected (state: $_state)');
     }
@@ -89,13 +89,12 @@ class HbpClient {
 
     _channel!.sink.add(Uint8List.fromList(frame.encode()));
 
-    // Timeout after 10s if no response
     final resp = await completer.future.timeout(
-      const Duration(seconds: 10),
+      timeout,
       onTimeout: () {
         _pending.remove(frame.txId);
         throw TimeoutException(
-            'HBP v2 request timed out: ${frame.module}.${frame.op}');
+            'HBP v2 request timed out (${timeout.inSeconds}s): ${frame.module}.${frame.op}');
       },
     );
 

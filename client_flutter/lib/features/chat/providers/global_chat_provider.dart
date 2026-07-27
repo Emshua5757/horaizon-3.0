@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/ai/ollama_ai_service.dart';
+import '../../../core/hbp/hbp_client_provider.dart';
 import '../../../core/logging/governor_logger.dart';
 import '../models/chat_message.dart';
 
@@ -91,6 +92,7 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
   Future<void> refreshAvailableModels() async {
     final rawModels = await _aiService.fetchInstalledModels(state.offloadTarget);
     final models = rawModels.toSet().toList();
+    if (!mounted) return;
     if (models.isNotEmpty) {
       state = state.copyWith(
         availableModels: models,
@@ -287,7 +289,12 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
   }
 }
 
-final ollamaAiServiceProvider = Provider<OllamaAiService>((ref) => OllamaAiService());
+final ollamaAiServiceProvider = Provider<OllamaAiService>((ref) {
+  final logger = ref.watch(governorLoggerProvider);
+  final hbpAsync = ref.watch(hbpClientProvider);
+  final hbpClient = hbpAsync.valueOrNull;
+  return OllamaAiService(logger: logger, hbpClient: hbpClient);
+});
 
 final globalChatProvider = StateNotifierProvider<GlobalChatNotifier, GlobalChatState>((ref) {
   final aiService = ref.watch(ollamaAiServiceProvider);
