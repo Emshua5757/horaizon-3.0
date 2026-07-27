@@ -71,6 +71,138 @@ pub struct GovernorConfigDto {
     pub log_retention_days: u32,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct CpuTicks {
+    idle: u64,
+    total: u64,
+}
+
+/// Dynamic kernel CPU utilization tracker (supports Linux /proc/stat and Windows GetSystemTimes).
+pub struct CpuTracker {
+    last_ticks: std::sync::Mutex<Option<CpuTicks>>,
+}
+
+impl CpuTracker {
+    pub fn new() -> Self {
+        Self {
+            last_ticks: std::sync::Mutex::new(None),
+        }
+    }
+
+    pub fn sample_cpu_pct(&self) -> f64 {
+        let current = self.read_ticks();
+        let mut guard = match self.last_ticks.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+
+        let pct = if let (Some(curr), Some(prev)) = (current, *guard) {
+            let delta_idle = curr.idle.saturating_sub(prev.idle);
+            let delta_total = curr.total.saturating_sub(prev.total);
+            if delta_total > 0 {
+                let usage = 100.0 * (1.0 - (delta_idle as f64 / delta_total as f64));
+                usage.clamp(0.0, 100.0)
+            } else {
+                14.5
+            }
+        } else {
+            self.fallback_first_reading()
+        };
+
+        if let Some(curr) = current {
+            *guard = Some(curr);
+        }
+
+        pct
+    }
+
+    fn read_ticks(&self) -> Option<CpuTicks> {
+        #[cfg(target_os = "linux")]
+        {
+            if let Ok(content) = std::fs::read_to_string("/proc/stat") {
+                if let Some(line) = content.lines().next() {
+                    if line.starts_with("cpu ") {
+                        let parts: Vec<u64> = line
+                            .split_whitespace()
+                            .skip(1)
+                            .filter_map(|s| s.parse::<u64>().ok())
+                            .collect();
+                        if parts.len() >= 4 {
+                            let idle = parts[3] + parts.get(4).copied().unwrap_or(0);
+                            let total: u64 = parts.iter().take(8).sum();
+                            return Some(CpuTicks { idle, total });
+                        }
+                    }
+                }
+            }
+            None
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            #[repr(C)]
+            #[derive(Copy, Clone, Default)]
+            struct FILETIME {
+                dw_low: u32,
+                dw_high: u32,
+            }
+            impl FILETIME {
+                fn to_u64(&self) -> u64 {
+                    ((self.dw_high as u64) << 32) | (self.dw_low as u64)
+                }
+            }
+            extern "system" {
+                fn GetSystemTimes(
+                    lp_idle: *mut FILETIME,
+                    lp_kernel: *mut FILETIME,
+                    lp_user: *mut FILETIME,
+                ) -> i32;
+            }
+
+            let mut idle = FILETIME::default();
+            let mut kernel = FILETIME::default();
+            let mut user = FILETIME::default();
+
+            unsafe {
+                if GetSystemTimes(&mut idle, &mut kernel, &mut user) != 0 {
+                    let idle_u64 = idle.to_u64();
+                    let total_u64 = kernel.to_u64().saturating_add(user.to_u64());
+                    return Some(CpuTicks {
+                        idle: idle_u64,
+                        total: total_u64,
+                    });
+                }
+            }
+            None
+        }
+
+        #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+        {
+            None
+        }
+    }
+
+    fn fallback_first_reading(&self) -> f64 {
+        #[cfg(target_os = "linux")]
+        {
+            if let Ok(content) = std::fs::read_to_string("/proc/loadavg") {
+                if let Some(first) = content.split_whitespace().next() {
+                    if let Ok(load1) = first.parse::<f64>() {
+                        return (load1 * 25.0).clamp(1.0, 100.0);
+                    }
+                }
+            }
+        }
+        14.5
+    }
+}
+
+impl Default for CpuTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// The dispatcher routes incoming HBP frames to the correct handler.
 pub struct Dispatcher {
     log_tx: Sender<LogEntry>,
@@ -78,6 +210,7 @@ pub struct Dispatcher {
     process_manager: Arc<ProcessManager>,
     ollama: Arc<OllamaLifecycle>,
     config: Arc<RwLock<AppConfig>>,
+    cpu_tracker: CpuTracker,
 }
 
 impl Dispatcher {
@@ -94,6 +227,7 @@ impl Dispatcher {
             process_manager,
             ollama,
             config,
+            cpu_tracker: CpuTracker::new(),
         }
     }
 
@@ -174,7 +308,7 @@ impl Dispatcher {
                     })
                     .unwrap_or(2140.0);
 
-                let cpu_pct = 14.5; // Dynamic load estimate
+                let cpu_pct = self.cpu_tracker.sample_cpu_pct();
 
                 let payload_data = serde_json::json!({
                     "cpu_pct": cpu_pct,
