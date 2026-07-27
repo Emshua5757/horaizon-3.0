@@ -21,6 +21,9 @@ dependencies:
   # MessagePack (HBP v2 payload encoding)
   messagepack: ^0.2.1
 
+  # HTTP Client for Ollama REST API
+  http: ^1.2.1
+
   # WebSocket
   web_socket_channel: ^3.0.1
 

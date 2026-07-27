@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/logging/governor_logger.dart';
 import '../governor/governor_provider.dart';
 import 'widgets/ai_aggregator_hero.dart';
 import 'widgets/dashboard_welcome_header.dart';
@@ -13,6 +14,7 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final statusAsync = ref.watch(governorStatusProvider);
+    final logger = ref.watch(governorLoggerProvider);
     final isDesktop = MediaQuery.of(context).size.width >= 900;
 
     return Scaffold(
@@ -57,12 +59,19 @@ class DashboardScreen extends ConsumerWidget {
         loading: () => const Center(
           child: CircularProgressIndicator(color: Color(0xFF00E5FF)),
         ),
-        error: (err, _) => Center(
-          child: Text(
-            'Error loading status: $err',
-            style: const TextStyle(color: Colors.redAccent),
-          ),
-        ),
+        error: (err, stack) {
+          logger.log(
+            subsystem: 'DASHBOARD',
+            level: LogLevel.error,
+            message: 'Dashboard status error: $err',
+          );
+          return Center(
+            child: Text(
+              'Error loading status: $err',
+              style: const TextStyle(color: Colors.redAccent),
+            ),
+          );
+        },
       ),
     );
   }

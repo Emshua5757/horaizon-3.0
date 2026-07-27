@@ -31,6 +31,33 @@ class _TelemetryTabViewState extends State<TelemetryTabView> {
   bool _isPaused = false;
 
   @override
+  void initState() {
+    super.initState();
+    _scrollToBottom();
+  }
+
+  @override
+  void didUpdateWidget(covariant TelemetryTabView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_isPaused) {
+      _scrollToBottom();
+    }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) {
+            _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+          }
+        });
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _scrollController.dispose();
     _stdinController.dispose();

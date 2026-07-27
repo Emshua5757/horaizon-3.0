@@ -4,6 +4,7 @@ mod config;
 mod dream_loop;
 mod error;
 mod logging;
+mod mcp;
 mod ollama;
 mod registry;
 

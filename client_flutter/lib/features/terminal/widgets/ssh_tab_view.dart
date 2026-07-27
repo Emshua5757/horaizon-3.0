@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../models/telemetry_log_item.dart';
 
@@ -22,23 +23,49 @@ class _SshTabViewState extends State<SshTabView> {
   final TextEditingController _stdinController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    _scrollToBottom();
+  }
+
+  @override
   void didUpdateWidget(covariant SshTabView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.sshHistory.length != oldWidget.sshHistory.length) {
-      _scrollToBottom();
-    }
+    _scrollToBottom();
   }
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) {
+            _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+          }
+        });
       }
     });
+  }
+
+  void _copyLogs(BuildContext context) {
+    if (widget.sshHistory.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No SSH output to copy.')),
+      );
+      return;
+    }
+    final buffer = StringBuffer();
+    for (final line in widget.sshHistory) {
+      if (line.isCommand) {
+        buffer.writeln('${line.prompt} ${line.text}');
+      } else {
+        buffer.writeln(line.text);
+      }
+    }
+    Clipboard.setData(ClipboardData(text: buffer.toString()));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Copied ${widget.sshHistory.length} SSH log lines to clipboard.')),
+    );
   }
 
   @override
@@ -83,9 +110,9 @@ class _SshTabViewState extends State<SshTabView> {
                       children: [
                         _QuickCmdChip(label: 'tailscale status', onTap: () => widget.onCommandSubmitted('tailscale status')),
                         const SizedBox(width: 6),
-                        _QuickCmdChip(label: 'systemctl status shua-governor', onTap: () => widget.onCommandSubmitted('systemctl status shua-governor')),
+                        _QuickCmdChip(label: 'systemctl status shua-governor', onTap: () => widget.onCommandSubmitted('systemctl status shua-governor --no-pager')),
                         const SizedBox(width: 6),
-                        _QuickCmdChip(label: 'systemctl status tailscale-watchdog', onTap: () => widget.onCommandSubmitted('systemctl status tailscale-watchdog')),
+                        _QuickCmdChip(label: 'systemctl status tailscale-watchdog', onTap: () => widget.onCommandSubmitted('systemctl status tailscale-watchdog --no-pager')),
                         const SizedBox(width: 6),
                         _QuickCmdChip(label: 'uptime', onTap: () => widget.onCommandSubmitted('uptime')),
                         const SizedBox(width: 6),
@@ -93,6 +120,12 @@ class _SshTabViewState extends State<SshTabView> {
                       ],
                     ),
                   ),
+                ),
+                const SizedBox(width: 6),
+                IconButton(
+                  icon: Icon(Icons.copy_all_rounded, size: 18, color: cs.onSurfaceVariant),
+                  tooltip: 'Copy SSH logs to clipboard',
+                  onPressed: () => _copyLogs(context),
                 ),
               ],
             ),
