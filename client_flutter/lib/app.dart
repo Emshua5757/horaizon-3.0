@@ -5,7 +5,7 @@ import 'core/theme/theme_provider.dart';
 import 'router/app_router.dart';
 
 /// Root application widget.
-/// Wires GoRouter, live theme hot-swapping, and text scale from ThemeNotifier.
+/// Wires GoRouter, live 300ms smooth AnimatedTheme transitions, and text scale from ThemeNotifier.
 class HoraizonApp extends ConsumerWidget {
   const HoraizonApp({super.key});
 
@@ -18,11 +18,16 @@ class HoraizonApp extends ConsumerWidget {
       data: MediaQuery.of(context).copyWith(
         textScaler: TextScaler.linear(themeState.textScale),
       ),
-      child: MaterialApp.router(
-        title: 'horAIzon 3.0',
-        debugShowCheckedModeBanner: false,
-        routerConfig: router,
-        theme: themeState.compiledData,
+      child: AnimatedTheme(
+        data: themeState.compiledData,
+        duration: Duration(milliseconds: themeState.animationMs),
+        curve: Curves.easeInOutCubic,
+        child: MaterialApp.router(
+          title: 'horAIzon 3.0',
+          debugShowCheckedModeBanner: false,
+          routerConfig: router,
+          theme: themeState.compiledData,
+        ),
       ),
     );
   }

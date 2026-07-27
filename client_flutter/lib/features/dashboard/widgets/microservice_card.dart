@@ -129,10 +129,14 @@ class MicroserviceCard extends ConsumerWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  '$ramDisplay$cpuDisplay',
-                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11),
+                Expanded(
+                  child: Text(
+                    '$ramDisplay$cpuDisplay',
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
+                const SizedBox(width: 6),
                 Text(
                   subText,
                   style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11),

@@ -6,8 +6,11 @@ import 'presets/midnight_synthwave.dart';
 import 'presets/matcha_zen.dart';
 import 'presets/cyber_amber.dart';
 import 'presets/vintage_parchment.dart';
+import 'presets/crimson_ruby.dart';
+import 'presets/amethyst_dusk.dart';
+import 'presets/solar_citrus.dart';
 
-/// Dynamic registry listing all available 7 multi-dimensional theme presets.
+/// Dynamic registry listing all 10 Rainbow spectrum theme presets.
 class ThemePresetRegistry {
   static final List<AppThemePreset> allPresets = [
     CyberObsidianPreset(),
@@ -17,6 +20,9 @@ class ThemePresetRegistry {
     MatchaZenPreset(),
     CyberAmberPreset(),
     VintageParchmentPreset(),
+    CrimsonRubyPreset(),
+    AmethystDuskPreset(),
+    SolarCitrusPreset(),
   ];
 
   static AppThemePreset getById(String id) {

@@ -47,16 +47,11 @@ class HbpClient {
 
     _setState(HbpConnectionState.connecting);
     final uri = Uri.parse(_config.governorWsUrl);
-    // ignore: avoid_print
-    print('[HBP Client] Attempting connection to $uri ...');
-
     try {
       _channel = _channelFactory(uri);
       await _channel!.ready.timeout(const Duration(seconds: 4));
       _setState(HbpConnectionState.connected);
       _reconnectAttempts = 0;
-      // ignore: avoid_print
-      print('[HBP Client] SUCCESS: Connected to $uri ✓');
 
       _sub = _channel!.stream.listen(
         _onMessage,
@@ -66,8 +61,6 @@ class HbpClient {
 
       _startHeartbeat();
     } catch (e) {
-      // ignore: avoid_print
-      print('[HBP Client ERROR] Failed to connect to $uri -> $e');
       _setState(HbpConnectionState.disconnected);
       _scheduleReconnect();
     }
@@ -123,8 +116,6 @@ class HbpClient {
 
     try {
       final frame = HbpFrame.decode(bytes);
-      // ignore: avoid_print
-      print('[HBP Client Incoming] Decoded frame op: ${frame.op}, txId: ${frame.txId}');
 
       if (frame.isPong) return; // Heartbeat response
 

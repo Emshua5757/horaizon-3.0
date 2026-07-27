@@ -9,6 +9,8 @@ import 'package:client_flutter/core/theme/app_effects_theme.dart';
 import 'package:client_flutter/core/theme/app_semantic_palette.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('ThemeCompiler & Modular Presets', () {
     test('Compiles CyberObsidian preset into valid ThemeData and extensions', () {
       final preset = CyberObsidianPreset();
@@ -43,10 +45,10 @@ void main() {
       expect(creamy.scaffoldBackgroundColor, equals(const Color(0xFFFBF8F3)));
     });
 
-    test('Registry contains all 7 theme presets', () {
-      expect(ThemePresetRegistry.allPresets.length, equals(7));
-      final found = ThemePresetRegistry.getById('creamy_latte');
-      expect(found.name, equals('Creamy Latte'));
+    test('Registry contains all 10 theme presets (Rainbow Spectrum)', () {
+      expect(ThemePresetRegistry.allPresets.length, equals(10));
+      final found = ThemePresetRegistry.getById('crimson_ruby');
+      expect(found.name, equals('Crimson Ruby'));
     });
   });
 }
