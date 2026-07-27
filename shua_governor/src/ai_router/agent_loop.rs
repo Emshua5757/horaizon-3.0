@@ -132,7 +132,13 @@ impl McpAgentLoop {
             break;
         }
 
-        if final_reply.is_empty() {
+        if final_reply.trim().is_empty() && tools_called.is_empty() {
+            if let Ok(direct_res) = client.chat_with_tools(model, messages, None, 0).await {
+                final_reply = direct_res.effective_text();
+            }
+        }
+
+        if final_reply.trim().is_empty() {
             final_reply = format!(
                 "Processed prompt across {} iterations. Executed tools: {:?}",
                 iterations, tools_called

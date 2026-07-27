@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:messagepack/messagepack.dart';
 import '../../core/hbp/hbp_client.dart';
 import '../../core/hbp/hbp_client_provider.dart';
 import '../../core/ssh/rpi5_ssh_service.dart';
@@ -8,6 +11,141 @@ import '../../core/logging/governor_logger.dart';
 import 'models/telemetry_log_item.dart';
 import 'widgets/ssh_tab_view.dart';
 import 'widgets/telemetry_tab_view.dart';
+
+/// Riverpod Provider storing persistent Telemetry Logs across screen switches
+final persistentTelemetryLogsProvider = StateNotifierProvider<TelemetryLogsNotifier, List<TelemetryLogItem>>((ref) {
+  final logger = ref.watch(governorLoggerProvider);
+  final hbpAsync = ref.watch(hbpClientProvider);
+  final hbpClient = hbpAsync.valueOrNull;
+  return TelemetryLogsNotifier(logger, hbpClient);
+});
+
+class TelemetryLogsNotifier extends StateNotifier<List<TelemetryLogItem>> {
+  StreamSubscription? _logSub;
+  StreamSubscription? _hbpSub;
+
+  TelemetryLogsNotifier(GovernorLogger logger, HbpClient? hbpClient)
+      : super([
+          TelemetryLogItem(
+            timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
+            subsystem: 'GOVERNOR',
+            level: 'INFO',
+            message: 'HBP v2 WebSocket server listening on 100.67.11.0:7700',
+            metadata: const {'port': 7700, 'bind': '100.67.11.0', 'max_connections': 64},
+          ),
+          TelemetryLogItem(
+            timestamp: DateTime.now().subtract(const Duration(minutes: 4)),
+            subsystem: 'OLLAMA',
+            level: 'INFO',
+            message: 'Local LLM model qwen2.5-coder:7b initialized in RAM',
+            metadata: const {'vram_mb': 0, 'ram_mb': 4420, 'threads': 4},
+          ),
+          TelemetryLogItem(
+            timestamp: DateTime.now().subtract(const Duration(minutes: 3)),
+            subsystem: 'DREAM_LOOP',
+            level: 'INFO',
+            message: 'Dream loop scheduled for 03:00:00 Asia/Manila',
+          ),
+          TelemetryLogItem(
+            timestamp: DateTime.now().subtract(const Duration(minutes: 2)),
+            subsystem: 'HBP',
+            level: 'WARN',
+            message: 'Latency spike detected on Tailscale mesh interface (142ms)',
+            metadata: const {'ping_ms': 142, 'interface': 'tailscale0'},
+            occurrenceCount: 3,
+          ),
+          TelemetryLogItem(
+            timestamp: DateTime.now().subtract(const Duration(minutes: 1)),
+            subsystem: 'GOVERNOR',
+            level: 'INFO',
+            message: 'Registered sub-modules: shua_diary, shua_code_viz, shua_resume',
+          ),
+        ]) {
+    _logSub = logger.logStream.listen((entry) {
+      if (!mounted) return;
+      state = [
+        ...state,
+        TelemetryLogItem(
+          timestamp: entry.timestamp,
+          subsystem: entry.subsystem.toUpperCase(),
+          level: entry.level.name.toUpperCase(),
+          message: entry.message,
+          metadata: entry.metadata,
+        ),
+      ];
+    });
+
+    if (hbpClient != null) {
+      _hbpSub = hbpClient.events.listen((frame) {
+        if (!mounted) return;
+        if (frame.op == 'ping' || frame.op == 'pong' || frame.op == 'status') return;
+
+        try {
+          if (frame.payload.isNotEmpty) {
+            final u = Unpacker(Uint8List.fromList(frame.payload));
+            final map = u.unpackMap();
+
+            final msg = (map['msg'] ?? map['message'] ?? '').toString();
+            final subsystem = (map['subsystem'] ?? frame.module.replaceAll('shua.', '')).toString().toUpperCase();
+            final rawLevel = map['level'];
+
+            String levelStr = 'INFO';
+            if (rawLevel == 4 || rawLevel == 'WARN' || rawLevel == 'warn') {
+              levelStr = 'WARN';
+            } else if (rawLevel == 5 || rawLevel == 'ERROR' || rawLevel == 'error') {
+              levelStr = 'ERROR';
+            } else if (rawLevel == 1 || rawLevel == 2 || rawLevel == 'DEBUG' || rawLevel == 'TRACE') {
+              levelStr = 'DEBUG';
+            }
+
+            if (msg.trim().isNotEmpty) {
+              state = [
+                ...state,
+                TelemetryLogItem(
+                  timestamp: DateTime.now(),
+                  subsystem: subsystem,
+                  level: levelStr,
+                  message: msg,
+                ),
+              ];
+              return;
+            }
+          }
+        } catch (_) {
+          try {
+            final text = utf8.decode(frame.payload);
+            if (text.isNotEmpty && !text.contains('\x00')) {
+              state = [
+                ...state,
+                TelemetryLogItem(
+                  timestamp: DateTime.now(),
+                  subsystem: frame.module.replaceAll('shua.', '').toUpperCase(),
+                  level: 'INFO',
+                  message: text,
+                ),
+              ];
+            }
+          } catch (_) {}
+        }
+      });
+    }
+  }
+
+  void addLog(TelemetryLogItem item) {
+    state = [...state, item];
+  }
+
+  void clear() {
+    state = [];
+  }
+
+  @override
+  void dispose() {
+    _logSub?.cancel();
+    _hbpSub?.cancel();
+    super.dispose();
+  }
+}
 
 /// Clean, modular Dual-Mode Native Terminal Screen:
 /// - Tab 1: Telemetry & Governor Logs (HBP v2 Stream from shua_governor)
@@ -22,44 +160,6 @@ class TerminalScreen extends ConsumerStatefulWidget {
 class _TerminalScreenState extends ConsumerState<TerminalScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   StreamSubscription<String>? _sshSub;
-  StreamSubscription<StructuredLogEntry>? _loggerSub;
-
-  final List<TelemetryLogItem> _logs = [
-    TelemetryLogItem(
-      timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
-      subsystem: 'GOVERNOR',
-      level: 'INFO',
-      message: 'HBP v2 WebSocket server listening on 100.67.11.0:7700',
-      metadata: {'port': 7700, 'bind': '100.67.11.0', 'max_connections': 64},
-    ),
-    TelemetryLogItem(
-      timestamp: DateTime.now().subtract(const Duration(minutes: 4)),
-      subsystem: 'OLLAMA',
-      level: 'INFO',
-      message: 'Local LLM model qwen2.5-coder:7b initialized in RAM',
-      metadata: {'vram_mb': 0, 'ram_mb': 4420, 'threads': 4},
-    ),
-    TelemetryLogItem(
-      timestamp: DateTime.now().subtract(const Duration(minutes: 3)),
-      subsystem: 'DREAM_LOOP',
-      level: 'INFO',
-      message: 'Dream loop scheduled for 03:00:00 Asia/Manila',
-    ),
-    TelemetryLogItem(
-      timestamp: DateTime.now().subtract(const Duration(minutes: 2)),
-      subsystem: 'HBP',
-      level: 'WARN',
-      message: 'Latency spike detected on Tailscale mesh interface (142ms)',
-      metadata: {'ping_ms': 142, 'interface': 'tailscale0'},
-      occurrenceCount: 3,
-    ),
-    TelemetryLogItem(
-      timestamp: DateTime.now().subtract(const Duration(minutes: 1)),
-      subsystem: 'GOVERNOR',
-      level: 'INFO',
-      message: 'Registered sub-modules: shua_diary, shua_code_viz, shua_resume',
-    ),
-  ];
 
   final List<SshOutputLine> _sshHistory = [
     SshOutputLine(
@@ -70,17 +170,6 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> with SingleTick
       timestamp: DateTime.now().subtract(const Duration(minutes: 10)),
       text: 'Linux horaizon-pi5 6.18.34+rpt-rpi-2712 #1 SMP PREEMPT Debian aarch64',
     ),
-    SshOutputLine(
-      timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
-      text: 'systemctl status tailscale-watchdog.service',
-      isCommand: true,
-    ),
-    SshOutputLine(
-      timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
-      text: '● tailscale-watchdog.service - Tailscale Connection Watchdog\n'
-            '   Loaded: loaded (/etc/systemd/system/tailscale-watchdog.service; enabled; vendor preset: enabled)\n'
-            '   Active: active (running) since Mon 2026-07-27 12:42:35 PST',
-    ),
   ];
 
   @override
@@ -89,23 +178,6 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> with SingleTick
     _tabController = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initSshStream();
-      _initLoggerStream();
-    });
-  }
-
-  void _initLoggerStream() {
-    _loggerSub = ref.read(governorLoggerProvider).logStream.listen((entry) {
-      if (mounted) {
-        setState(() {
-          _logs.add(TelemetryLogItem(
-            timestamp: entry.timestamp,
-            subsystem: entry.subsystem.toUpperCase(),
-            level: entry.level.name.toUpperCase(),
-            message: entry.message,
-            metadata: entry.metadata,
-          ));
-        });
-      }
     });
   }
 
@@ -131,23 +203,20 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> with SingleTick
   @override
   void dispose() {
     _sshSub?.cancel();
-    _loggerSub?.cancel();
     _tabController.dispose();
     super.dispose();
   }
 
   void _handleGovernorCommand(String cmd) {
-    setState(() {
-      _logs.add(
-        TelemetryLogItem(
-          timestamp: DateTime.now(),
-          subsystem: 'CLI',
-          level: 'INFO',
-          message: 'Executed: $cmd',
-          metadata: {'command': cmd, 'origin': 'flutter_terminal'},
-        ),
-      );
-    });
+    ref.read(persistentTelemetryLogsProvider.notifier).addLog(
+      TelemetryLogItem(
+        timestamp: DateTime.now(),
+        subsystem: 'CLI',
+        level: 'INFO',
+        message: 'Executed: $cmd',
+        metadata: {'command': cmd, 'origin': 'flutter_terminal'},
+      ),
+    );
   }
 
   Future<void> _handleSshCommand(String cmd) async {
@@ -245,6 +314,7 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> with SingleTick
     final cs = Theme.of(context).colorScheme;
     final hbpAsync = ref.watch(hbpClientProvider);
     final hbpState = hbpAsync.valueOrNull?.currentState ?? HbpConnectionState.disconnected;
+    final logs = ref.watch(persistentTelemetryLogsProvider);
 
     return Scaffold(
       body: Padding(
@@ -345,9 +415,9 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> with SingleTick
                 children: [
                   // Tab 1: Telemetry & Governor Logs
                   TelemetryTabView(
-                    logs: _logs,
+                    logs: logs,
                     onCommandSubmitted: _handleGovernorCommand,
-                    onClearLogs: () => setState(() => _logs.clear()),
+                    onClearLogs: () => ref.read(persistentTelemetryLogsProvider.notifier).clear(),
                   ),
 
                   // Tab 2: RPi 5 SSH Shell Terminal
