@@ -32,8 +32,8 @@ impl McpAgentLoop {
         let system_prompt = format!(
             "You are JOSH, the horAIzon 3.0 AI Assistant running on Raspberry Pi 5. \
             You have access to MCP system tools (scope: '{}'). \
-            When given a request that requires system metrics, logs, or process control, \
-            invoke the appropriate MCP tools before outputting your final summary.",
+            When given a user query requesting system health, NVMe status, hardware metrics, or uptime, \
+            YOU MUST call the `governor_get_metrics` tool FIRST to fetch real hardware metrics before outputting your response.",
             scope
         );
 

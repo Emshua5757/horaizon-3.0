@@ -17,7 +17,7 @@ class GlobalChatState {
 
   const GlobalChatState({
     required this.messages,
-    this.selectedModel = 'qwen2.5-coder:7b',
+    this.selectedModel = 'qwen2.5-coder:1.5b',
     this.offloadTarget = AiOffloadTarget.auto,
     this.temperature = 0.3,
     this.isGenerating = false,
@@ -27,7 +27,8 @@ class GlobalChatState {
       'qwen2.5:1.5b',
       'llama3.1:8b',
     ],
-    this.systemPrompt = 'You are JOSH, the horAIzon 3.0 Central AI Assistant running on Raspberry Pi 5 / Windows Host Offload.',
+    this.systemPrompt =
+        'You are JOSH, the horAIzon 3.0 Central AI Assistant running on Raspberry Pi 5 / Windows Host Offload.',
   });
 
   /// Helper returning the last user prompt and assistant response pair for mini-chat preview widgets
@@ -79,9 +80,10 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
             ChatMessage(
               id: 'init_welcome',
               role: ChatRole.assistant,
-              content: 'Hello Joshua! I am JOSH, your horAIzon 3.0 Central AI Assistant. How can I assist your workflow today?',
+              content:
+                  'Hello Joshua! I am JOSH, your horAIzon 3.0 Central AI Assistant. How can I assist your workflow today?',
               timestamp: DateTime.now(),
-              modelName: 'qwen2.5-coder:7b',
+              modelName: 'qwen2.5-coder:1.5b',
               offloadTarget: AiOffloadTarget.auto,
             ),
           ],
@@ -90,13 +92,16 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
   }
 
   Future<void> refreshAvailableModels() async {
-    final rawModels = await _aiService.fetchInstalledModels(state.offloadTarget);
+    final rawModels =
+        await _aiService.fetchInstalledModels(state.offloadTarget);
     final models = rawModels.toSet().toList();
     if (!mounted) return;
     if (models.isNotEmpty) {
       state = state.copyWith(
         availableModels: models,
-        selectedModel: models.contains(state.selectedModel) ? state.selectedModel : models.first,
+        selectedModel: models.contains(state.selectedModel)
+            ? state.selectedModel
+            : models.first,
       );
     }
   }
@@ -171,7 +176,11 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
       isStreaming: true,
     );
 
-    final updatedMessages = [...state.messages, userMessage, initialAssistantMsg];
+    final updatedMessages = [
+      ...state.messages,
+      userMessage,
+      initialAssistantMsg
+    ];
     state = state.copyWith(
       messages: updatedMessages,
       isGenerating: true,
@@ -191,11 +200,13 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
         currentContent += chunk.content;
         final targetNode = chunk.routedNode ?? state.offloadTarget;
 
-        if (chunk.routedNode != null && chunk.routedNode != state.offloadTarget) {
+        if (chunk.routedNode != null &&
+            chunk.routedNode != state.offloadTarget) {
           _logger?.log(
             subsystem: 'AI_ROUTER',
             level: LogLevel.warn,
-            message: 'Primary node offline, auto-routed to ${chunk.routedNode!.shortLabel}',
+            message:
+                'Primary node offline, auto-routed to ${chunk.routedNode!.shortLabel}',
           );
         }
 
@@ -222,7 +233,8 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
           _logger?.log(
             subsystem: 'AI_CHAT',
             level: LogLevel.info,
-            message: 'AI response completed (${chunk.evalTokensPerSec?.toStringAsFixed(1) ?? 'N/A'} tok/s)',
+            message:
+                'AI response completed (${chunk.evalTokensPerSec?.toStringAsFixed(1) ?? 'N/A'} tok/s)',
           );
         }
       },
@@ -296,7 +308,8 @@ final ollamaAiServiceProvider = Provider<OllamaAiService>((ref) {
   return OllamaAiService(logger: logger, hbpClient: hbpClient);
 });
 
-final globalChatProvider = StateNotifierProvider<GlobalChatNotifier, GlobalChatState>((ref) {
+final globalChatProvider =
+    StateNotifierProvider<GlobalChatNotifier, GlobalChatState>((ref) {
   final aiService = ref.watch(ollamaAiServiceProvider);
   final logger = ref.watch(governorLoggerProvider);
   return GlobalChatNotifier(aiService, logger);
