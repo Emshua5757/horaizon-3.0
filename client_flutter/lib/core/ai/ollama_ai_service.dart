@@ -35,7 +35,7 @@ class OllamaAiService {
     String? systemPrompt,
   }) async* {
     final effectiveNode = targetNode == AiOffloadTarget.auto
-        ? await probeBestAvailableNode(AiOffloadTarget.windowsHost)
+        ? await probeBestAvailableNode(AiOffloadTarget.rpi5)
         : targetNode;
 
     // Attempt Primary Target Node
@@ -89,7 +89,7 @@ class OllamaAiService {
   Future<String?> resolveWorkingBaseUrl(AiOffloadTarget node) async {
     for (final candidate in node.candidateUrls) {
       try {
-        final res = await _defaultClient.get(Uri.parse('$candidate/api/tags')).timeout(const Duration(milliseconds: 800));
+        final res = await _defaultClient.get(Uri.parse('$candidate/api/tags')).timeout(const Duration(milliseconds: 2500));
         if (res.statusCode == 200) return candidate;
       } catch (_) {}
     }
@@ -125,6 +125,7 @@ class OllamaAiService {
     final payload = jsonEncode({
       'model': modelName,
       'messages': formattedMessages,
+      'tools': _governorTools,
       'options': {
         'temperature': temperature,
         'num_ctx': 8192,
@@ -174,9 +175,23 @@ class OllamaAiService {
               messageObj?['thinking'] as String? ??
               json['thinking'] as String? ??
               '';
-          final content = mainContent.isNotEmpty
-              ? mainContent
-              : (thinkingContent.isNotEmpty ? thinkingContent : '');
+          final toolCallsObj = messageObj?['tool_calls'] as List<dynamic>?;
+
+          String toolCallText = '';
+          if (toolCallsObj != null && toolCallsObj.isNotEmpty) {
+            for (final tc in toolCallsObj) {
+              final fn = tc['function'] as Map<String, dynamic>?;
+              final name = fn?['name'] as String? ?? 'tool';
+              final args = fn?['arguments'] as Map<String, dynamic>? ?? {};
+              toolCallText += '\n\n🛠️ **[MCP Tool Invoked]**: `$name(${jsonEncode(args)})`\n\n';
+            }
+          }
+
+          final content = toolCallText.isNotEmpty
+              ? toolCallText
+              : (mainContent.isNotEmpty
+                  ? mainContent
+                  : (thinkingContent.isNotEmpty ? thinkingContent : ''));
 
           double? tokPerSec;
           int? durationMs;
@@ -257,4 +272,68 @@ class OllamaAiService {
       'llama3.1:8b',
     ];
   }
+
+  static final List<Map<String, dynamic>> _governorTools = [
+    {
+      'type': 'function',
+      'function': {
+        'name': 'governor_get_metrics',
+        'description': 'Fetches real-time Raspberry Pi 5 CPU usage %, RAM allocation, system temperature, disk usage, and active microservice module process statuses.',
+        'parameters': {
+          'type': 'object',
+          'properties': {},
+          'required': [],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'governor_query_logs',
+        'description': 'Queries recent system logs, errors, telemetry metrics, and subsystem trace events from governor database (activity.db).',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'subsystem': {'type': 'string'},
+            'limit': {'type': 'integer'},
+          },
+          'required': [],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'governor_wake_module',
+        'description': 'Resumes a sleeping microservice module on Raspberry Pi 5.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'module_name': {
+              'type': 'string',
+              'enum': ['shua.diary', 'shua.code_visualizer', 'shua.resume', 'shua.gym', 'shua.crypto'],
+            },
+          },
+          'required': ['module_name'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'governor_sleep_module',
+        'description': 'Pauses a running microservice module on Raspberry Pi 5 to free RAM and CPU.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'module_name': {
+              'type': 'string',
+              'enum': ['shua.diary', 'shua.code_visualizer', 'shua.resume', 'shua.gym', 'shua.crypto'],
+            },
+          },
+          'required': ['module_name'],
+        },
+      },
+    },
+  ];
 }

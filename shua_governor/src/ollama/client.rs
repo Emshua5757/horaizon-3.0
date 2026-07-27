@@ -12,6 +12,8 @@ pub struct OllamaClient {
 struct ChatPayload {
     model: String,
     messages: Vec<ChatMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<serde_json::Value>>,
     stream: bool,
     keep_alive: String,
 }
@@ -20,11 +22,32 @@ struct ChatPayload {
 pub struct ChatMessage {
     pub role: String,
     pub content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<ToolCall>>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ToolCall {
+    pub function: ToolCallFunction,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ToolCallFunction {
+    pub name: String,
+    pub arguments: serde_json::Value,
 }
 
 #[derive(Deserialize)]
 struct ChatResponse {
-    message: ChatMessage,
+    message: ChatMessageResponse,
+}
+
+#[derive(Deserialize)]
+pub struct ChatMessageResponse {
+    #[allow(dead_code)]
+    pub role: String,
+    pub content: String,
+    pub tool_calls: Option<Vec<ToolCall>>,
 }
 
 impl OllamaClient {
@@ -46,7 +69,9 @@ impl OllamaClient {
             messages: vec![ChatMessage {
                 role: "user".into(),
                 content: "hi".into(),
+                tool_calls: None,
             }],
+            tools: None,
             stream: false,
             keep_alive: "-1".to_string(),
         };
@@ -74,7 +99,9 @@ impl OllamaClient {
             messages: vec![ChatMessage {
                 role: "user".into(),
                 content: "bye".into(),
+                tool_calls: None,
             }],
+            tools: None,
             stream: false,
             keep_alive: "0".to_string(),
         };
@@ -96,10 +123,24 @@ impl OllamaClient {
     }
 
     /// Send a chat prompt and return the response string
+    #[allow(dead_code)]
     pub async fn chat(&self, model: &str, messages: Vec<ChatMessage>, keep_alive: i32) -> Result<String> {
+        let resp = self.chat_with_tools(model, messages, None, keep_alive).await?;
+        Ok(resp.content)
+    }
+
+    /// Send a chat prompt with tool schemas and return full ChatMessageResponse
+    pub async fn chat_with_tools(
+        &self,
+        model: &str,
+        messages: Vec<ChatMessage>,
+        tools: Option<Vec<serde_json::Value>>,
+        keep_alive: i32,
+    ) -> Result<ChatMessageResponse> {
         let payload = ChatPayload {
             model: model.to_string(),
             messages,
+            tools,
             stream: false,
             keep_alive: keep_alive.to_string(),
         };
@@ -114,6 +155,6 @@ impl OllamaClient {
             .json()
             .await?;
 
-        Ok(resp.message.content)
+        Ok(resp.message)
     }
 }

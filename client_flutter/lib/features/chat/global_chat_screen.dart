@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../shared/widgets/app_card.dart';
 import 'models/chat_message.dart';
 import 'providers/global_chat_provider.dart';
+import 'widgets/formatted_markdown_content.dart';
 
 /// Interactive Global AI Chat Screen (JOSH) connected to RPi5 & Windows Host Offload Ollama.
 class GlobalChatScreen extends ConsumerStatefulWidget {
@@ -458,15 +459,13 @@ class _ChatMessageBubble extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 6),
-                  SelectableText(
-                    message.content.isEmpty && message.isStreaming ? 'Typing…' : message.content,
-                    style: TextStyle(
-                      color: cs.onSurface,
-                      fontSize: 13,
-                      height: 1.45,
-                      fontFamily: message.content.contains('```') ? 'monospace' : null,
-                    ),
-                  ),
+                  if (message.content.isEmpty && message.isStreaming)
+                    Text(
+                      'Typing…',
+                      style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, fontStyle: FontStyle.italic),
+                    )
+                  else
+                    FormattedMarkdownContent(content: message.content),
                 ],
               ),
             ),
