@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/ai/ollama_ai_service.dart';
 import '../../../core/hbp/hbp_client_provider.dart';
@@ -73,6 +74,10 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
   final OllamaAiService _aiService;
   final GovernorLogger? _logger;
   StreamSubscription<OllamaStreamChunk>? _streamSub;
+  /// One global session ID per app lifetime. Generated once on first construction
+  /// and passed with every ai.route request so shua_governor can persist and
+  /// restore conversation context from the SQLite chat_history table.
+  final String _sessionId = const Uuid().v4();
 
   GlobalChatNotifier(this._aiService, [this._logger])
       : super(GlobalChatState(
@@ -192,6 +197,7 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
       messages: updatedMessages.where((m) => m.id != assistantMsgId).toList(),
       temperature: state.temperature,
       systemPrompt: state.systemPrompt,
+      sessionId: _sessionId,
     );
 
     var currentContent = '';

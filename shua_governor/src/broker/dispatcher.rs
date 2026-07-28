@@ -58,6 +58,10 @@ pub struct AiRouteRequest {
     pub offload_device_url: Option<String>,
     #[serde(default)]
     pub model: Option<String>,
+    /// Global chat session identifier. Used to load/persist conversation history
+    /// in activity.db chat_history table. If absent, no history is loaded or saved.
+    #[serde(default)]
+    pub session_id: Option<String>,
 }
 
 /// Config DTO payload for `governor.config.get` / `governor.config.update`
@@ -501,7 +505,8 @@ impl Dispatcher {
             "ai.route" | "governor.ai.route" => {
                 if let Ok(req) = frame.decode_payload::<AiRouteRequest>() {
                     let start = std::time::Instant::now();
-                    let (intent, matched_rule) = IntentClassifier::classify(&req.prompt, req.context_hint.as_deref());
+                    let (intent, matched_rule, confidence) = IntentClassifier::classify(&req.prompt, req.context_hint.as_deref());
+                    let prompt_chars = req.prompt.len();
 
                     let raw_offload = req.offload_device_url.as_deref();
                     let resolved_offload = raw_offload.map(|url| {
@@ -514,7 +519,38 @@ impl Dispatcher {
                         url.to_string()
                     });
 
-                    let budget = PromptBudget::for_intent(&intent, resolved_offload.as_deref(), req.model.as_deref());
+                    // ── Thermal-aware model auto-downgrade ────────────────────
+                    // Read RPi5 SoC temperature. If > 68°C, override the
+                    // requested model with the lightest available model to
+                    // prevent further thermal pressure.
+                    let thermal_override = if resolved_offload.is_none() {
+                        let soc_temp = std::fs::read_to_string("/sys/class/thermal/thermal_zone0/temp")
+                            .ok()
+                            .and_then(|s| s.trim().parse::<f64>().ok())
+                            .map(|mdeg| mdeg / 1000.0)
+                            .unwrap_or(0.0);
+                        if soc_temp > 68.0 {
+                            warn!(
+                                subsystem = "dispatcher",
+                                soc_temp = soc_temp,
+                                requested_model = req.model.as_deref().unwrap_or("(default)"),
+                                "Thermal override: SoC temp > 68°C — downgrading model to qwen2.5:1.5b"
+                            );
+                            true
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    };
+
+                    let effective_model_req = if thermal_override {
+                        Some("qwen2.5:1.5b")
+                    } else {
+                        req.model.as_deref()
+                    };
+
+                    let budget = PromptBudget::for_intent(&intent, resolved_offload.as_deref(), effective_model_req);
 
                     let target_node = if budget.offload_url.is_some() { "offload_windows" } else { "local_rpi5" };
                     let target_url = budget.offload_url.clone().unwrap_or_else(|| self.ollama.client().base_url().to_string());
@@ -524,7 +560,9 @@ impl Dispatcher {
                         prompt = %req.prompt,
                         intent = intent.as_str(),
                         matched_rule = matched_rule,
+                        confidence = confidence,
                         model = %budget.model,
+                        thermal_override = thermal_override,
                         target_node = target_node,
                         target_url = %target_url,
                         force_tool_choice = budget.force_tool_choice,
@@ -548,10 +586,29 @@ impl Dispatcher {
                         crate::ollama::client::OllamaClient::new(self.ollama.client().base_url())
                     };
 
+                    // ── Load persistent conversation history from SQLite ───────
+                    let db_path = crate::logging::flush::resolved_db_path();
+                    let chat_store = crate::ai_router::chat_history::ChatHistoryStore::new(&db_path);
+                    let _ = chat_store.ensure_schema();
+                    let context_messages = if let Some(ref sid) = req.session_id {
+                        chat_store.load_context(sid)
+                    } else {
+                        vec![]
+                    };
+
+                    // Persist user message before agent loop (so it's in history
+                    // even if the loop errors out)
+                    if let Some(ref sid) = req.session_id {
+                        let _ = chat_store.append(sid, "user", &req.prompt);
+                    }
+
                     let scope = req.context_hint.as_deref().unwrap_or("governor").to_string();
                     let prompt_text = req.prompt.clone();
+                    let session_id_owned = req.session_id.clone();
                     let model_name = budget.model.clone();
                     let force_tool_choice = budget.force_tool_choice;
+                    let max_prompt_chars = budget.max_prompt_chars;
+                    let min_inference_gap_ms = budget.min_inference_gap_ms;
                     let process_manager = Arc::clone(&self.process_manager);
                     let ollama_lifecycle = Arc::clone(&self.ollama);
 
@@ -565,29 +622,44 @@ impl Dispatcher {
                             &process_manager,
                             &ollama_lifecycle,
                             force_tool_choice,
+                            max_prompt_chars,
+                            min_inference_gap_ms,
+                            context_messages,
                         ).await;
                         let _ = tx.send(result);
                     });
 
-                    let (reply, iterations, tools_called) = match rx.await {
-                        Ok(Ok(res)) => (res.final_reply, res.iterations, res.tools_called),
+                    let (reply, iterations, tools_called, prompt_truncated) = match rx.await {
+                        Ok(Ok(res)) => (res.final_reply, res.iterations, res.tools_called, res.prompt_truncated),
                         Ok(Err(e)) => {
                             warn!(subsystem = "dispatcher", error = %e, "MCP agent loop error");
-                            (format!("[AI Router Error] {}", e), 1, vec![])
+                            (format!("[AI Router Error] {}", e), 1, vec![], false)
                         }
                         Err(_) => {
                             warn!(subsystem = "dispatcher", "AI runtime task channel canceled");
-                            ("ERR_AI_RUNTIME_CANCELED".to_string(), 1, vec![])
+                            ("ERR_AI_RUNTIME_CANCELED".to_string(), 1, vec![], false)
                         }
                     };
+
+                    // ── Persist assistant reply to chat history ───────────────
+                    if let Some(ref sid) = session_id_owned {
+                        let _ = chat_store.append(sid, "assistant", &reply);
+                        // Opportunistic prune: retain 30 days of history
+                        chat_store.prune_old(30);
+                    }
 
                     let duration_ms = start.elapsed().as_millis() as u32;
                     let res = serde_json::json!({
                         "model_used": budget.model,
                         "intent": intent.as_str(),
+                        "matched_rule": matched_rule,
+                        "confidence": confidence,
                         "reply": reply,
                         "iterations": iterations,
                         "tools_called": tools_called,
+                        "prompt_chars": prompt_chars,
+                        "truncated": prompt_truncated,
+                        "thermal_override": thermal_override,
                         "duration_ms": duration_ms
                     });
                     let payload = HbpFrame::encode_payload(&res).unwrap_or_default();

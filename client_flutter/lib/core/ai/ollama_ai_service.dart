@@ -48,6 +48,7 @@ class OllamaAiService {
     required List<ChatMessage> messages,
     double temperature = 0.3,
     String? systemPrompt,
+    String? sessionId,
   }) async* {
     final effectiveNode = targetNode == AiOffloadTarget.auto
         ? await probeBestAvailableNode(AiOffloadTarget.rpi5)
@@ -68,11 +69,12 @@ class OllamaAiService {
         _log('[HBP v2] Dispatching governor.ai.route to shua_governor (target: ${effectiveNode.shortLabel}, offload: "$offloadUrl", prompt: "$userPrompt")...');
 
         final p = Packer();
-        p.packMapLength(4);
+        p.packMapLength(5);
         p.packString('prompt');              p.packString(userPrompt);
         p.packString('context_hint');        p.packString('governor');
         p.packString('offload_device_url'); p.packString(offloadUrl);
         p.packString('model');              p.packString(modelName);
+        p.packString('session_id');         p.packString(sessionId ?? '');
 
         final reqFrame = HbpFrame.request('shua.governor', 'ai.route', p.takeBytes());
 

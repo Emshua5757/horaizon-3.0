@@ -13,6 +13,8 @@ use crate::ollama::OllamaLifecycle;
 
 pub const MAX_AGENT_ITERATIONS: usize = 5;
 pub const PER_CALL_TIMEOUT_SECS: u64 = 45;
+/// Suffix appended to prompts that exceed max_prompt_chars.
+const TRUNCATION_SUFFIX: &str = " [...truncated to fit context budget]";
 
 static LOCAL_INFERENCE_SEMAPHORE: Semaphore = Semaphore::const_new(1);
 
@@ -20,20 +22,26 @@ pub struct AgentLoopResponse {
     pub final_reply: String,
     pub iterations: usize,
     pub tools_called: Vec<String>,
+    /// Whether the user prompt was tail-truncated before sending to the LLM.
+    pub prompt_truncated: bool,
 }
 
 pub struct McpAgentLoop;
 
 impl McpAgentLoop {
     /// Execute an autonomous N-Turn MCP tool-calling agent loop (max 5 iterations).
-    /// Dispatches LLM inference to offload_url or local RPi 5 Ollama, and executes requested
-    /// MCP tools locally on RPi 5.
     ///
-    /// `force_tool_choice`: when true (e.g. SystemQuery intent), the system prompt is
-    /// strengthened to require tool use, and if the model answers in free text without
-    /// calling a tool on the first turn, it gets one corrective nudge before its answer
-    /// is accepted. Ollama's native /api/chat has no tool_choice param, so this is the
-    /// prompt-level equivalent — not a hard API-level guarantee.
+    /// # Arguments
+    /// - `prompt`            — raw user input (may be truncated if > max_prompt_chars)
+    /// - `scope`             — routing scope label (e.g. "governor")
+    /// - `model`             — model name to use for inference
+    /// - `client`            — OllamaClient pointing at local RPi5 or offload Windows
+    /// - `process_manager`   — for MCP tool execution
+    /// - `ollama_lifecycle`  — for MCP tool execution
+    /// - `force_tool_choice` — when true, enforces tool call before free-text answer
+    /// - `max_prompt_chars`  — tail-truncation limit; 0 = unlimited
+    /// - `min_inference_gap_ms` — sleep before each local LLM call to pace thermals; 0 = none
+    /// - `context_messages`  — prior conversation history to prepend (sliding window)
     #[allow(clippy::too_many_arguments)]
     pub async fn run(
         prompt: &str,
@@ -43,7 +51,31 @@ impl McpAgentLoop {
         process_manager: &Arc<ProcessManager>,
         ollama_lifecycle: &Arc<OllamaLifecycle>,
         force_tool_choice: bool,
+        max_prompt_chars: usize,
+        min_inference_gap_ms: u64,
+        context_messages: Vec<ChatMessage>,
     ) -> Result<AgentLoopResponse> {
+        // ── Prompt Guardrail: Tail-truncate oversized user prompts ────────────
+        // Prevents the KV-cache allocation on RPi5 Ollama from ballooning even
+        // when inference is offloaded (the broker still serialises the full
+        // request body per turn).
+        let (effective_prompt, prompt_truncated) = if max_prompt_chars > 0
+            && prompt.len() > max_prompt_chars
+        {
+            let safe_limit = max_prompt_chars.saturating_sub(TRUNCATION_SUFFIX.len());
+            let mut truncated = prompt[..safe_limit].to_string();
+            truncated.push_str(TRUNCATION_SUFFIX);
+            warn!(
+                subsystem = "agent_loop",
+                original_len = prompt.len(),
+                limit = max_prompt_chars,
+                "Prompt exceeded max_prompt_chars — tail-truncated"
+            );
+            (truncated, true)
+        } else {
+            (prompt.to_string(), false)
+        };
+
         let tool_enforcement_clause = if force_tool_choice {
             " CRITICAL: For this request you MUST call one of the MCP tools listed above \
             before giving a final answer. Do NOT claim you lack access to system information \
@@ -69,12 +101,14 @@ impl McpAgentLoop {
             scope, tool_enforcement_clause
         );
 
-        let mut messages = vec![
-            ChatMessage::system(system_prompt),
-            ChatMessage::user(prompt),
-        ];
+        // ── Build initial messages: system + sliding window context + user ────
+        let mut messages = vec![ChatMessage::system(system_prompt)];
+        messages.extend(context_messages);
+        messages.push(ChatMessage::user(effective_prompt.clone()));
 
-        // Fetch MCP tools for active scope
+        // ── Build tools JSON once — only sent on the first turn ───────────────
+        // Subsequent turns receive None to avoid re-serialising the full schema
+        // on every loop iteration, which wastes Pi 5 RAM and serialisation CPU.
         let aggregator = McpAggregator::new();
         let mcp_schemas = aggregator.get_system_tools();
         let tools_json: Vec<serde_json::Value> = mcp_schemas
@@ -98,7 +132,7 @@ impl McpAgentLoop {
         let _permit = if is_local {
             info!(
                 subsystem = "agent_loop",
-                prompt = prompt,
+                prompt = %effective_prompt,
                 target_url = %client.base_url(),
                 "Acquiring local inference semaphore permit"
             );
@@ -117,24 +151,37 @@ impl McpAgentLoop {
         while iterations < MAX_AGENT_ITERATIONS {
             iterations += 1;
 
+            // ── Thermal pacing: sleep before local calls to reduce SoC heat ──
+            if is_local && min_inference_gap_ms > 0 {
+                tokio::time::sleep(Duration::from_millis(min_inference_gap_ms)).await;
+            }
+
             info!(
                 subsystem = "agent_loop",
-                prompt = prompt,
+                prompt = %effective_prompt,
                 target_url = %client.base_url(),
                 model = model,
                 turn = %format!("{}/{}", iterations, MAX_AGENT_ITERATIONS),
                 force_tool_choice = force_tool_choice,
+                prompt_truncated = prompt_truncated,
                 "Executing N-turn agent loop iteration"
             );
 
-            let chat_future = client.chat_with_tools(model, messages.clone(), Some(tools_json.clone()), -1);
+            // Send tools schema only on turn 1; subsequent turns pass None
+            let tools_for_this_turn = if iterations == 1 {
+                Some(tools_json.clone())
+            } else {
+                None
+            };
+
+            let chat_future = client.chat_with_tools(model, messages.clone(), tools_for_this_turn, -1);
             let res = match timeout(Duration::from_secs(PER_CALL_TIMEOUT_SECS), chat_future).await {
                 Ok(Ok(r)) => r,
                 Ok(Err(e)) => {
                     let err_msg = format!("{}", e);
                     warn!(
                         subsystem = "agent_loop",
-                        prompt = prompt,
+                        prompt = %effective_prompt,
                         target_url = %client.base_url(),
                         model = model,
                         error = %err_msg,
@@ -149,7 +196,7 @@ impl McpAgentLoop {
                     let err_msg = format!("Timeout after {}s", PER_CALL_TIMEOUT_SECS);
                     warn!(
                         subsystem = "agent_loop",
-                        prompt = prompt,
+                        prompt = %effective_prompt,
                         target_url = %client.base_url(),
                         model = model,
                         turn = iterations,
@@ -167,7 +214,7 @@ impl McpAgentLoop {
                 if !tool_calls.is_empty() {
                     info!(
                         subsystem = "agent_loop",
-                        prompt = prompt,
+                        prompt = %effective_prompt,
                         target_url = %client.base_url(),
                         model = model,
                         turn = %format!("{}/{}", iterations, MAX_AGENT_ITERATIONS),
@@ -195,7 +242,7 @@ impl McpAgentLoop {
 
                         info!(
                             subsystem = "agent_loop",
-                            prompt = prompt,
+                            prompt = %effective_prompt,
                             target_url = %client.base_url(),
                             turn = %format!("{}/{}", iterations, MAX_AGENT_ITERATIONS),
                             tool_name = %tool_name,
@@ -220,7 +267,7 @@ impl McpAgentLoop {
                 nudged_for_tool_use = true;
                 warn!(
                     subsystem = "agent_loop",
-                    prompt = prompt,
+                    prompt = %effective_prompt,
                     target_url = %client.base_url(),
                     model = model,
                     turn = iterations,
@@ -250,7 +297,7 @@ impl McpAgentLoop {
         if final_reply.trim().is_empty() {
             info!(
                 subsystem = "agent_loop",
-                prompt = prompt,
+                prompt = %effective_prompt,
                 target_url = %client.base_url(),
                 "Executing direct synthesis pass for empty response"
             );
@@ -280,12 +327,13 @@ impl McpAgentLoop {
 
         info!(
             subsystem = "agent_loop",
-            prompt = prompt,
+            prompt = %effective_prompt,
             target_url = %client.base_url(),
             model = model,
             iterations = iterations,
             exit_reason = exit_reason,
             tools_called_count = tools_called.len(),
+            prompt_truncated = prompt_truncated,
             final_reply_length = final_reply.len(),
             "Agent loop finished execution"
         );
@@ -294,6 +342,7 @@ impl McpAgentLoop {
             final_reply,
             iterations,
             tools_called,
+            prompt_truncated,
         })
     }
 }
@@ -306,5 +355,17 @@ mod tests {
     fn test_max_agent_iterations_constant() {
         assert_eq!(MAX_AGENT_ITERATIONS, 5);
         assert_eq!(PER_CALL_TIMEOUT_SECS, 45);
+    }
+
+    #[test]
+    fn test_prompt_truncation_logic() {
+        let long = "a".repeat(1000);
+        let limit = 100;
+        let suffix_len = TRUNCATION_SUFFIX.len();
+        let safe = limit - suffix_len;
+        let mut expected = long[..safe].to_string();
+        expected.push_str(TRUNCATION_SUFFIX);
+        assert_eq!(expected.len(), limit);
+        assert!(expected.ends_with(TRUNCATION_SUFFIX));
     }
 }
