@@ -65,7 +65,7 @@ class OllamaAiService {
         final userPrompt = messages.lastWhere((m) => m.role == ChatRole.user, orElse: () => messages.last).content;
         final offloadUrl = effectiveNode == AiOffloadTarget.windowsHost ? 'http://127.0.0.1:11434' : '';
 
-        _log('[HBP v2] Dispatching governor.ai.route over WebSocket (Port 7700) to shua_governor (offload: "$offloadUrl")...');
+        _log('[HBP v2] Dispatching governor.ai.route to shua_governor (target: ${effectiveNode.shortLabel}, offload: "$offloadUrl", prompt: "$userPrompt")...');
 
         final p = Packer();
         p.packMapLength(3);
@@ -82,7 +82,8 @@ class OllamaAiService {
           final iterations = payloadMap['iterations'] as int? ?? 1;
           final toolsCalled = (payloadMap['tools_called'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
 
-          _log('[HBP v2] shua_governor agent loop finished: $iterations turns, tools: $toolsCalled');
+          final replyPreview = reply.length > 80 ? '${reply.substring(0, 80)}...' : reply;
+          _log('[HBP v2] shua_governor agent loop finished ($iterations turns, tools: $toolsCalled): $replyPreview');
           yield OllamaStreamChunk(content: reply, done: true, routedNode: effectiveNode);
           return;
         } catch (e) {

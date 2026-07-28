@@ -14,7 +14,7 @@ final hbpClientProvider = FutureProvider<HbpClient>((ref) async {
   try {
     final p = Packer();
     p.packMapLength(1);
-    p.packString('min_level'); p.packString('TRACE');
+    p.packString('min_level'); p.packInt(1); // LEVEL_TRACE = 1
     final reqFrame = HbpFrame.request('shua.governor', 'logs.subscribe', p.takeBytes());
     client.send(reqFrame).catchError((_) => HbpFrame.ping());
   } catch (_) {}
