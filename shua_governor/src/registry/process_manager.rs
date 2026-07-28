@@ -85,6 +85,15 @@ impl ProcessManager {
             let mut cmd = tokio::process::Command::new(&entry.binary);
             if name == "ollama" {
                 cmd.arg("serve");
+                cmd.env("OLLAMA_NUM_THREADS", "3");
+                cmd.env("OLLAMA_NUM_PARALLEL", "1");
+                cmd.env("OLLAMA_KEEP_ALIVE", "-1");
+                info!(
+                    subsystem = "process_manager",
+                    num_threads = 3,
+                    num_parallel = 1,
+                    "Configured thermal thread budget for Ollama subprocess"
+                );
             }
             let child = cmd.spawn()?;
             let pid = child.id().ok_or_else(|| anyhow::anyhow!("Could not get PID"))?;
