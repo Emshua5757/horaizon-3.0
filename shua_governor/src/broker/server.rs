@@ -84,15 +84,20 @@ async fn handle_connection(
             Ok(Message::Binary(bytes)) => {
                 match HbpFrame::decode(&bytes) {
                     Ok(frame) => {
-                        let resp = dispatcher.dispatch_with_peer(frame, tx.clone(), Some(peer_addr.ip())).await;
-                        if let Some(response_frame) = resp {
-                            match response_frame.encode() {
-                                Ok(encoded) => {
-                                    let _ = tx.send(encoded);
+                        let dispatcher_clone = Arc::clone(&dispatcher);
+                        let tx_clone = tx.clone();
+                        let peer_ip = peer_addr.ip();
+                        tokio::spawn(async move {
+                            let resp = dispatcher_clone.dispatch_with_peer(frame, tx_clone.clone(), Some(peer_ip)).await;
+                            if let Some(response_frame) = resp {
+                                match response_frame.encode() {
+                                    Ok(encoded) => {
+                                        let _ = tx_clone.send(encoded);
+                                    }
+                                    Err(e) => error!(error = %e, "Frame encode error"),
                                 }
-                                Err(e) => error!(error = %e, "Frame encode error"),
                             }
-                        }
+                        });
                     }
                     Err(e) => {
                         warn!(peer = %peer_addr, error = %e, "Frame decode error");
