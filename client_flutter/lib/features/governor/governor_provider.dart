@@ -50,7 +50,7 @@ class ModuleStatus {
       };
 }
 
-class GovernorStatus {
+  final int? uptimeS;
   final double cpuUsagePct;
   final double totalRamMb;
   final double ramCeilingMb;
@@ -69,6 +69,7 @@ class GovernorStatus {
   final List<double> latencyHistory;
 
   const GovernorStatus({
+    this.uptimeS,
     this.cpuUsagePct = 18.0,
     this.totalRamMb = 2140.0,
     this.ramCeilingMb = 7168.0,
@@ -210,6 +211,7 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
       }
 
       return GovernorStatus(
+        uptimeS: (map['uptime_s'] as num?)?.toInt(),
         cpuUsagePct: cpu,
         totalRamMb: ram,
         ramCeilingMb: (map['ram_ceiling_mb'] as num?)?.toDouble() ?? 7168.0,

@@ -329,10 +329,17 @@ impl Dispatcher {
 
                 let cpu_pct = self.cpu_tracker.sample_cpu_pct();
 
+                let uptime_s = std::fs::read_to_string("/proc/uptime")
+                    .ok()
+                    .and_then(|s| s.split_whitespace().next().and_then(|v| v.parse::<f64>().ok()))
+                    .map(|u| u as u64)
+                    .unwrap_or(0);
+
                 let payload_data = serde_json::json!({
                     "cpu_pct": cpu_pct,
                     "total_ram_mb": total_ram_mb,
                     "temp_c": temp_c,
+                    "uptime_s": uptime_s,
                     "latency_ms": 12,
                     "last_backup": "03:00 AM (Zstd Encrypted)",
                     "modules": modules,

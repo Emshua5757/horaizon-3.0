@@ -34,23 +34,45 @@ class DashboardWelcomeHeader extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 6),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.schedule_rounded,
-                  color: successColor,
-                  size: 15,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Uptime: 14d 06h 22m',
-                  style: TextStyle(
-                    color: cs.onSurfaceVariant,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
+            Consumer(
+              builder: (context, ref, child) {
+                final statusAsync = ref.watch(governorStatusProvider);
+                final uptimeS = statusAsync.valueOrNull?.uptimeS;
+                final String uptimeText;
+                if (uptimeS != null && uptimeS > 0) {
+                  final days = uptimeS ~/ 86400;
+                  final hours = (uptimeS % 86400) ~/ 3600;
+                  final mins = (uptimeS % 3600) ~/ 60;
+                  final secs = uptimeS % 60;
+                  if (days > 0) {
+                    uptimeText = 'Uptime: ${days}d ${hours.toString().padLeft(2, '0')}h ${mins.toString().padLeft(2, '0')}m';
+                  } else if (hours > 0) {
+                    uptimeText = 'Uptime: ${hours}h ${mins.toString().padLeft(2, '0')}m ${secs.toString().padLeft(2, '0')}s';
+                  } else {
+                    uptimeText = 'Uptime: ${mins}m ${secs.toString().padLeft(2, '0')}s';
+                  }
+                } else {
+                  uptimeText = 'Uptime: Live';
+                }
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.schedule_rounded,
+                      color: successColor,
+                      size: 15,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      uptimeText,
+                      style: TextStyle(
+                        color: cs.onSurfaceVariant,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),
