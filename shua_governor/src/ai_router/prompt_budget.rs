@@ -16,8 +16,6 @@ impl PromptBudget {
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string());
 
-        let is_offloaded = offload_url.is_some();
-
         match intent {
             IntentClass::FactualPrecision => Self {
                 model: "qwen2.5:1.5b".into(),
