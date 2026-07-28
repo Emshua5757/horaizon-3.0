@@ -68,10 +68,11 @@ class OllamaAiService {
         _log('[HBP v2] Dispatching governor.ai.route to shua_governor (target: ${effectiveNode.shortLabel}, offload: "$offloadUrl", prompt: "$userPrompt")...');
 
         final p = Packer();
-        p.packMapLength(3);
+        p.packMapLength(4);
         p.packString('prompt');              p.packString(userPrompt);
         p.packString('context_hint');        p.packString('governor');
         p.packString('offload_device_url'); p.packString(offloadUrl);
+        p.packString('model');              p.packString(modelName);
 
         final reqFrame = HbpFrame.request('shua.governor', 'ai.route', p.takeBytes());
 

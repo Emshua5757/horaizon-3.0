@@ -56,6 +56,8 @@ pub struct AiRouteRequest {
     pub prompt: String,
     pub context_hint: Option<String>,
     pub offload_device_url: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 /// Config DTO payload for `governor.config.get` / `governor.config.update`
@@ -505,7 +507,7 @@ impl Dispatcher {
                         url.to_string()
                     });
 
-                    let budget = PromptBudget::for_intent(&intent, resolved_offload.as_deref());
+                    let budget = PromptBudget::for_intent(&intent, resolved_offload.as_deref(), req.model.as_deref());
 
                     let target_node = if budget.offload_url.is_some() { "offload_windows" } else { "local_rpi5" };
                     let target_url = budget.offload_url.clone().unwrap_or_else(|| self.ollama.client().base_url().to_string());
