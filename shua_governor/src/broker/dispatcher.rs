@@ -492,7 +492,7 @@ impl Dispatcher {
             "ai.route" | "governor.ai.route" => {
                 if let Ok(req) = frame.decode_payload::<AiRouteRequest>() {
                     let start = std::time::Instant::now();
-                    let intent = IntentClassifier::classify(&req.prompt, req.context_hint.as_deref());
+                    let (intent, matched_rule) = IntentClassifier::classify(&req.prompt, req.context_hint.as_deref());
 
                     let raw_offload = req.offload_device_url.as_deref();
                     let resolved_offload = raw_offload.map(|url| {
@@ -514,9 +514,11 @@ impl Dispatcher {
                         subsystem = "dispatcher",
                         prompt = %req.prompt,
                         intent = intent.as_str(),
+                        matched_rule = matched_rule,
                         model = %budget.model,
                         target_node = target_node,
                         target_url = %target_url,
+                        force_tool_choice = budget.force_tool_choice,
                         "AI Intent route selected and dispatching"
                     );
 
@@ -540,6 +542,7 @@ impl Dispatcher {
                     let scope = req.context_hint.as_deref().unwrap_or("governor").to_string();
                     let prompt_text = req.prompt.clone();
                     let model_name = budget.model.clone();
+                    let force_tool_choice = budget.force_tool_choice;
                     let process_manager = Arc::clone(&self.process_manager);
                     let ollama_lifecycle = Arc::clone(&self.ollama);
 
@@ -552,6 +555,7 @@ impl Dispatcher {
                             &client,
                             &process_manager,
                             &ollama_lifecycle,
+                            force_tool_choice,
                         ).await;
                         let _ = tx.send(result);
                     });

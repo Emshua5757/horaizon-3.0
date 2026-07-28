@@ -7,6 +7,12 @@ pub struct PromptBudget {
     pub temperature: f32,
     pub max_tokens: u32,
     pub offload_url: Option<String>,
+    /// When true, McpAgentLoop enforces tool use via a stronger system-prompt
+    /// directive and a one-time corrective nudge if the model answers in
+    /// free text without calling a tool on the first turn. Ollama's native
+    /// /api/chat endpoint has no tool_choice param, so this is enforced at
+    /// the prompt/loop level rather than the API level.
+    pub force_tool_choice: bool,
 }
 
 impl PromptBudget {
@@ -17,29 +23,40 @@ impl PromptBudget {
             .map(|s| s.to_string());
 
         match intent {
+            IntentClass::SystemQuery => Self {
+                model: "qwen2.5:1.5b".into(),
+                temperature: 0.0,
+                max_tokens: 512,
+                offload_url,
+                force_tool_choice: true,
+            },
             IntentClass::FactualPrecision => Self {
                 model: "qwen2.5:1.5b".into(),
                 temperature: 0.0,
                 max_tokens: 512,
                 offload_url,
+                force_tool_choice: false,
             },
             IntentClass::ReflectiveDialogue => Self {
                 model: "qwen2.5:1.5b".into(),
                 temperature: 0.7,
                 max_tokens: 1024,
                 offload_url,
+                force_tool_choice: false,
             },
             IntentClass::CodeAst => Self {
                 model: "qwen2.5:1.5b".into(),
                 temperature: 0.2,
                 max_tokens: 2048,
                 offload_url,
+                force_tool_choice: false,
             },
             IntentClass::CopilotCommand => Self {
                 model: "qwen2.5:1.5b".into(),
                 temperature: 0.1,
                 max_tokens: 256,
                 offload_url,
+                force_tool_choice: false,
             },
         }
     }

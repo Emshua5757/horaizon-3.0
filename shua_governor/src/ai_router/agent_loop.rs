@@ -28,6 +28,13 @@ impl McpAgentLoop {
     /// Execute an autonomous N-Turn MCP tool-calling agent loop (max 5 iterations).
     /// Dispatches LLM inference to offload_url or local RPi 5 Ollama, and executes requested
     /// MCP tools locally on RPi 5.
+    ///
+    /// `force_tool_choice`: when true (e.g. SystemQuery intent), the system prompt is
+    /// strengthened to require tool use, and if the model answers in free text without
+    /// calling a tool on the first turn, it gets one corrective nudge before its answer
+    /// is accepted. Ollama's native /api/chat has no tool_choice param, so this is the
+    /// prompt-level equivalent — not a hard API-level guarantee.
+    #[allow(clippy::too_many_arguments)]
     pub async fn run(
         prompt: &str,
         scope: &str,
@@ -35,13 +42,31 @@ impl McpAgentLoop {
         client: &OllamaClient,
         process_manager: &Arc<ProcessManager>,
         ollama_lifecycle: &Arc<OllamaLifecycle>,
+        force_tool_choice: bool,
     ) -> Result<AgentLoopResponse> {
+        let tool_enforcement_clause = if force_tool_choice {
+            " CRITICAL: For this request you MUST call one of the MCP tools listed above \
+            before giving a final answer. Do NOT claim you lack access to system information \
+            — you have direct tool access via MCP. Never suggest generic OS-level commands \
+            (dmesg, Event Viewer, etc.) when an MCP tool exists for the task. Call the tool first."
+        } else {
+            ""
+        };
+
         let system_prompt = format!(
-            "You are JOSH, the horAIzon 3.0 AI Assistant running on Raspberry Pi 5. \
-            You have access to MCP system tools (scope: '{}'). \
-            When given a user query requesting system health, NVMe status, hardware metrics, or uptime, \
-            YOU MUST call the `governor_get_metrics` tool FIRST to fetch real hardware metrics before outputting your response.",
-            scope
+            "You are JOSH, the horAIzon 3.0 Central AI Assistant running on Raspberry Pi 5. \
+            You have access to Model Context Protocol (MCP) system control tools (scope: '{}'). \
+            Available MCP Tools: \
+            1. `governor_get_metrics`: Fetches live Pi 5 CPU %, RAM, temperature, NVMe status, uptime, and module states. \
+            2. `governor_query_logs`: Queries recent system logs, errors, telemetry metrics, and events from activity.db database. \
+            3. `governor_wake_module`: Resumes a sleeping microservice (shua.diary, shua.resume, etc.). \
+            4. `governor_sleep_module`: Pauses a running microservice to free RAM/CPU. \
+            5. `governor_load_ollama_model`: Loads a specified LLM model into RAM/VRAM. \
+            INSTRUCTIONS: \
+            - When asked for system health, NVMe status, hardware metrics, or uptime, call `governor_get_metrics`. \
+            - When asked for system logs, errors, activity.db, or `governor_query_logs`, call `governor_query_logs`. \
+            - When asked what MCP tools are available, list the horAIzon 3.0 system tools above.{}",
+            scope, tool_enforcement_clause
         );
 
         let mut messages = vec![
@@ -87,6 +112,7 @@ impl McpAgentLoop {
         let mut final_reply = String::new();
         let mut exit_reason = "max_iterations_reached";
         let mut last_error: Option<String> = None;
+        let mut nudged_for_tool_use = false;
 
         while iterations < MAX_AGENT_ITERATIONS {
             iterations += 1;
@@ -97,6 +123,7 @@ impl McpAgentLoop {
                 target_url = %client.base_url(),
                 model = model,
                 turn = %format!("{}/{}", iterations, MAX_AGENT_ITERATIONS),
+                force_tool_choice = force_tool_choice,
                 "Executing N-turn agent loop iteration"
             );
 
@@ -184,6 +211,34 @@ impl McpAgentLoop {
 
                     continue;
                 }
+            }
+
+            // No tool calls requested. If this intent requires guaranteed tool use and
+            // we haven't nudged yet, give the model one corrective retry instead of
+            // silently accepting a hallucinated free-text answer.
+            if force_tool_choice && !nudged_for_tool_use {
+                nudged_for_tool_use = true;
+                warn!(
+                    subsystem = "agent_loop",
+                    prompt = prompt,
+                    target_url = %client.base_url(),
+                    model = model,
+                    turn = iterations,
+                    "SystemQuery expected a tool call but model answered in free text — issuing corrective nudge"
+                );
+
+                // Preserve the model's own (rejected) reply in context, then nudge.
+                messages.push(ChatMessage {
+                    role: "assistant".into(),
+                    content: res.content.clone(),
+                    tool_calls: None,
+                });
+                messages.push(ChatMessage::user(
+                    "You did not call a tool. This request requires calling the appropriate \
+                    MCP tool listed in your instructions before answering. Call it now."
+                        .to_string(),
+                ));
+                continue;
             }
 
             // No tool calls requested: LLM completed reasoning and outputted final response
