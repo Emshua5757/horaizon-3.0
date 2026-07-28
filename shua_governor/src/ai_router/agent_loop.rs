@@ -192,12 +192,12 @@ impl McpAgentLoop {
             break;
         }
 
-        if final_reply.trim().is_empty() && (!tools_called.is_empty() || iterations == MAX_AGENT_ITERATIONS) {
+        if final_reply.trim().is_empty() {
             info!(
                 subsystem = "agent_loop",
                 prompt = prompt,
                 target_url = %client.base_url(),
-                "Executing final synthesis pass after tool execution"
+                "Executing direct synthesis pass for empty response"
             );
             if let Ok(Ok(direct_res)) = timeout(
                 Duration::from_secs(PER_CALL_TIMEOUT_SECS),
