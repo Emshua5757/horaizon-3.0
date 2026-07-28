@@ -211,6 +211,7 @@ pub struct Dispatcher {
     process_manager: Arc<ProcessManager>,
     ollama: Arc<OllamaLifecycle>,
     config: Arc<RwLock<AppConfig>>,
+    ai_runtime: Arc<tokio::runtime::Runtime>,
     mcp_aggregator: Arc<crate::mcp::aggregator::McpAggregator>,
     cpu_tracker: CpuTracker,
 }
@@ -222,6 +223,7 @@ impl Dispatcher {
         process_manager: Arc<ProcessManager>,
         ollama: Arc<OllamaLifecycle>,
         config: Arc<RwLock<AppConfig>>,
+        ai_runtime: Arc<tokio::runtime::Runtime>,
     ) -> Self {
         Self {
             log_tx,
@@ -229,6 +231,7 @@ impl Dispatcher {
             process_manager,
             ollama,
             config,
+            ai_runtime,
             mcp_aggregator: Arc::new(crate::mcp::aggregator::McpAggregator::new()),
             cpu_tracker: CpuTracker::new(),
         }
@@ -512,25 +515,51 @@ impl Dispatcher {
                         "AI Intent route selected"
                     );
 
+                    if budget.offload_url.is_none() {
+                        if let Err(e) = self.ollama.load(&budget.model).await {
+                            return Some(HbpFrame::error_response(
+                                &frame.id,
+                                &frame.mod_,
+                                &frame.op,
+                                &format!("ERR_OLLAMA_LOAD: {e}"),
+                            ));
+                        }
+                    }
+
                     let client = if let Some(ref url) = budget.offload_url {
                         crate::ollama::client::OllamaClient::new(url)
                     } else {
                         crate::ollama::client::OllamaClient::new(self.ollama.client().base_url())
                     };
 
-                    let scope = req.context_hint.as_deref().unwrap_or("governor");
-                    let (reply, iterations, tools_called) = match crate::ai_router::agent_loop::McpAgentLoop::run(
-                        &req.prompt,
-                        scope,
-                        &budget.model,
-                        &client,
-                        &self.process_manager,
-                        &self.ollama,
-                    ).await {
-                        Ok(res) => (res.final_reply, res.iterations, res.tools_called),
-                        Err(e) => {
+                    let scope = req.context_hint.as_deref().unwrap_or("governor").to_string();
+                    let prompt_text = req.prompt.clone();
+                    let model_name = budget.model.clone();
+                    let process_manager = Arc::clone(&self.process_manager);
+                    let ollama_lifecycle = Arc::clone(&self.ollama);
+
+                    let (tx, rx) = tokio::sync::oneshot::channel();
+                    self.ai_runtime.spawn(async move {
+                        let result = crate::ai_router::agent_loop::McpAgentLoop::run(
+                            &prompt_text,
+                            &scope,
+                            &model_name,
+                            &client,
+                            &process_manager,
+                            &ollama_lifecycle,
+                        ).await;
+                        let _ = tx.send(result);
+                    });
+
+                    let (reply, iterations, tools_called) = match rx.await {
+                        Ok(Ok(res)) => (res.final_reply, res.iterations, res.tools_called),
+                        Ok(Err(e)) => {
                             warn!(subsystem = "dispatcher", error = %e, "MCP agent loop error");
-                            (format!("[AI Router Stub ({})] Intent: {}", intent.as_str(), req.prompt), 1, vec![])
+                            (format!("[AI Router Error] {}", e), 1, vec![])
+                        }
+                        Err(_) => {
+                            warn!(subsystem = "dispatcher", "AI runtime task channel canceled");
+                            ("ERR_AI_RUNTIME_CANCELED".to_string(), 1, vec![])
                         }
                     };
 
@@ -605,7 +634,9 @@ impl Dispatcher {
                         telemetry: req.telemetry,
                         trace_id: req.trace_id.or_else(|| Some(frame.id.clone())),
                     };
-                    let _ = self.log_tx.try_send(entry);
+                    if self.log_tx.try_send(entry).is_err() {
+                        crate::logging::record_log_drop();
+                    }
                     let res = serde_json::json!({ "status": "ok" });
                     let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
                     Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
@@ -631,21 +662,33 @@ impl Dispatcher {
                     offset: Some(0),
                 });
 
-                let db_path = resolved_db_path();
-                let params = LogQueryParams {
-                    db_path: &db_path,
-                    min_level: req.min_level,
-                    module: req.module,
-                    subsystem: req.subsystem.as_deref(),
-                    start_ts: req.start_ts,
-                    end_ts: req.end_ts,
-                    trace_id: req.trace_id.as_deref(),
-                    limit: req.limit.unwrap_or(50),
-                    offset: req.offset.unwrap_or(0),
-                };
+                let min_level = req.min_level;
+                let module = req.module;
+                let subsystem = req.subsystem.clone();
+                let start_ts = req.start_ts;
+                let end_ts = req.end_ts;
+                let trace_id = req.trace_id.clone();
+                let limit = req.limit.unwrap_or(50);
+                let offset = req.offset.unwrap_or(0);
 
-                match query_logs_from_db(params) {
-                    Ok((total, entries)) => {
+                let query_res = tokio::task::spawn_blocking(move || {
+                    let db_path = resolved_db_path();
+                    let params = LogQueryParams {
+                        db_path: &db_path,
+                        min_level,
+                        module,
+                        subsystem: subsystem.as_deref(),
+                        start_ts,
+                        end_ts,
+                        trace_id: trace_id.as_deref(),
+                        limit,
+                        offset,
+                    };
+                    query_logs_from_db(params)
+                }).await;
+
+                match query_res {
+                    Ok(Ok((total, entries))) => {
                         let res = serde_json::json!({
                             "total": total,
                             "entries": entries
@@ -653,11 +696,17 @@ impl Dispatcher {
                         let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
                         Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
                     }
-                    Err(e) => Some(HbpFrame::error_response(
+                    Ok(Err(e)) => Some(HbpFrame::error_response(
                         &frame.id,
                         &frame.mod_,
                         &frame.op,
                         &format!("ERR_DB_QUERY: {e}"),
+                    )),
+                    Err(e) => Some(HbpFrame::error_response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        &format!("ERR_TASK_JOIN: {e}"),
                     )),
                 }
             }

@@ -28,7 +28,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() -> anyhow::Result<()> {
     // Emergency Panic Hook for Crash Log Preservation
     let panic_important_log_path = resolved_important_log_path();
@@ -55,6 +55,15 @@ async fn main() -> anyhow::Result<()> {
     // 1. Load Configuration File via Search Hierarchy
     let app_config = AppConfig::load_from_hierarchy(custom_config_path.as_deref());
     let shared_config = Arc::new(RwLock::new(app_config.clone()));
+
+    // Dedicated AI Tokio Runtime (2 worker threads isolated from HBP broker/heartbeats)
+    let ai_runtime = Arc::new(
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .thread_name("governor-ai-worker")
+            .enable_all()
+            .build()?
+    );
 
     // 2. Ingress MPSC channel (capacity 4096)
     let (log_tx, log_rx) = mpsc::channel::<LogEntry>(4096);
@@ -83,6 +92,18 @@ async fn main() -> anyhow::Result<()> {
     let broadcast_tx_clone = log_broadcast_tx.clone();
     tokio::spawn(async move {
         flush_loop(log_rx, broadcast_tx_clone).await;
+    });
+
+    // Spawn Core Runtime Periodic Telemetry Heartbeat Task (10s interval)
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10));
+        loop {
+            interval.tick().await;
+            tracing::info!(
+                subsystem = "governor_heartbeat",
+                "Core runtime heartbeat tick — system active"
+            );
+        }
     });
 
     // 6. Start IPC log listener (UDS on Linux + TCP 5001 loopback)
@@ -154,6 +175,7 @@ async fn main() -> anyhow::Result<()> {
         Arc::clone(&process_manager),
         Arc::clone(&ollama_lifecycle),
         Arc::clone(&shared_config),
+        Arc::clone(&ai_runtime),
     ));
     let broker = BrokerServer::new(Arc::clone(&dispatcher));
 

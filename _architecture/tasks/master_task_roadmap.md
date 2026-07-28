@@ -17,7 +17,8 @@ This roadmap enforces **ADR-001 (Native Flutter over SDUI)**: all UI screens are
 | **TASK-005** | `shua_governor` | Rust | Process Registry & Linux cgroups v2 Manager | [x] Completed |
 | **TASK-006** | `shua_governor` | Rust | Ollama Lifecycle, AI Router & Dream Loop Scheduler | [x] Completed |
 | **TASK-007** | `shua_governor` | Rust + bash | AppConfig Hierarchy & Systemd Daemonization on Pi 5 | [x] Completed |
-| **TASK-006B** | `shua_governor` | Rust | Central Governor MCP Tool Aggregator & Context Scope Router | [ ] Planned |
+| **TASK-006B** | `shua_governor` | Rust | Central Governor MCP Tool Aggregator & Context Scope Router | [x] Completed |
+| **TASK-006C** | `shua_governor` | Rust | Ollama Lifecycle, Telemetry Logging & Runtime Hardening | [x] Completed |
 | **TASK-008** | `client_flutter` | Dart / Flutter | Project Scaffold & Pubspec Dependency Graph | [x] Completed |
 | **TASK-009** | `client_flutter` | Dart / Flutter | Core HBP v2 Client, WebSocket Channel & MessagePack Codec | [x] Completed |
 | **TASK-010** | `client_flutter` | Dart / Flutter | GoRouter, Splash Screen & Material 3 HCT Dark Theme | [x] Completed |

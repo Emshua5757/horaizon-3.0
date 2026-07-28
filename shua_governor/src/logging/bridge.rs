@@ -82,7 +82,7 @@ where
             ts: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_secs(),
+                .as_millis() as u64,
             level,
             module: 10, // SHUA_GOVERNOR
             subsystem: visitor.subsystem,
@@ -97,6 +97,8 @@ where
             trace_id: None,
         };
 
-        let _ = self.tx.try_send(entry);
+        if self.tx.try_send(entry).is_err() {
+            crate::logging::record_log_drop();
+        }
     }
 }
