@@ -1,6 +1,8 @@
 use std::sync::Arc;
 use anyhow::Result;
 use tracing::{info, warn};
+use tokio::sync::Semaphore;
+use tokio::time::{timeout, Duration};
 
 use crate::mcp::aggregator::McpAggregator;
 use crate::mcp::executor::McpExecutor;
@@ -8,6 +10,11 @@ use crate::mcp::McpToolCall;
 use crate::ollama::client::{ChatMessage, OllamaClient};
 use crate::registry::process_manager::ProcessManager;
 use crate::ollama::OllamaLifecycle;
+
+pub const MAX_AGENT_ITERATIONS: usize = 5;
+pub const PER_CALL_TIMEOUT_SECS: u64 = 45;
+
+static LOCAL_INFERENCE_SEMAPHORE: Semaphore = Semaphore::const_new(1);
 
 pub struct AgentLoopResponse {
     pub final_reply: String,
@@ -59,25 +66,48 @@ impl McpAgentLoop {
             })
             .collect();
 
+        let is_local = client.base_url().contains("127.0.0.1")
+            || client.base_url().contains("localhost")
+            || client.base_url().contains("0.0.0.0");
+
+        let _permit = if is_local {
+            info!(subsystem = "agent_loop", "Acquiring local inference semaphore permit");
+            Some(LOCAL_INFERENCE_SEMAPHORE.acquire().await.ok())
+        } else {
+            None
+        };
+
         let mut iterations = 0;
-        let max_iterations = 5;
         let mut tools_called = Vec::new();
         let mut final_reply = String::new();
+        let mut exit_reason = "max_iterations_reached";
 
-        while iterations < max_iterations {
+        while iterations < MAX_AGENT_ITERATIONS {
             iterations += 1;
 
             info!(
                 subsystem = "agent_loop",
-                turn = %format!("{}/{}", iterations, max_iterations),
+                turn = %format!("{}/{}", iterations, MAX_AGENT_ITERATIONS),
                 model = model,
                 "Executing N-turn agent loop iteration"
             );
 
-            let res = match client.chat_with_tools(model, messages.clone(), Some(tools_json.clone()), 0).await {
-                Ok(r) => r,
-                Err(e) => {
-                    warn!(subsystem = "agent_loop", error = %e, "LLM chat call failed in agent loop");
+            let chat_future = client.chat_with_tools(model, messages.clone(), Some(tools_json.clone()), -1);
+            let res = match timeout(Duration::from_secs(PER_CALL_TIMEOUT_SECS), chat_future).await {
+                Ok(Ok(r)) => r,
+                Ok(Err(e)) => {
+                    warn!(subsystem = "agent_loop", error = %e, turn = iterations, "LLM chat call failed in agent loop");
+                    exit_reason = "llm_error";
+                    break;
+                }
+                Err(_) => {
+                    warn!(
+                        subsystem = "agent_loop",
+                        turn = iterations,
+                        timeout_sec = PER_CALL_TIMEOUT_SECS,
+                        "Agent loop LLM chat call timed out"
+                    );
+                    exit_reason = "timeout";
                     break;
                 }
             };
@@ -87,7 +117,7 @@ impl McpAgentLoop {
                 if !tool_calls.is_empty() {
                     info!(
                         subsystem = "agent_loop",
-                        turn = %format!("{}/{}", iterations, max_iterations),
+                        turn = %format!("{}/{}", iterations, MAX_AGENT_ITERATIONS),
                         tool_count = tool_calls.len(),
                         "LLM requested MCP tool execution"
                     );
@@ -112,7 +142,7 @@ impl McpAgentLoop {
 
                         info!(
                             subsystem = "agent_loop",
-                            turn = %format!("{}/{}", iterations, max_iterations),
+                            turn = %format!("{}/{}", iterations, MAX_AGENT_ITERATIONS),
                             tool_name = %tool_name,
                             "Executing local MCP tool on RPi 5"
                         );
@@ -129,11 +159,16 @@ impl McpAgentLoop {
 
             // No tool calls requested: LLM completed reasoning and outputted final response
             final_reply = res.effective_text();
+            exit_reason = "clean_completion";
             break;
         }
 
-        if final_reply.trim().is_empty() && tools_called.is_empty() {
-            if let Ok(direct_res) = client.chat_with_tools(model, messages, None, 0).await {
+        if final_reply.trim().is_empty() && (!tools_called.is_empty() || iterations == MAX_AGENT_ITERATIONS) {
+            info!(subsystem = "agent_loop", "Executing final synthesis pass after tool execution");
+            if let Ok(Ok(direct_res)) = timeout(
+                Duration::from_secs(PER_CALL_TIMEOUT_SECS),
+                client.chat_with_tools(model, messages, None, -1),
+            ).await {
                 final_reply = direct_res.effective_text();
             }
         }
@@ -145,10 +180,29 @@ impl McpAgentLoop {
             );
         }
 
+        info!(
+            subsystem = "agent_loop",
+            iterations = iterations,
+            exit_reason = exit_reason,
+            tools_called_count = tools_called.len(),
+            "Agent loop finished execution"
+        );
+
         Ok(AgentLoopResponse {
             final_reply,
             iterations,
             tools_called,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_max_agent_iterations_constant() {
+        assert_eq!(MAX_AGENT_ITERATIONS, 5);
+        assert_eq!(PER_CALL_TIMEOUT_SECS, 45);
     }
 }

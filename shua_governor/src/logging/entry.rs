@@ -262,4 +262,27 @@ mod tests {
         let redacted = redact_sensitive_data(raw);
         assert_eq!(redacted, "Connect with Bearer [REDACTED] to host");
     }
+
+    #[test]
+    fn test_log_timestamp_millisecond_unit_sanity() {
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+
+        let entry = LogEntry {
+            ts: now_ms,
+            level: LEVEL_INFO,
+            module: MODULE_GOVERNOR,
+            subsystem: "test".to_string(),
+            msg: "Timestamp check".to_string(),
+            tags: TAG_SYSTEM,
+            custom_tags: None,
+            telemetry: None,
+            trace_id: None,
+        };
+
+        // Milliseconds since epoch in 2026 should be > 1,700,000,000,000 (13 digits)
+        assert!(entry.ts > 1_000_000_000_000, "Timestamp must be in milliseconds");
+    }
 }

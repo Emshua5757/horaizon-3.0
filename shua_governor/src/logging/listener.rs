@@ -98,7 +98,7 @@ where
             let mut b2 = [0u8; 1];
             if reader.read_exact(&mut b2).await.is_err() {
                 let line_str = String::from_utf8_lossy(&b1);
-                let _ = log_tx.try_send(wrap_socket_raw_line(&line_str));
+                send_log_entry(&log_tx, wrap_socket_raw_line(&line_str));
                 break;
             }
 
@@ -107,7 +107,7 @@ where
                 if reader.read_exact(&mut header_rest).await.is_err() {
                     let bytes = vec![HBP_MAGIC_0, HBP_MAGIC_1];
                     let line_str = String::from_utf8_lossy(&bytes);
-                    let _ = log_tx.try_send(wrap_socket_raw_line(&line_str));
+                    send_log_entry(&log_tx, wrap_socket_raw_line(&line_str));
                     break;
                 }
 
@@ -123,7 +123,7 @@ where
                         match rmp_serde::from_slice::<BorrowedLogEntry>(&payload) {
                             Ok(borrowed_entry) => {
                                 if borrowed_entry.level >= min_level {
-                                    let _ = log_tx.try_send(borrowed_entry.into());
+                                    send_log_entry(&log_tx, borrowed_entry.into());
                                 }
                                 continue;
                             }
@@ -139,14 +139,14 @@ where
                     let _ = read_until_newline(&mut reader, &mut rest).await;
                     fallback_bytes.extend(rest);
                     let line_str = String::from_utf8_lossy(&fallback_bytes);
-                    let _ = log_tx.try_send(wrap_socket_raw_line(&line_str));
+                    send_log_entry(&log_tx, wrap_socket_raw_line(&line_str));
                 } else {
                     let mut fallback_bytes = header.to_vec();
                     let mut rest = Vec::new();
                     let _ = read_until_newline(&mut reader, &mut rest).await;
                     fallback_bytes.extend(rest);
                     let line_str = String::from_utf8_lossy(&fallback_bytes);
-                    let _ = log_tx.try_send(wrap_socket_raw_line(&line_str));
+                    send_log_entry(&log_tx, wrap_socket_raw_line(&line_str));
                 }
             } else {
                 let mut line_bytes = vec![HBP_MAGIC_0, b2[0]];
@@ -154,7 +154,7 @@ where
                 let _ = read_until_newline(&mut reader, &mut rest).await;
                 line_bytes.extend(rest);
                 let line_str = String::from_utf8_lossy(&line_bytes);
-                let _ = log_tx.try_send(wrap_socket_raw_line(&line_str));
+                send_log_entry(&log_tx, wrap_socket_raw_line(&line_str));
             }
         } else {
             let mut line_bytes = vec![b1[0]];
@@ -162,8 +162,14 @@ where
             let _ = read_until_newline(&mut reader, &mut rest).await;
             line_bytes.extend(rest);
             let line_str = String::from_utf8_lossy(&line_bytes);
-            let _ = log_tx.try_send(wrap_socket_raw_line(&line_str));
+            send_log_entry(&log_tx, wrap_socket_raw_line(&line_str));
         }
+    }
+}
+
+fn send_log_entry(log_tx: &mpsc::Sender<LogEntry>, entry: LogEntry) {
+    if log_tx.try_send(entry).is_err() {
+        crate::logging::record_log_drop();
     }
 }
 

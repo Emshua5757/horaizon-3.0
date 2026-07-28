@@ -55,7 +55,7 @@ impl IntentClassifier {
             || lower.contains("flutter")
             || lower.contains("dart")
             || lower.contains("rust")
-            || lower.contains("code")
+            || has_word(&lower, "code")
             || lower.contains("refactor")
         {
             return IntentClass::CodeAst;
@@ -76,6 +76,13 @@ impl IntentClassifier {
         // Default: factual precision
         IntentClass::FactualPrecision
     }
+}
+
+fn has_word(text: &str, word: &str) -> bool {
+    text.split_whitespace().any(|w| {
+        let trimmed = w.trim_matches(|c: char| !c.is_alphanumeric());
+        trimmed.eq_ignore_ascii_case(word)
+    })
 }
 
 #[cfg(test)]
@@ -99,6 +106,20 @@ mod tests {
         assert_eq!(
             IntentClassifier::classify("what is the capital of France?", None),
             IntentClass::FactualPrecision
+        );
+    }
+
+    #[test]
+    fn test_word_boundary_code_matching() {
+        // "encode" or "barcode" should not trigger CodeAst intent
+        assert_eq!(
+            IntentClassifier::classify("how do I decode a barcode?", None),
+            IntentClass::FactualPrecision
+        );
+        // Standalone "code" should trigger CodeAst intent
+        assert_eq!(
+            IntentClassifier::classify("explain this code snippet", None),
+            IntentClass::CodeAst
         );
     }
 }

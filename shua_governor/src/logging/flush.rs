@@ -76,6 +76,8 @@ fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
         CREATE INDEX IF NOT EXISTS idx_activity_level     ON activity_log(level);
         CREATE INDEX IF NOT EXISTS idx_activity_ts        ON activity_log(ts DESC);
         CREATE INDEX IF NOT EXISTS idx_activity_trace_id  ON activity_log(trace_id);
+
+        UPDATE activity_log SET ts = ts * 1000 WHERE ts < 10000000000;
     ",
     )
 }
@@ -325,6 +327,15 @@ pub async fn flush_loop(
     });
 
     loop {
+        let dropped = crate::logging::take_log_drop_count();
+        if dropped > 0 {
+            tracing::warn!(
+                subsystem = "logging",
+                dropped_count = dropped,
+                "Log entries dropped due to channel saturation"
+            );
+        }
+
         let timeout_dur = deadline.saturating_duration_since(Instant::now());
 
         match timeout(timeout_dur, log_rx.recv()).await {

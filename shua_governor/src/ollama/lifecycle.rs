@@ -22,8 +22,11 @@ impl OllamaLifecycle {
         }
     }
 
-    /// Load a model, evicting the current one if needed.
-    /// Enforces the 4GB RAM cap.
+    /// Load a model into RAM, evicting the current one if needed.
+    /// Enforces the 4GB RAM cap and single-model mutual exclusion.
+    ///
+    /// IMPORTANT: This is the SINGLE REQUIRED ENTRY POINT for local Ollama inference across `shua_governor`.
+    /// All RPC handlers (including `ai.route`) MUST invoke `OllamaLifecycle::load()` before initiating inference.
     pub async fn load(&self, model_name: &str) -> Result<()> {
         let model = self
             .registry
