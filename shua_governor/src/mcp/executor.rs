@@ -135,8 +135,15 @@ impl McpExecutor {
             }
 
             "governor_query_logs" => {
-                let subsystem = call.arguments.get("subsystem").and_then(|v| v.as_str());
-                let limit = call.arguments.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
+                let subsystem = call.arguments
+                    .get("subsystem")
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.is_empty() && *s != "system" && *s != "all" && *s != "any");
+                let limit = call.arguments
+                    .get("limit")
+                    .and_then(|v| v.as_u64())
+                    .map(|v| v as usize)
+                    .unwrap_or(100);
                 
                 let db_path = crate::logging::flush::resolved_db_path();
                 let params = crate::logging::flush::LogQueryParams {

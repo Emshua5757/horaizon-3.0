@@ -69,7 +69,7 @@ impl McpAggregator {
             },
             McpToolSchema {
                 name: "governor_query_logs".into(),
-                description: "Queries recent system logs, errors, telemetry metrics, and subsystem events from governor database (activity.db).".into(),
+                description: "Queries the most recent system logs, errors, telemetry metrics, and subsystem events across all modules from governor database (activity.db). Leave subsystem empty or omitted to return all log events.".into(),
                 scope: "governor".into(),
                 input_schema: serde_json::json!({
                     "type": "object",
