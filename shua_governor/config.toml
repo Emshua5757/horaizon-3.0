@@ -32,6 +32,12 @@ role       = "text_generator"
 keep_alive = -1
 
 [[modules.entry]]
+name         = "ollama"
+binary       = "/usr/local/bin/ollama"
+auto_start   = true
+ram_limit_mb = 4096
+
+[[modules.entry]]
 name         = "shua.resume"
 binary       = "/usr/local/bin/shua_resume"
 auto_start   = true

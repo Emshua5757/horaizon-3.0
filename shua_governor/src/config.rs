@@ -99,6 +99,12 @@ impl Default for AppConfig {
             modules: ModulesConfig {
                 entries: vec![
                     ModuleConfigEntry {
+                        name: "ollama".to_string(),
+                        binary: PathBuf::from("/usr/local/bin/ollama"),
+                        auto_start: true,
+                        ram_limit_mb: Some(4096),
+                    },
+                    ModuleConfigEntry {
                         name: "shua.resume".to_string(),
                         binary: PathBuf::from("/usr/local/bin/shua_resume"),
                         auto_start: true,

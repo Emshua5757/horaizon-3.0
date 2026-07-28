@@ -23,7 +23,7 @@ use logging::listener::start_log_ipc_listener;
 use ollama::{ModelRegistry, OllamaClient, OllamaLifecycle, RegisteredModel};
 use registry::{ModuleEntry, ProcessManager};
 use tokio::sync::{broadcast, mpsc, RwLock};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
@@ -120,6 +120,16 @@ async fn main() -> anyhow::Result<()> {
                 entry.ram_limit_mb,
             ))
             .await;
+
+        if entry.auto_start {
+            let pm = Arc::clone(&process_manager);
+            let name = entry.name.clone();
+            tokio::spawn(async move {
+                if let Err(e) = pm.start(&name).await {
+                    warn!(subsystem = "governor_main", module = %name, error = %e, "Could not auto-start module");
+                }
+            });
+        }
     }
 
     info!(

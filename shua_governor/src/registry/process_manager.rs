@@ -82,7 +82,11 @@ impl ProcessManager {
                 "Spawning module process"
             );
 
-            let child = tokio::process::Command::new(&entry.binary).spawn()?;
+            let mut cmd = tokio::process::Command::new(&entry.binary);
+            if name == "ollama" {
+                cmd.arg("serve");
+            }
+            let child = cmd.spawn()?;
             let pid = child.id().ok_or_else(|| anyhow::anyhow!("Could not get PID"))?;
 
             entry.pid = Some(pid);
