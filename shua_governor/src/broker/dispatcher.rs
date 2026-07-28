@@ -507,12 +507,17 @@ impl Dispatcher {
 
                     let budget = PromptBudget::for_intent(&intent, resolved_offload.as_deref());
 
+                    let target_node = if budget.offload_url.is_some() { "offload_windows" } else { "local_rpi5" };
+                    let target_url = budget.offload_url.clone().unwrap_or_else(|| self.ollama.client().base_url().to_string());
+
                     info!(
                         subsystem = "dispatcher",
+                        prompt = %req.prompt,
                         intent = intent.as_str(),
                         model = %budget.model,
-                        offload_url = ?budget.offload_url,
-                        "AI Intent route selected"
+                        target_node = target_node,
+                        target_url = %target_url,
+                        "AI Intent route selected and dispatching"
                     );
 
                     if budget.offload_url.is_none() {

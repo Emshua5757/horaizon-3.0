@@ -54,13 +54,22 @@ impl ChatMessage {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ToolCall {
+    #[serde(default)]
+    pub id: Option<String>,
     pub function: ToolCallFunction,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ToolCallFunction {
+    #[serde(default)]
+    pub index: Option<usize>,
     pub name: String,
+    #[serde(default = "default_serde_json_object")]
     pub arguments: serde_json::Value,
+}
+
+fn default_serde_json_object() -> serde_json::Value {
+    serde_json::json!({})
 }
 
 #[derive(Deserialize)]
@@ -71,10 +80,15 @@ struct ChatResponse {
 #[derive(Deserialize)]
 pub struct ChatMessageResponse {
     #[allow(dead_code)]
+    #[serde(default)]
     pub role: String,
+    #[serde(default)]
     pub content: String,
+    #[serde(default)]
     pub thinking: Option<String>,
+    #[serde(default)]
     pub reasoning_content: Option<String>,
+    #[serde(default)]
     pub tool_calls: Option<Vec<ToolCall>>,
 }
 

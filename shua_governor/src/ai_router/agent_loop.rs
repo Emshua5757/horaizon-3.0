@@ -71,7 +71,12 @@ impl McpAgentLoop {
             || client.base_url().contains("0.0.0.0");
 
         let _permit = if is_local {
-            info!(subsystem = "agent_loop", "Acquiring local inference semaphore permit");
+            info!(
+                subsystem = "agent_loop",
+                prompt = prompt,
+                target_url = %client.base_url(),
+                "Acquiring local inference semaphore permit"
+            );
             Some(LOCAL_INFERENCE_SEMAPHORE.acquire().await.ok())
         } else {
             None
@@ -81,14 +86,17 @@ impl McpAgentLoop {
         let mut tools_called = Vec::new();
         let mut final_reply = String::new();
         let mut exit_reason = "max_iterations_reached";
+        let mut last_error: Option<String> = None;
 
         while iterations < MAX_AGENT_ITERATIONS {
             iterations += 1;
 
             info!(
                 subsystem = "agent_loop",
-                turn = %format!("{}/{}", iterations, MAX_AGENT_ITERATIONS),
+                prompt = prompt,
+                target_url = %client.base_url(),
                 model = model,
+                turn = %format!("{}/{}", iterations, MAX_AGENT_ITERATIONS),
                 "Executing N-turn agent loop iteration"
             );
 
@@ -96,17 +104,32 @@ impl McpAgentLoop {
             let res = match timeout(Duration::from_secs(PER_CALL_TIMEOUT_SECS), chat_future).await {
                 Ok(Ok(r)) => r,
                 Ok(Err(e)) => {
-                    warn!(subsystem = "agent_loop", error = %e, turn = iterations, "LLM chat call failed in agent loop");
+                    let err_msg = format!("{}", e);
+                    warn!(
+                        subsystem = "agent_loop",
+                        prompt = prompt,
+                        target_url = %client.base_url(),
+                        model = model,
+                        error = %err_msg,
+                        turn = iterations,
+                        "LLM chat call failed in agent loop"
+                    );
+                    last_error = Some(err_msg);
                     exit_reason = "llm_error";
                     break;
                 }
                 Err(_) => {
+                    let err_msg = format!("Timeout after {}s", PER_CALL_TIMEOUT_SECS);
                     warn!(
                         subsystem = "agent_loop",
+                        prompt = prompt,
+                        target_url = %client.base_url(),
+                        model = model,
                         turn = iterations,
                         timeout_sec = PER_CALL_TIMEOUT_SECS,
                         "Agent loop LLM chat call timed out"
                     );
+                    last_error = Some(err_msg);
                     exit_reason = "timeout";
                     break;
                 }
@@ -117,6 +140,9 @@ impl McpAgentLoop {
                 if !tool_calls.is_empty() {
                     info!(
                         subsystem = "agent_loop",
+                        prompt = prompt,
+                        target_url = %client.base_url(),
+                        model = model,
                         turn = %format!("{}/{}", iterations, MAX_AGENT_ITERATIONS),
                         tool_count = tool_calls.len(),
                         "LLM requested MCP tool execution"
@@ -142,8 +168,11 @@ impl McpAgentLoop {
 
                         info!(
                             subsystem = "agent_loop",
+                            prompt = prompt,
+                            target_url = %client.base_url(),
                             turn = %format!("{}/{}", iterations, MAX_AGENT_ITERATIONS),
                             tool_name = %tool_name,
+                            arguments = %tc.function.arguments,
                             "Executing local MCP tool on RPi 5"
                         );
 
@@ -164,7 +193,12 @@ impl McpAgentLoop {
         }
 
         if final_reply.trim().is_empty() && (!tools_called.is_empty() || iterations == MAX_AGENT_ITERATIONS) {
-            info!(subsystem = "agent_loop", "Executing final synthesis pass after tool execution");
+            info!(
+                subsystem = "agent_loop",
+                prompt = prompt,
+                target_url = %client.base_url(),
+                "Executing final synthesis pass after tool execution"
+            );
             if let Ok(Ok(direct_res)) = timeout(
                 Duration::from_secs(PER_CALL_TIMEOUT_SECS),
                 client.chat_with_tools(model, messages, None, -1),
@@ -174,17 +208,30 @@ impl McpAgentLoop {
         }
 
         if final_reply.trim().is_empty() {
-            final_reply = format!(
-                "Processed prompt across {} iterations. Executed tools: {:?}",
-                iterations, tools_called
-            );
+            if let Some(err) = last_error {
+                final_reply = format!(
+                    "[AI Router Error on target '{}'] LLM call failed for model '{}': {}. Check target node status.",
+                    client.base_url(),
+                    model,
+                    err
+                );
+            } else {
+                final_reply = format!(
+                    "Processed prompt across {} iterations. Executed tools: {:?}",
+                    iterations, tools_called
+                );
+            }
         }
 
         info!(
             subsystem = "agent_loop",
+            prompt = prompt,
+            target_url = %client.base_url(),
+            model = model,
             iterations = iterations,
             exit_reason = exit_reason,
             tools_called_count = tools_called.len(),
+            final_reply_length = final_reply.len(),
             "Agent loop finished execution"
         );
 
