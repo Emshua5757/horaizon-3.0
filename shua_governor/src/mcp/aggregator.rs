@@ -104,6 +104,6 @@ impl McpAggregator {
     #[allow(dead_code)] // Reserved for Phase 3 submodule integrations
     pub async fn get_all_submodule_tools(&self) -> Vec<McpToolSchema> {
         let guard = self.submodule_tools.read().await;
-        guard.values().cloned().flatten().collect()
+        guard.values().flatten().cloned().collect()
     }
 }

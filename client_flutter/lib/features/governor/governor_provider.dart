@@ -46,6 +46,7 @@ class ModuleStatus {
         'running' => ModuleState.running,
         'sleeping' => ModuleState.sleeping,
         'stopped' => ModuleState.stopped,
+        _ => ModuleState.unknown,
       };
 }
 
