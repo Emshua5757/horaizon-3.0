@@ -61,7 +61,7 @@ impl McpAggregator {
                 input_schema: serde_json::json!({
                     "type": "object",
                     "properties": {
-                        "model_name": { "type": "string", "example": "qwen2.5-coder:7b" },
+                        "model_name": { "type": "string" },
                         "target_device": { "type": "string", "enum": ["pi5_ram", "laptop_gpu"] }
                     },
                     "required": ["model_name"]
@@ -74,8 +74,8 @@ impl McpAggregator {
                 input_schema: serde_json::json!({
                     "type": "object",
                     "properties": {
-                        "subsystem": { "type": "string", "example": "process_manager" },
-                        "limit": { "type": "integer", "default": 20 }
+                        "subsystem": { "type": "string" },
+                        "limit": { "type": "integer" }
                     },
                     "required": []
                 }),
