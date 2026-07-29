@@ -85,8 +85,14 @@ class OllamaAiService {
           final iterations = payloadMap['iterations'] as int? ?? 1;
           final toolsCalled = (payloadMap['tools_called'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
 
-          final replyPreview = reply.length > 80 ? '${reply.substring(0, 80)}...' : reply;
-          _log('[HBP v2] shua_governor agent loop finished ($iterations turns, tools: $toolsCalled): $replyPreview');
+          // ── Telemetry: log decode result for debugging ──────────────
+          if (reply.isEmpty) {
+            _log('[HBP v2] WARNING: decoded reply is EMPTY — payloadMap keys=${payloadMap.keys.toList()}, payload bytes=${resFrame.payload.length}', LogLevel.warn);
+          } else {
+            final replyPreview = reply.length > 80 ? '${reply.substring(0, 80)}...' : reply;
+            _log('[HBP v2] shua_governor agent loop finished ($iterations turns, tools: $toolsCalled): $replyPreview');
+          }
+
           yield OllamaStreamChunk(content: reply, done: true, routedNode: effectiveNode);
           return;
         } catch (e) {
@@ -96,7 +102,7 @@ class OllamaAiService {
     }
 
     // 2. Offline Fallback: Direct Ollama HTTP completion when RPi 5 is offline
-    _log('Falling back to direct HTTP stream on ${effectiveNode.shortLabel} (model: $modelName)');
+    _log('HBP unavailable — falling back to direct HTTP stream on ${effectiveNode.shortLabel} (model: $modelName)', LogLevel.warn);
     final baseUrl = await resolveWorkingBaseUrl(effectiveNode) ?? effectiveNode.baseUrl;
     final httpBaseUrl = baseUrl.contains(':7700') ? baseUrl.replaceAll(':7700', ':11434') : baseUrl;
     final uri = Uri.parse('$httpBaseUrl/api/chat');
@@ -188,33 +194,173 @@ class OllamaAiService {
   static Map<String, dynamic> _decodeHbpPayload(List<int> bytes) {
     if (bytes.isEmpty) return {};
 
+    // 1. Try plain UTF-8 JSON first (defensive fallback)
     try {
       final str = utf8.decode(bytes);
       return jsonDecode(str) as Map<String, dynamic>;
     } catch (_) {}
 
+    // 2. MessagePack — recursive typed decode matching rmp_serde named-field output
     try {
-      final u = Unpacker(Uint8List.fromList(bytes));
-      final len = u.unpackMapLength();
-      final map = <String, dynamic>{};
-      for (var i = 0; i < len; i++) {
-        final key = u.unpackString();
-        if (key == null) continue;
-        try {
-          map[key] = u.unpackString();
-        } catch (_) {
-          try {
-            map[key] = u.unpackInt();
-          } catch (_) {
-            try {
-              map[key] = u.unpackMap();
-            } catch (_) {}
-          }
-        }
-      }
-      return map;
+      final raw = Uint8List.fromList(bytes);
+      final cursor = _Cursor(0);
+      final result = _unpackValue(raw, cursor);
+      if (result is Map<String, dynamic>) return result;
     } catch (_) {}
 
     return {};
   }
+
+  /// Recursive MessagePack value decoder that reads the type discriminator byte
+  /// directly from [raw] at [cursor.pos] before dispatching to Unpacker.
+  static dynamic _unpackValue(Uint8List raw, _Cursor cursor) {
+    if (cursor.pos >= raw.length) return null;
+    final tag = raw[cursor.pos];
+
+    // nil (0xc0 is always exactly 1 byte)
+    if (tag == 0xc0) {
+      cursor.pos += 1;
+      return null;
+    }
+
+    // bool false / true
+    if (tag == 0xc2 || tag == 0xc3) {
+      final u = Unpacker(raw.sublist(cursor.pos));
+      final val = u.unpackBool();
+      cursor.pos += 1;
+      return val;
+    }
+
+    // fixstr (0xa0–0xbf)
+    if (tag >= 0xa0 && tag <= 0xbf) {
+      final strLen = tag & 0x1f;
+      final u = Unpacker(raw.sublist(cursor.pos));
+      final val = u.unpackString();
+      cursor.pos += 1 + strLen;
+      return val;
+    }
+
+    // str8 (0xd9) / str16 (0xda) / str32 (0xdb)
+    if (tag == 0xd9) {
+      final strLen = raw[cursor.pos + 1];
+      final u = Unpacker(raw.sublist(cursor.pos));
+      final val = u.unpackString();
+      cursor.pos += 2 + strLen;
+      return val;
+    }
+    if (tag == 0xda) {
+      final strLen = (raw[cursor.pos + 1] << 8) | raw[cursor.pos + 2];
+      final u = Unpacker(raw.sublist(cursor.pos));
+      final val = u.unpackString();
+      cursor.pos += 3 + strLen;
+      return val;
+    }
+    if (tag == 0xdb) {
+      final strLen = (raw[cursor.pos + 1] << 24) | (raw[cursor.pos + 2] << 16) |
+                     (raw[cursor.pos + 3] << 8)  |  raw[cursor.pos + 4];
+      final u = Unpacker(raw.sublist(cursor.pos));
+      final val = u.unpackString();
+      cursor.pos += 5 + strLen;
+      return val;
+    }
+
+    // bin8 (0xc4) / bin16 (0xc5) / bin32 (0xc6)
+    if (tag == 0xc4) {
+      final binLen = raw[cursor.pos + 1];
+      final u = Unpacker(raw.sublist(cursor.pos));
+      final val = u.unpackBinary();
+      cursor.pos += 2 + binLen;
+      return val;
+    }
+    if (tag == 0xc5) {
+      final binLen = (raw[cursor.pos + 1] << 8) | raw[cursor.pos + 2];
+      final u = Unpacker(raw.sublist(cursor.pos));
+      final val = u.unpackBinary();
+      cursor.pos += 3 + binLen;
+      return val;
+    }
+
+    // fixarray (0x90–0x9f) — rmp_serde uses this for structs in array mode
+    if (tag >= 0x90 && tag <= 0x9f) {
+      final count = tag & 0x0f;
+      cursor.pos += 1;
+      // Try to decode as a top-level map (rmp_serde struct-as-array)
+      // For the ai.route reply this is always a map, not an array
+      return List.generate(count, (_) => _unpackValue(raw, cursor));
+    }
+
+    // fixmap (0x80–0x8f)
+    if (tag >= 0x80 && tag <= 0x8f) {
+      final count = tag & 0x0f;
+      cursor.pos += 1;
+      final map = <String, dynamic>{};
+      for (var i = 0; i < count; i++) {
+        final key = _unpackValue(raw, cursor)?.toString() ?? '';
+        map[key] = _unpackValue(raw, cursor);
+      }
+      return map;
+    }
+
+    // map16 (0xde)
+    if (tag == 0xde) {
+      final count = (raw[cursor.pos + 1] << 8) | raw[cursor.pos + 2];
+      cursor.pos += 3;
+      final map = <String, dynamic>{};
+      for (var i = 0; i < count; i++) {
+        final key = _unpackValue(raw, cursor)?.toString() ?? '';
+        map[key] = _unpackValue(raw, cursor);
+      }
+      return map;
+    }
+
+    // array16 (0xdc)
+    if (tag == 0xdc) {
+      final count = (raw[cursor.pos + 1] << 8) | raw[cursor.pos + 2];
+      cursor.pos += 3;
+      return List.generate(count, (_) => _unpackValue(raw, cursor));
+    }
+
+    // positive fixint (0x00–0x7f)
+    if (tag <= 0x7f) {
+      cursor.pos += 1;
+      return tag;
+    }
+
+    // negative fixint (0xe0–0xff)
+    if (tag >= 0xe0) {
+      cursor.pos += 1;
+      return tag - 256;
+    }
+
+    // uint8 (0xcc)
+    if (tag == 0xcc) { cursor.pos += 2; return raw[cursor.pos - 1]; }
+    // uint16 (0xcd)
+    if (tag == 0xcd) { cursor.pos += 3; return (raw[cursor.pos - 2] << 8) | raw[cursor.pos - 1]; }
+    // uint32 (0xce)
+    if (tag == 0xce) { cursor.pos += 5; return (raw[cursor.pos - 4] << 24) | (raw[cursor.pos - 3] << 16) | (raw[cursor.pos - 2] << 8) | raw[cursor.pos - 1]; }
+    // int8 (0xd0)
+    if (tag == 0xd0) { final v = raw[cursor.pos + 1]; cursor.pos += 2; return v >= 128 ? v - 256 : v; }
+    // int16 (0xd1)
+    if (tag == 0xd1) { final v = (raw[cursor.pos + 1] << 8) | raw[cursor.pos + 2]; cursor.pos += 3; return v >= 32768 ? v - 65536 : v; }
+    // int32 (0xd2)
+    if (tag == 0xd2) {
+      final v = (raw[cursor.pos + 1] << 24) | (raw[cursor.pos + 2] << 16) | (raw[cursor.pos + 3] << 8) | raw[cursor.pos + 4];
+      cursor.pos += 5;
+      return v;
+    }
+
+    // float32 (0xca) / float64 (0xcb) — treat as int for our use case
+    if (tag == 0xca) { cursor.pos += 5; return null; }
+    if (tag == 0xcb) { cursor.pos += 9; return null; }
+
+    // Unknown: skip one byte
+    cursor.pos += 1;
+    return null;
+  }
+}
+
+/// Simple mutable position cursor for [_unpackValue]
+class _Cursor {
+  int pos;
+  _Cursor(this.pos);
 }

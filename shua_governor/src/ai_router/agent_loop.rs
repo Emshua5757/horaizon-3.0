@@ -16,6 +16,49 @@ pub const PER_CALL_TIMEOUT_SECS: u64 = 45;
 /// Suffix appended to prompts that exceed max_prompt_chars.
 const TRUNCATION_SUFFIX: &str = " [...truncated to fit context budget]";
 
+/// Strips inline tool-call artifacts emitted by models like qwen2.5 that sometimes
+/// write raw `<tool_call>...</tool_call>` XML or ` ```json {"name":...} ``` ` blocks
+/// directly into `content` instead of using the structured `tool_calls` field.
+/// Also removes `tool_response:` sections that appear when the model narrates its
+/// own tool execution inside free text.
+///
+/// Regexes are compiled once via `once_cell::sync::Lazy` — O(1) amortized, Pi5-safe.
+fn strip_tool_call_artifacts(text: &str) -> String {
+    use once_cell::sync::Lazy;
+    use regex::Regex;
+
+    // <tool_call>...</tool_call> XML blocks (DOTALL)
+    static RE_XML: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r"(?s)<tool_call>.*?</tool_call>").expect("valid regex")
+    });
+    // ```json {...} ``` fenced blocks containing a "name" key (tool call JSON)
+    static RE_JSON_FENCE: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r#"(?s)```(?:json)?\s*\{[^`]*"name"[^`]*\}\s*```"#).expect("valid regex")
+    });
+    // tool_response: ... inline narration sections
+    static RE_TOOL_RESP: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r"(?s)tool_response:\s*\n.*?(?=\n\n|$)").expect("valid regex")
+    });
+    // Collapse 3+ consecutive blank lines into 2
+    static RE_BLANK: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r"\n{3,}").expect("valid regex")
+    });
+
+    let cleaned = RE_XML.replace_all(text, "");
+    let cleaned = RE_JSON_FENCE.replace_all(&cleaned, "");
+    let cleaned = RE_TOOL_RESP.replace_all(&cleaned, "");
+    RE_BLANK.replace_all(cleaned.trim(), "\n\n").trim().to_string()
+}
+
+/// Returns true when the model embedded a tool call inline in `content` text
+/// rather than using the structured `tool_calls` field (qwen2.5 quirk).
+fn inline_tool_calls_detected(content: &str) -> bool {
+    content.contains("<tool_call>") ||
+    (content.contains("```json") && content.contains("\"name\"")) ||
+    content.contains("{\"name\":") // raw JSON tool call fragment
+}
+
+
 static LOCAL_INFERENCE_SEMAPHORE: Semaphore = Semaphore::const_new(1);
 
 pub struct AgentLoopResponse {
@@ -288,8 +331,37 @@ impl McpAgentLoop {
                 continue;
             }
 
+            // Detect inline tool-call artifacts: some models (e.g. qwen2.5) emit
+            // <tool_call>...</tool_call> XML directly in `content` instead of using
+            // the structured `tool_calls` field. Treat these the same as structured
+            // tool calls — nudge the model to produce a clean answer.
+            let raw_text = res.effective_text();
+            if inline_tool_calls_detected(&raw_text) && !nudged_for_tool_use {
+                nudged_for_tool_use = true;
+                warn!(
+                    subsystem = "agent_loop",
+                    prompt = %effective_prompt,
+                    target_url = %client.base_url(),
+                    model = model,
+                    turn = iterations,
+                    "Detected inline <tool_call> artifacts in content — nudging for clean final answer"
+                );
+                messages.push(ChatMessage {
+                    role: "assistant".into(),
+                    content: raw_text.clone(),
+                    tool_calls: None,
+                });
+                messages.push(ChatMessage::user(
+                    "Your previous response contained raw tool call markup. \
+                    The tool has already been executed. Please provide a clean, \
+                    human-readable summary of the results without any <tool_call> tags or JSON blocks."
+                        .to_string(),
+                ));
+                continue;
+            }
+
             // No tool calls requested: LLM completed reasoning and outputted final response
-            final_reply = res.effective_text();
+            final_reply = strip_tool_call_artifacts(&raw_text);
             exit_reason = "clean_completion";
             break;
         }
@@ -305,7 +377,7 @@ impl McpAgentLoop {
                 Duration::from_secs(PER_CALL_TIMEOUT_SECS),
                 client.chat_with_tools(model, messages, None, -1),
             ).await {
-                final_reply = direct_res.effective_text();
+                final_reply = strip_tool_call_artifacts(&direct_res.effective_text());
             }
         }
 

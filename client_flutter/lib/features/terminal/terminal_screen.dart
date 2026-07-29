@@ -60,6 +60,15 @@ class TelemetryLogsNotifier extends StateNotifier<List<TelemetryLogItem>> {
             level: 'INFO',
             message: 'Registered sub-modules: shua_diary, shua_code_viz, shua_resume',
           ),
+          // Replay any log entries emitted before this notifier was constructed
+          // (e.g. "Offload target switched" during Riverpod provider init).
+          ...logger.bufferedEntries.map((e) => TelemetryLogItem(
+            timestamp: e.timestamp,
+            subsystem: e.subsystem.toUpperCase(),
+            level: e.level.name.toUpperCase(),
+            message: e.message,
+            metadata: e.metadata,
+          )),
         ]) {
     _logSub = logger.logStream.listen((entry) {
       if (!mounted) return;
@@ -74,6 +83,7 @@ class TelemetryLogsNotifier extends StateNotifier<List<TelemetryLogItem>> {
         ),
       ];
     });
+
 
     if (hbpClient != null) {
       _hbpSub = hbpClient.events.listen((frame) {

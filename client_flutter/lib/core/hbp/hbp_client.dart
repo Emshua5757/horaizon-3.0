@@ -102,6 +102,15 @@ class HbpClient {
     return resp;
   }
 
+  /// Fire-and-forget: send a frame without registering a pending completer.
+  /// Use for telemetry/log.emit frames that must never block or steal responses.
+  void sink(HbpFrame frame) {
+    if (_state != HbpConnectionState.connected || _channel == null) return;
+    try {
+      _channel!.sink.add(Uint8List.fromList(frame.encode()));
+    } catch (_) {}
+  }
+
   // ---- internal handlers ----
 
   void _onMessage(dynamic message) {
