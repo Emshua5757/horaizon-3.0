@@ -201,9 +201,11 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
     );
 
     var currentContent = '';
+    var chunkCount = 0;
     _streamSub = stream.listen(
       (chunk) {
         currentContent += chunk.content;
+        chunkCount++;
         final targetNode = chunk.routedNode ?? state.offloadTarget;
 
         if (chunk.routedNode != null &&
@@ -236,11 +238,26 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
         );
 
         if (chunk.done) {
+          // ── Telemetry: log full reply preview + stats ──────────────
+          final replyPreview = currentContent.length > 120
+              ? '${currentContent.substring(0, 120)}…'
+              : currentContent;
+          final tokStr = chunk.evalTokensPerSec?.toStringAsFixed(1) ?? 'N/A';
+          final durationStr = chunk.totalDurationMs != null
+              ? '${chunk.totalDurationMs}ms'
+              : 'N/A';
           _logger?.log(
             subsystem: 'AI_CHAT',
             level: LogLevel.info,
-            message:
-                'AI response completed (${chunk.evalTokensPerSec?.toStringAsFixed(1) ?? 'N/A'} tok/s)',
+            message: 'JOSH reply ($tokStr tok/s, $durationStr, $chunkCount chunks): $replyPreview',
+            metadata: {
+              'model': state.selectedModel,
+              'target': targetNode.shortLabel,
+              'chunks': chunkCount,
+              'reply_chars': currentContent.length,
+              'eval_toks_per_s': tokStr,
+              'duration_ms': chunk.totalDurationMs ?? 0,
+            },
           );
         }
       },
@@ -248,7 +265,13 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
         _logger?.log(
           subsystem: 'AI_CHAT',
           level: LogLevel.error,
-          message: 'AI chat completion failed: $e',
+          message: 'AI stream error after $chunkCount chunks — $e',
+          metadata: {
+            'model': state.selectedModel,
+            'target': state.offloadTarget.shortLabel,
+            'partial_chars': currentContent.length,
+            'chunks_received': chunkCount,
+          },
         );
 
         final newMessages = state.messages.map((m) {
@@ -267,6 +290,15 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
         );
       },
       onDone: () {
+        // Guard: if stream ended but no done chunk was received (0-reply edge case)
+        if (currentContent.isEmpty && chunkCount == 0) {
+          _logger?.log(
+            subsystem: 'AI_CHAT',
+            level: LogLevel.warn,
+            message: 'Stream closed with 0 chunks — reply may be empty. Check HBP payload decode or governor ai.route handler.',
+            metadata: {'model': state.selectedModel, 'target': state.offloadTarget.shortLabel},
+          );
+        }
         state = state.copyWith(isGenerating: false);
       },
     );
