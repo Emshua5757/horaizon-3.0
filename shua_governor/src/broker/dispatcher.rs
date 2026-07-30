@@ -585,7 +585,7 @@ impl Dispatcher {
                                 subsystem = "dispatcher",
                                 soc_temp = soc_temp,
                                 requested_model = req.model.as_deref().unwrap_or("(default)"),
-                                "Thermal override: SoC temp > 68°C — downgrading model to qwen2.5:1.5b"
+                                "Thermal override: SoC temp > 68°C — downgrading model to qwen3.5:2b"
                             );
                             true
                         } else {
@@ -596,7 +596,7 @@ impl Dispatcher {
                     };
 
                     let effective_model_req = if thermal_override {
-                        Some("qwen2.5:1.5b")
+                        Some("qwen3.5:2b")
                     } else {
                         req.model.as_deref()
                     };
