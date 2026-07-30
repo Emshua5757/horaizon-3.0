@@ -482,11 +482,20 @@ class _ChatMessageBubble extends StatelessWidget {
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         icon: Icon(Icons.copy_rounded, size: 14, color: cs.onSurfaceVariant),
-                        tooltip: 'Copy Message',
+                        tooltip: 'Copy Message (Live streaming content so far)',
                         onPressed: () {
-                          Clipboard.setData(ClipboardData(text: message.content));
+                          final textToCopy = message.content.isNotEmpty
+                              ? message.content
+                              : message.steps
+                                  .map((s) => '[Turn ${s.turn} · ${s.stepTypeLabel}]\n${s.modelContent}')
+                                  .join('\n\n');
+                          Clipboard.setData(ClipboardData(text: textToCopy));
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Message text copied to clipboard.')),
+                            SnackBar(
+                              content: Text(message.isStreaming
+                                  ? 'Copied live streaming content so far (${textToCopy.length} chars)!'
+                                  : 'Message text copied to clipboard.'),
+                            ),
                           );
                         },
                       ),
@@ -495,21 +504,31 @@ class _ChatMessageBubble extends StatelessWidget {
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                         icon: Icon(Icons.copy_all_rounded, size: 14, color: cs.primary),
-                        tooltip: 'Copy All (Model, Speed & Response)',
+                        tooltip: 'Copy All (Model, Speed & Response so far)',
                         onPressed: () {
                           final tokInfo = message.evalTokensPerSec != null
                               ? '${message.evalTokensPerSec!.toStringAsFixed(1)} tok/s'
                               : 'N/A';
+                          final textToCopy = message.content.isNotEmpty
+                              ? message.content
+                              : message.steps
+                                  .map((s) => '[Turn ${s.turn} · ${s.stepTypeLabel}]\n${s.modelContent}')
+                                  .join('\n\n');
                           final exportText = '[JOSH AI Message Export]\n'
                               '• Model: ${message.modelName}\n'
                               '• Target: ${message.offloadTarget.shortLabel}\n'
                               '• Performance: $tokInfo\n'
+                              '• Status: ${message.isStreaming ? "Streaming live..." : "Complete"}\n'
                               '• Timestamp: ${message.timestamp}\n'
                               '----------------------------------------\n\n'
-                              '${message.content}';
+                              '$textToCopy';
                           Clipboard.setData(ClipboardData(text: exportText));
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Copied full AI message, model & performance metadata!')),
+                            SnackBar(
+                              content: Text(message.isStreaming
+                                  ? 'Copied live stream metadata & content so far!'
+                                  : 'Copied full AI message, model & performance metadata!'),
+                            ),
                           );
                         },
                       ),
