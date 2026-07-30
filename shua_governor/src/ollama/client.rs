@@ -16,6 +16,8 @@ struct ChatPayload {
     tools: Option<Vec<serde_json::Value>>,
     stream: bool,
     keep_alive: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    options: Option<serde_json::Value>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -139,6 +141,7 @@ impl OllamaClient {
             tools: None,
             stream: false,
             keep_alive: serde_json::json!(-1),
+            options: None,
         };
 
         self.http
@@ -169,6 +172,7 @@ impl OllamaClient {
             tools: None,
             stream: false,
             keep_alive: serde_json::json!(0),
+            options: None,
         };
 
         self.http
@@ -208,6 +212,7 @@ impl OllamaClient {
             tools,
             stream: false,
             keep_alive: serde_json::json!(keep_alive),
+            options: Some(serde_json::json!({"num_ctx": 8192})),
         };
 
         let resp: ChatResponse = self
@@ -241,6 +246,7 @@ impl OllamaClient {
             tools,
             stream: true,
             keep_alive: serde_json::json!(keep_alive),
+            options: Some(serde_json::json!({"num_ctx": 8192})),
         };
 
         let mut res = self
