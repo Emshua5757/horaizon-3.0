@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use anyhow::Result;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use tokio::sync::Semaphore;
 use tokio::time::{timeout, Duration};
 
@@ -36,8 +36,10 @@ fn strip_tool_call_artifacts(text: &str) -> String {
         Regex::new(r#"(?s)```(?:json)?\s*\{[^`]*"name"[^`]*\}\s*```"#).expect("valid regex")
     });
     // tool_response: ... inline narration sections
+    // Note: Rust `regex` crate does not support look-ahead (?=...), so we
+    // match through the double-newline delimiter (or end of string) instead.
     static RE_TOOL_RESP: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(r"(?s)tool_response:\s*\n.*?(?=\n\n|$)").expect("valid regex")
+        Regex::new(r"(?s)tool_response:\s*\n.*?(?:\n\n|$)").expect("valid regex")
     });
     // Collapse 3+ consecutive blank lines into 2
     static RE_BLANK: Lazy<Regex> = Lazy::new(|| {
@@ -222,7 +224,7 @@ impl McpAgentLoop {
                 Ok(Ok(r)) => r,
                 Ok(Err(e)) => {
                     let err_msg = format!("{}", e);
-                    warn!(
+                    error!(
                         subsystem = "agent_loop",
                         prompt = %effective_prompt,
                         target_url = %client.base_url(),
@@ -237,7 +239,7 @@ impl McpAgentLoop {
                 }
                 Err(_) => {
                     let err_msg = format!("Timeout after {}s", PER_CALL_TIMEOUT_SECS);
-                    warn!(
+                    error!(
                         subsystem = "agent_loop",
                         prompt = %effective_prompt,
                         target_url = %client.base_url(),
