@@ -113,7 +113,7 @@ class OllamaAiService {
             }
           });
 
-          _hbpClient.send(reqFrame, timeout: const Duration(seconds: 180)).then((resFrame) {
+          _hbpClient.send(reqFrame, timeout: const Duration(minutes: 15)).then((resFrame) {
             final payloadMap = _decodeHbpPayload(resFrame.payload);
             final reply = payloadMap['reply'] as String? ?? '';
             final iterations = payloadMap['iterations'] as int? ?? 1;
