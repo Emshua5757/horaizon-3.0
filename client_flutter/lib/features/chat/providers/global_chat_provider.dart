@@ -18,11 +18,13 @@ class GlobalChatState {
 
   const GlobalChatState({
     required this.messages,
-    this.selectedModel = 'qwen2.5-coder:1.5b',
+    this.selectedModel = 'qwen3.5:4b',
     this.offloadTarget = AiOffloadTarget.auto,
     this.temperature = 0.3,
     this.isGenerating = false,
     this.availableModels = const [
+      'qwen3.5:4b',
+      'qwen3.5:2b',
       'qwen2.5-coder:7b',
       'qwen2.5:3b',
       'qwen2.5:1.5b',
@@ -88,7 +90,7 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
               content:
                   'Hello Joshua! I am JOSH, your horAIzon 3.0 Central AI Assistant. How can I assist your workflow today?',
               timestamp: DateTime.now(),
-              modelName: 'qwen2.5-coder:1.5b',
+              modelName: 'qwen3.5:4b',
               offloadTarget: AiOffloadTarget.auto,
             ),
           ],

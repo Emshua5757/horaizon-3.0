@@ -198,7 +198,7 @@ class OllamaAiService {
         if (names.isNotEmpty) return names;
       }
     } catch (_) {}
-    return ['qwen2.5-coder:7b', 'qwen2.5:3b', 'qwen2.5:1.5b', 'llama3.1:8b'];
+    return ['qwen3.5:4b', 'qwen3.5:2b', 'qwen2.5-coder:7b', 'qwen2.5:3b', 'qwen2.5:1.5b', 'llama3.1:8b'];
   }
 
   static Map<String, dynamic> _decodeHbpPayload(List<int> bytes) {

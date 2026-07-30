@@ -150,7 +150,7 @@ class ChatMessage {
     required this.role,
     required this.content,
     required this.timestamp,
-    this.modelName = 'qwen2.5-coder:7b',
+    this.modelName = 'qwen3.5:4b',
     this.offloadTarget = AiOffloadTarget.rpi5,
     this.isStreaming = false,
     this.evalTokensPerSec,

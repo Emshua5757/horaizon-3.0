@@ -29,6 +29,7 @@ class _AiAggregatorHeroState extends ConsumerState<AiAggregatorHero> {
   }
 
   static const _availableModels = [
+    _ModelOption(name: 'qwen3.5:4b', desc: 'Qwen 3.5 Multimodal & Agentic Reasoning', ramMb: 3400),
     _ModelOption(name: 'qwen2.5-coder:7b', desc: 'Code & Technical Architecture Specialist', ramMb: 4420),
     _ModelOption(name: 'qwen2.5:3b', desc: 'Balanced Local Reasoning & Chat', ramMb: 2450),
     _ModelOption(name: 'qwen2.5:1.5b', desc: 'Fast Edge Dialogue & Routing', ramMb: 1840),

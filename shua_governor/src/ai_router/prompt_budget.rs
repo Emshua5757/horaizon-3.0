@@ -35,7 +35,7 @@ impl PromptBudget {
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string());
 
-        let default_model = "qwen2.5:1.5b";
+        let default_model = "qwen3.5:4b";
 
         let selected_model = requested_model
             .filter(|s| !s.is_empty())
