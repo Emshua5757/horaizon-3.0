@@ -515,7 +515,11 @@ class _ChatMessageBubble extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  if (!isUser && message.steps.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: AgentLoopCard(steps: message.steps),
+                    ),
                   if (message.content.isEmpty && message.isStreaming)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -544,12 +548,8 @@ class _ChatMessageBubble extends StatelessWidget {
                         ],
                       ),
                     )
-                  else ...[
-                    // Show collapsible agent loop card when there are multiple turns
-                    if (!isUser && message.steps.length > 1)
-                      AgentLoopCard(steps: message.steps),
+                  else if (message.content.isNotEmpty)
                     FormattedMarkdownContent(content: message.content),
-                  ],
                 ],
               ),
             ),

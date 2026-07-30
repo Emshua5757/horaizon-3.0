@@ -222,13 +222,23 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
 
         final newMessages = state.messages.map((m) {
           if (m.id == assistantMsgId) {
+            final updatedSteps = List<AgentLoopStep>.from(m.steps);
+            for (final newStep in chunk.steps) {
+              final idx = updatedSteps.indexWhere((s) => s.turn == newStep.turn);
+              if (idx >= 0) {
+                updatedSteps[idx] = newStep;
+              } else {
+                updatedSteps.add(newStep);
+              }
+            }
+
             return m.copyWith(
               content: currentContent,
               offloadTarget: targetNode,
               isStreaming: !chunk.done,
               evalTokensPerSec: chunk.evalTokensPerSec ?? m.evalTokensPerSec,
               totalDurationMs: chunk.totalDurationMs ?? m.totalDurationMs,
-              steps: chunk.steps.isNotEmpty ? chunk.steps : m.steps,
+              steps: updatedSteps,
             );
           }
           return m;
