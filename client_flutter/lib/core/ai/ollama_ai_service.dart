@@ -82,28 +82,54 @@ class OllamaAiService {
         final reqFrame = HbpFrame.request('shua.governor', 'ai.route', p.takeBytes());
 
         try {
-          final resFrame = await _hbpClient.send(reqFrame, timeout: const Duration(seconds: 180));
-          final payloadMap = _decodeHbpPayload(resFrame.payload);
-          final reply = payloadMap['reply'] as String? ?? '';
-          final iterations = payloadMap['iterations'] as int? ?? 1;
-          final toolsCalled = (payloadMap['tools_called'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
+          final chunkController = StreamController<OllamaStreamChunk>();
+          final stepEventSub = _hbpClient.events.listen((eventFrame) {
+            if (eventFrame.txId == reqFrame.txId &&
+                (eventFrame.op == 'ai.route.step' || eventFrame.op == 'stream.step')) {
+              try {
+                final stepMap = _decodeHbpPayload(eventFrame.payload);
+                final step = AgentLoopStep.fromMap(stepMap);
+                _log('[HBP v2] Live Agent Loop Step event received (Turn ${step.turn}, type: ${step.stepType})');
+                chunkController.add(OllamaStreamChunk(
+                  content: '',
+                  done: false,
+                  routedNode: effectiveNode,
+                  steps: [step],
+                ));
+              } catch (_) {}
+            }
+          });
 
-          // ── Parse agent loop steps for N-turn UI ──────────────
-          final stepsRaw = payloadMap['steps'] as List<dynamic>? ?? [];
-          final steps = stepsRaw
-              .whereType<Map<String, dynamic>>()
-              .map((s) => AgentLoopStep.fromMap(s))
-              .toList();
+          _hbpClient.send(reqFrame, timeout: const Duration(seconds: 180)).then((resFrame) {
+            final payloadMap = _decodeHbpPayload(resFrame.payload);
+            final reply = payloadMap['reply'] as String? ?? '';
+            final iterations = payloadMap['iterations'] as int? ?? 1;
+            final toolsCalled = (payloadMap['tools_called'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
 
-          // ── Telemetry: log decode result for debugging ──────────────
-          if (reply.isEmpty) {
-            _log('[HBP v2] WARNING: decoded reply is EMPTY — payloadMap keys=${payloadMap.keys.toList()}, payload bytes=${resFrame.payload.length}', LogLevel.warn);
-          } else {
-            final replyPreview = reply.length > 80 ? '${reply.substring(0, 80)}...' : reply;
-            _log('[HBP v2] shua_governor agent loop finished ($iterations turns, tools: $toolsCalled, steps: ${steps.length}): $replyPreview');
+            final stepsRaw = payloadMap['steps'] as List<dynamic>? ?? [];
+            final steps = stepsRaw
+                .whereType<Map<String, dynamic>>()
+                .map((s) => AgentLoopStep.fromMap(s))
+                .toList();
+
+            if (reply.isEmpty) {
+              _log('[HBP v2] WARNING: decoded reply is EMPTY — payloadMap keys=${payloadMap.keys.toList()}', LogLevel.warn);
+            } else {
+              final replyPreview = reply.length > 80 ? '${reply.substring(0, 80)}...' : reply;
+              _log('[HBP v2] shua_governor agent loop finished ($iterations turns, tools: $toolsCalled, steps: ${steps.length}): $replyPreview');
+            }
+
+            chunkController.add(OllamaStreamChunk(content: reply, done: true, routedNode: effectiveNode, steps: steps));
+            chunkController.close();
+          }).catchError((e) {
+            chunkController.addError(e);
+            chunkController.close();
+          });
+
+          await for (final chunk in chunkController.stream) {
+            yield chunk;
           }
-
-          yield OllamaStreamChunk(content: reply, done: true, routedNode: effectiveNode, steps: steps);
+          await stepEventSub.cancel();
           return;
         } catch (e) {
           _log('[HBP v2] governor.ai.route RPC failed ($e)', LogLevel.warn);

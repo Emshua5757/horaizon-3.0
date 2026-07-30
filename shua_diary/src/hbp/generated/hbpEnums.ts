@@ -46,3 +46,16 @@ export const IntentClass = {
 } as const;
 
 export type IntentClass = 1 | 2 | 3 | 4;
+
+/** Universal Media Type Classifier for HBP Stream Packets */
+export const StreamMediaType = {
+  LlmToken: 1,
+  AudioPcm: 2,
+  AudioOpus: 3,
+  VideoNal: 4,
+  VideoWebp: 5,
+  StepMilestone: 6,
+  TelemetryMetric: 7,
+} as const;
+
+export type StreamMediaType = 1 | 2 | 3 | 4 | 5 | 6 | 7;

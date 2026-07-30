@@ -50,3 +50,16 @@ pub enum IntentClass {
     CodeAst = 3,
     CopilotCommand = 4,
 }
+
+/// Universal Media Type Classifier for HBP Stream Packets
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StreamMediaType {
+    LlmToken = 1,
+    AudioPcm = 2,
+    AudioOpus = 3,
+    VideoNal = 4,
+    VideoWebp = 5,
+    StepMilestone = 6,
+    TelemetryMetric = 7,
+}

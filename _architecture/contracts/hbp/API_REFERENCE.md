@@ -51,6 +51,19 @@ AI router intent classification result
 | `CodeAst` | `3` |
 | `CopilotCommand` | `4` |
 
+### `StreamMediaType`
+Universal Media Type Classifier for HBP Stream Packets
+
+| Variant | Integer Code |
+| :--- | :--- |
+| `LlmToken` | `1` |
+| `AudioPcm` | `2` |
+| `AudioOpus` | `3` |
+| `VideoNal` | `4` |
+| `VideoWebp` | `5` |
+| `StepMilestone` | `6` |
+| `TelemetryMetric` | `7` |
+
 ## 2. DTO Structs
 
 ### `TopologyExportResponse`
@@ -111,6 +124,15 @@ Server-pushed sentiment analysis event
 | `1` | `entry_id` | `str` |  |  |
 | `2` | `score` | `f32` |  |  |
 | `3` | `label` | `str` |  |  |
+
+### `EntryUpdatedEvent`
+Server-pushed real-time entry update event for multi-device optimistic concurrency
+
+| Index | Field Name | Type | Description | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| `1` | `entry_id` | `str` |  |  |
+| `2` | `block_id` | `str` |  |  |
+| `3` | `version` | `u32` |  |  |
 
 ### `ModuleEntry`
 Module process description and live telemetry returned in governor.status
@@ -184,6 +206,26 @@ No description provided.
 | `2` | `intent` | `IntentClass` |  |  |
 | `3` | `reply` | `str` |  |  |
 | `4` | `duration_ms` | `u32` |  |  |
+| `5` | `steps` | `AgentLoopStepDto[]` | List of agent loop turn step records |  |
+
+### `ToolCallStepDto`
+Record of a single tool call executed within an agent loop step
+
+| Index | Field Name | Type | Description | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| `1` | `tool_name` | `str` | Name of the executed MCP tool |  |
+| `2` | `result_summary` | `str` | Truncated string summary of the tool execution output |  |
+| `3` | `success` | `bool` | True if tool executed successfully |  |
+
+### `AgentLoopStepDto`
+Record of a single turn iteration in the N-turn agent loop
+
+| Index | Field Name | Type | Description | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| `1` | `turn` | `u32` | Turn iteration index (1..5) |  |
+| `2` | `step_type` | `str` | Step category (tool_execution, inline_tool_execution, nudge, final_answer) |  |
+| `3` | `model_content` | `str` | Raw LLM output text for this turn |  |
+| `4` | `tool_calls` | `ToolCallStepDto[]` | List of tool calls executed during this turn |  |
 
 ### `GovernorConfigDto`
 System configuration settings payload returned/updated via governor.config.*
@@ -198,6 +240,16 @@ System configuration settings payload returned/updated via governor.config.*
 | `6` | `dream_loop_enabled` | `bool` | Nightly 02:00 AM maintenance dream loop toggle |  |
 | `7` | `dream_loop_cron` | `str` | Dream loop cron schedule expression |  |
 | `8` | `log_retention_days` | `u32` | SQLite log database retention period in days |  |
+
+### `StreamFrameDto`
+Universal HBP Stream Frame container for arbitrary data/media streams
+
+| Index | Field Name | Type | Description | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| `1` | `media_type` | `StreamMediaType` | Media stream classification (LlmToken, AudioPcm, VideoNal, etc.) |  |
+| `2` | `sequence_num` | `u64` | Monotonic chunk sequence index (0, 1, 2...) |  |
+| `3` | `chunk_data` | `str` | UTF-8 text delta string or Base64/MsgPack binary data chunk |  |
+| `4` | `is_last` | `bool` | True if this chunk terminates the active stream |  |
 
 ### `LogFilter`
 Client WebSocket subscription filter for live log events
@@ -289,6 +341,8 @@ Response payload for resume.compile
 | `shua.governor.ollama.load` | `RPC` | ✅ | `OllamaLoadRequest` | `OllamaLoadResponse` | Load a named Ollama model, evicting any previously loaded model |
 | `shua.governor.ollama.evict` | `RPC` | ✅ | *(none)* | *(none)* | Evict the currently loaded Ollama model (keep_alive: 0) |
 | `shua.governor.ai.route` | `RPC` | ✅ | `AiRouteRequest` | `AiRouteResponse` | Route a prompt through the intent classifier and get an AI reply |
+| `shua.governor.stream.chunk` | `STREAM` | ✅ | *(none)* | `StreamFrameDto` | Universal server-pushed stream packet for LLM tokens, Audio, Video, and Telemetry |
+| `shua.governor.stream.step` | `STREAM` | ✅ | *(none)* | `AgentLoopStepDto` | Server-pushed milestone event for agent turn changes and tool execution results |
 | `shua.governor.logs.subscribe` | `RPC` | ✅ | `LogFilter` | *(none)* | Subscribe or update WebSocket live log stream filter |
 | `shua.governor.log.emit` | `RPC` | ✅ | `LogEntryDto` | *(none)* | Ingest client diagnostic log event into Governor |
 | `shua.governor.logs.query` | `RPC` | ✅ | `LogQueryRequestDto` | `LogQueryResponseDto` | Query historical logs from SQLite LTM database |
@@ -301,10 +355,15 @@ Response payload for resume.compile
 | `shua.diary.entry.list` | `RPC` | ✅ | *(none)* | *(none)* | Paginated diary entry list |
 | `shua.diary.entry.get` | `RPC` | ✅ | *(none)* | *(none)* | Single entry with all blocks |
 | `shua.diary.entry.create` | `RPC` | ✅ | *(none)* | *(none)* | Create a new diary entry |
+| `shua.diary.entry.save` | `RPC` | ✅ | *(none)* | *(none)* | Upsert diary entry metadata or block array with optimistic version check |
 | `shua.diary.entry.delete` | `RPC` | ✅ | *(none)* | *(none)* | Delete a diary entry |
+| `shua.diary.search` | `RPC` | ✅ | *(none)* | *(none)* | Full-text search (FTS5) across diary entry text and block contents |
+| `shua.diary.media.upload` | `RPC` | ✅ | *(none)* | *(none)* | Upload binary media file to Pi 5 Content-Addressable Media Vault |
+| `shua.diary.media.get` | `RPC` | ✅ | *(none)* | *(none)* | Retrieve media file metadata and URL from Media Vault |
 | `shua.diary.block.save` | `RPC` | ✅ | *(none)* | *(none)* | Upsert a block (debounced) |
 | `shua.diary.block.reorder` | `RPC` | ✅ | *(none)* | *(none)* | Reorder blocks with LexoRank |
 | `shua.diary.block.delete` | `RPC` | ✅ | *(none)* | *(none)* | Delete a diary block |
+| `shua.diary.entry.updated` | `EVENT` | ✅ | *(none)* | `EntryUpdatedEvent` | Server-pushed real-time entry update notification |
 | `shua.diary.sentiment.score` | `EVENT` | ✅ | *(none)* | `SentimentEvent` | Server-pushed sentiment score after a block save |
 | `shua.diary.memory.elevate` | `RPC` | ✅ | *(none)* | *(none)* | Elevate a diary entry to the Global Identity Matrix |
 

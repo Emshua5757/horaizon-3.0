@@ -48,3 +48,16 @@ const (
 	IntentClassCodeAst IntentClass = 3
 	IntentClassCopilotCommand IntentClass = 4
 )
+
+// Universal Media Type Classifier for HBP Stream Packets
+type StreamMediaType int
+
+const (
+	StreamMediaTypeLlmToken StreamMediaType = 1
+	StreamMediaTypeAudioPcm StreamMediaType = 2
+	StreamMediaTypeAudioOpus StreamMediaType = 3
+	StreamMediaTypeVideoNal StreamMediaType = 4
+	StreamMediaTypeVideoWebp StreamMediaType = 5
+	StreamMediaTypeStepMilestone StreamMediaType = 6
+	StreamMediaTypeTelemetryMetric StreamMediaType = 7
+)

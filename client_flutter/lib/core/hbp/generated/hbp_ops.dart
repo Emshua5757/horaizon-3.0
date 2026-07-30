@@ -25,14 +25,24 @@ abstract final class HbpOps {
   static const String shua_diary_entry_get = 'shua.diary.entry.get';
   /// Create a new diary entry
   static const String shua_diary_entry_create = 'shua.diary.entry.create';
+  /// Upsert diary entry metadata or block array with optimistic version check
+  static const String shua_diary_entry_save = 'shua.diary.entry.save';
   /// Delete a diary entry
   static const String shua_diary_entry_delete = 'shua.diary.entry.delete';
+  /// Full-text search (FTS5) across diary entry text and block contents
+  static const String shua_diary_search = 'shua.diary.search';
+  /// Upload binary media file to Pi 5 Content-Addressable Media Vault
+  static const String shua_diary_media_upload = 'shua.diary.media.upload';
+  /// Retrieve media file metadata and URL from Media Vault
+  static const String shua_diary_media_get = 'shua.diary.media.get';
   /// Upsert a block (debounced)
   static const String shua_diary_block_save = 'shua.diary.block.save';
   /// Reorder blocks with LexoRank
   static const String shua_diary_block_reorder = 'shua.diary.block.reorder';
   /// Delete a diary block
   static const String shua_diary_block_delete = 'shua.diary.block.delete';
+  /// Server-pushed real-time entry update notification
+  static const String shua_diary_entry_updated = 'shua.diary.entry.updated';
   /// Server-pushed sentiment score after a block save
   static const String shua_diary_sentiment_score = 'shua.diary.sentiment.score';
   /// Elevate a diary entry to the Global Identity Matrix
@@ -53,6 +63,10 @@ abstract final class HbpOps {
   static const String shua_governor_ollama_evict = 'shua.governor.ollama.evict';
   /// Route a prompt through the intent classifier and get an AI reply
   static const String shua_governor_ai_route = 'shua.governor.ai.route';
+  /// Universal server-pushed stream packet for LLM tokens, Audio, Video, and Telemetry
+  static const String shua_governor_stream_chunk = 'shua.governor.stream.chunk';
+  /// Server-pushed milestone event for agent turn changes and tool execution results
+  static const String shua_governor_stream_step = 'shua.governor.stream.step';
   /// Subscribe or update WebSocket live log stream filter
   static const String shua_governor_logs_subscribe = 'shua.governor.logs.subscribe';
   /// Ingest client diagnostic log event into Governor

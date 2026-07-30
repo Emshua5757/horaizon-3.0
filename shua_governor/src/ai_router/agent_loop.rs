@@ -13,7 +13,7 @@ use crate::registry::process_manager::ProcessManager;
 use crate::ollama::OllamaLifecycle;
 
 pub const MAX_AGENT_ITERATIONS: usize = 5;
-pub const PER_CALL_TIMEOUT_SECS: u64 = 45;
+pub const PER_CALL_TIMEOUT_SECS: u64 = 90;
 /// Suffix appended to prompts that exceed max_prompt_chars.
 const TRUNCATION_SUFFIX: &str = " [...truncated to fit context budget]";
 
@@ -280,10 +280,9 @@ impl McpAgentLoop {
                 None
             };
 
-            let chat_future = client.chat_with_tools(model, messages.clone(), tools_for_this_turn, -1);
-            let res = match timeout(Duration::from_secs(PER_CALL_TIMEOUT_SECS), chat_future).await {
-                Ok(Ok(r)) => r,
-                Ok(Err(e)) => {
+            let res = match client.chat_with_tools(model, messages.clone(), tools_for_this_turn, -1).await {
+                Ok(r) => r,
+                Err(e) => {
                     let err_msg = format!("{}", e);
                     error!(
                         subsystem = "agent_loop",
@@ -296,21 +295,6 @@ impl McpAgentLoop {
                     );
                     last_error = Some(err_msg);
                     exit_reason = "llm_error";
-                    break;
-                }
-                Err(_) => {
-                    let err_msg = format!("Timeout after {}s", PER_CALL_TIMEOUT_SECS);
-                    error!(
-                        subsystem = "agent_loop",
-                        prompt = %effective_prompt,
-                        target_url = %client.base_url(),
-                        model = model,
-                        turn = iterations,
-                        timeout_sec = PER_CALL_TIMEOUT_SECS,
-                        "Agent loop LLM chat call timed out"
-                    );
-                    last_error = Some(err_msg);
-                    exit_reason = "timeout";
                     break;
                 }
             };

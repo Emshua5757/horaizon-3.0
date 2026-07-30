@@ -172,6 +172,28 @@ class SentimentEvent:
             'label': self.label,
         }
 
+# Server-pushed real-time entry update event for multi-device optimistic concurrency
+@dataclass
+class EntryUpdatedEvent:
+    entry_id: str
+    block_id: str
+    version: int
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> 'EntryUpdatedEvent':
+        return cls(
+            entry_id=d['entry_id']
+            block_id=d['block_id']
+            version=d['version']
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'entry_id': self.entry_id,
+            'block_id': self.block_id,
+            'version': self.version,
+        }
+
 # Module process description and live telemetry returned in governor.status
 @dataclass
 class ModuleEntry:
@@ -347,6 +369,8 @@ class AiRouteResponse:
     intent: IntentClass
     reply: str
     duration_ms: int
+    # List of agent loop turn step records
+    steps: list[AgentLoopStepDto] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> 'AiRouteResponse':
@@ -355,6 +379,7 @@ class AiRouteResponse:
             intent=IntentClass(d['intent'])
             reply=d['reply']
             duration_ms=d['duration_ms']
+            steps=[AgentLoopStepDto.from_dict(e) for e in (d.get('steps') or [])]
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -363,6 +388,61 @@ class AiRouteResponse:
             'intent': self.intent.value,
             'reply': self.reply,
             'duration_ms': self.duration_ms,
+            'steps': [e.to_dict() for e in self.steps],
+        }
+
+# Record of a single tool call executed within an agent loop step
+@dataclass
+class ToolCallStepDto:
+    # Name of the executed MCP tool
+    tool_name: str
+    # Truncated string summary of the tool execution output
+    result_summary: str
+    # True if tool executed successfully
+    success: bool
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> 'ToolCallStepDto':
+        return cls(
+            tool_name=d['tool_name']
+            result_summary=d['result_summary']
+            success=d['success']
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'tool_name': self.tool_name,
+            'result_summary': self.result_summary,
+            'success': self.success,
+        }
+
+# Record of a single turn iteration in the N-turn agent loop
+@dataclass
+class AgentLoopStepDto:
+    # Turn iteration index (1..5)
+    turn: int
+    # Step category (tool_execution, inline_tool_execution, nudge, final_answer)
+    step_type: str
+    # Raw LLM output text for this turn
+    model_content: str
+    # List of tool calls executed during this turn
+    tool_calls: list[ToolCallStepDto] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> 'AgentLoopStepDto':
+        return cls(
+            turn=d['turn']
+            step_type=d['step_type']
+            model_content=d['model_content']
+            tool_calls=[ToolCallStepDto.from_dict(e) for e in (d.get('tool_calls') or [])]
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'turn': self.turn,
+            'step_type': self.step_type,
+            'model_content': self.model_content,
+            'tool_calls': [e.to_dict() for e in self.tool_calls],
         }
 
 # System configuration settings payload returned/updated via governor.config.*
@@ -408,6 +488,35 @@ class GovernorConfigDto:
             'dream_loop_enabled': self.dream_loop_enabled,
             'dream_loop_cron': self.dream_loop_cron,
             'log_retention_days': self.log_retention_days,
+        }
+
+# Universal HBP Stream Frame container for arbitrary data/media streams
+@dataclass
+class StreamFrameDto:
+    # Media stream classification (LlmToken, AudioPcm, VideoNal, etc.)
+    media_type: StreamMediaType
+    # Monotonic chunk sequence index (0, 1, 2...)
+    sequence_num: int
+    # UTF-8 text delta string or Base64/MsgPack binary data chunk
+    chunk_data: str
+    # True if this chunk terminates the active stream
+    is_last: bool
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> 'StreamFrameDto':
+        return cls(
+            media_type=StreamMediaType(d['media_type'])
+            sequence_num=d['sequence_num']
+            chunk_data=d['chunk_data']
+            is_last=d['is_last']
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'media_type': self.media_type.value,
+            'sequence_num': self.sequence_num,
+            'chunk_data': self.chunk_data,
+            'is_last': self.is_last,
         }
 
 # Client WebSocket subscription filter for live log events

@@ -68,6 +68,13 @@ type SentimentEvent struct {
 	Label string `msgpack:"label"`
 }
 
+// Server-pushed real-time entry update event for multi-device optimistic concurrency
+type EntryUpdatedEvent struct {
+	EntryId string `msgpack:"entry_id"`
+	BlockId string `msgpack:"block_id"`
+	Version uint32 `msgpack:"version"`
+}
+
 // Module process description and live telemetry returned in governor.status
 type ModuleEntry struct {
 	// Module namespace string e.g. shua.resume
@@ -137,6 +144,30 @@ type AiRouteResponse struct {
 	Intent IntentClass `msgpack:"intent"`
 	Reply string `msgpack:"reply"`
 	DurationMs uint32 `msgpack:"duration_ms"`
+	// List of agent loop turn step records
+	Steps []AgentLoopStepDto `msgpack:"steps"`
+}
+
+// Record of a single tool call executed within an agent loop step
+type ToolCallStepDto struct {
+	// Name of the executed MCP tool
+	ToolName string `msgpack:"tool_name"`
+	// Truncated string summary of the tool execution output
+	ResultSummary string `msgpack:"result_summary"`
+	// True if tool executed successfully
+	Success bool `msgpack:"success"`
+}
+
+// Record of a single turn iteration in the N-turn agent loop
+type AgentLoopStepDto struct {
+	// Turn iteration index (1..5)
+	Turn uint32 `msgpack:"turn"`
+	// Step category (tool_execution, inline_tool_execution, nudge, final_answer)
+	StepType string `msgpack:"step_type"`
+	// Raw LLM output text for this turn
+	ModelContent string `msgpack:"model_content"`
+	// List of tool calls executed during this turn
+	ToolCalls []ToolCallStepDto `msgpack:"tool_calls"`
 }
 
 // System configuration settings payload returned/updated via governor.config.*
@@ -157,6 +188,18 @@ type GovernorConfigDto struct {
 	DreamLoopCron string `msgpack:"dream_loop_cron"`
 	// SQLite log database retention period in days
 	LogRetentionDays uint32 `msgpack:"log_retention_days"`
+}
+
+// Universal HBP Stream Frame container for arbitrary data/media streams
+type StreamFrameDto struct {
+	// Media stream classification (LlmToken, AudioPcm, VideoNal, etc.)
+	MediaType StreamMediaType `msgpack:"media_type"`
+	// Monotonic chunk sequence index (0, 1, 2...)
+	SequenceNum uint64 `msgpack:"sequence_num"`
+	// UTF-8 text delta string or Base64/MsgPack binary data chunk
+	ChunkData string `msgpack:"chunk_data"`
+	// True if this chunk terminates the active stream
+	IsLast bool `msgpack:"is_last"`
 }
 
 // Client WebSocket subscription filter for live log events

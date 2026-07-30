@@ -25,14 +25,24 @@ pub mod ops {
     pub const SHUA_DIARY_ENTRY_GET: &str = "shua.diary.entry.get";
     /// Create a new diary entry
     pub const SHUA_DIARY_ENTRY_CREATE: &str = "shua.diary.entry.create";
+    /// Upsert diary entry metadata or block array with optimistic version check
+    pub const SHUA_DIARY_ENTRY_SAVE: &str = "shua.diary.entry.save";
     /// Delete a diary entry
     pub const SHUA_DIARY_ENTRY_DELETE: &str = "shua.diary.entry.delete";
+    /// Full-text search (FTS5) across diary entry text and block contents
+    pub const SHUA_DIARY_SEARCH: &str = "shua.diary.search";
+    /// Upload binary media file to Pi 5 Content-Addressable Media Vault
+    pub const SHUA_DIARY_MEDIA_UPLOAD: &str = "shua.diary.media.upload";
+    /// Retrieve media file metadata and URL from Media Vault
+    pub const SHUA_DIARY_MEDIA_GET: &str = "shua.diary.media.get";
     /// Upsert a block (debounced)
     pub const SHUA_DIARY_BLOCK_SAVE: &str = "shua.diary.block.save";
     /// Reorder blocks with LexoRank
     pub const SHUA_DIARY_BLOCK_REORDER: &str = "shua.diary.block.reorder";
     /// Delete a diary block
     pub const SHUA_DIARY_BLOCK_DELETE: &str = "shua.diary.block.delete";
+    /// Server-pushed real-time entry update notification
+    pub const SHUA_DIARY_ENTRY_UPDATED: &str = "shua.diary.entry.updated";
     /// Server-pushed sentiment score after a block save
     pub const SHUA_DIARY_SENTIMENT_SCORE: &str = "shua.diary.sentiment.score";
     /// Elevate a diary entry to the Global Identity Matrix
@@ -53,6 +63,10 @@ pub mod ops {
     pub const SHUA_GOVERNOR_OLLAMA_EVICT: &str = "shua.governor.ollama.evict";
     /// Route a prompt through the intent classifier and get an AI reply
     pub const SHUA_GOVERNOR_AI_ROUTE: &str = "shua.governor.ai.route";
+    /// Universal server-pushed stream packet for LLM tokens, Audio, Video, and Telemetry
+    pub const SHUA_GOVERNOR_STREAM_CHUNK: &str = "shua.governor.stream.chunk";
+    /// Server-pushed milestone event for agent turn changes and tool execution results
+    pub const SHUA_GOVERNOR_STREAM_STEP: &str = "shua.governor.stream.step";
     /// Subscribe or update WebSocket live log stream filter
     pub const SHUA_GOVERNOR_LOGS_SUBSCRIBE: &str = "shua.governor.logs.subscribe";
     /// Ingest client diagnostic log event into Governor

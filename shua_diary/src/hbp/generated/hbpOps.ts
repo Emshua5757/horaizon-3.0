@@ -23,14 +23,24 @@ export const HbpOps = {
   shuaDiaryEntryGet: 'shua.diary.entry.get',
   /** Create a new diary entry */
   shuaDiaryEntryCreate: 'shua.diary.entry.create',
+  /** Upsert diary entry metadata or block array with optimistic version check */
+  shuaDiaryEntrySave: 'shua.diary.entry.save',
   /** Delete a diary entry */
   shuaDiaryEntryDelete: 'shua.diary.entry.delete',
+  /** Full-text search (FTS5) across diary entry text and block contents */
+  shuaDiarySearch: 'shua.diary.search',
+  /** Upload binary media file to Pi 5 Content-Addressable Media Vault */
+  shuaDiaryMediaUpload: 'shua.diary.media.upload',
+  /** Retrieve media file metadata and URL from Media Vault */
+  shuaDiaryMediaGet: 'shua.diary.media.get',
   /** Upsert a block (debounced) */
   shuaDiaryBlockSave: 'shua.diary.block.save',
   /** Reorder blocks with LexoRank */
   shuaDiaryBlockReorder: 'shua.diary.block.reorder',
   /** Delete a diary block */
   shuaDiaryBlockDelete: 'shua.diary.block.delete',
+  /** Server-pushed real-time entry update notification */
+  shuaDiaryEntryUpdated: 'shua.diary.entry.updated',
   /** Server-pushed sentiment score after a block save */
   shuaDiarySentimentScore: 'shua.diary.sentiment.score',
   /** Elevate a diary entry to the Global Identity Matrix */
@@ -51,6 +61,10 @@ export const HbpOps = {
   shuaGovernorOllamaEvict: 'shua.governor.ollama.evict',
   /** Route a prompt through the intent classifier and get an AI reply */
   shuaGovernorAiRoute: 'shua.governor.ai.route',
+  /** Universal server-pushed stream packet for LLM tokens, Audio, Video, and Telemetry */
+  shuaGovernorStreamChunk: 'shua.governor.stream.chunk',
+  /** Server-pushed milestone event for agent turn changes and tool execution results */
+  shuaGovernorStreamStep: 'shua.governor.stream.step',
   /** Subscribe or update WebSocket live log stream filter */
   shuaGovernorLogsSubscribe: 'shua.governor.logs.subscribe',
   /** Ingest client diagnostic log event into Governor */
