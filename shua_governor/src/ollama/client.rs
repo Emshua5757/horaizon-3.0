@@ -222,4 +222,77 @@ impl OllamaClient {
 
         Ok(resp.message)
     }
+
+    /// Send a chat prompt with tool schemas and stream NDJSON token deltas to on_delta callback live
+    pub async fn chat_with_tools_stream<F>(
+        &self,
+        model: &str,
+        messages: Vec<ChatMessage>,
+        tools: Option<Vec<serde_json::Value>>,
+        keep_alive: i32,
+        mut on_delta: F,
+    ) -> Result<ChatMessageResponse>
+    where
+        F: FnMut(&str),
+    {
+        let payload = ChatPayload {
+            model: model.to_string(),
+            messages,
+            tools,
+            stream: true,
+            keep_alive: serde_json::json!(keep_alive),
+        };
+
+        let mut res = self
+            .http
+            .post(format!("{}/api/chat", self.base_url))
+            .json(&payload)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        let mut accumulated_content = String::new();
+        let mut accumulated_tool_calls: Option<Vec<ToolCall>> = None;
+        let mut thinking: Option<String> = None;
+        let mut reasoning_content: Option<String> = None;
+
+        let mut buffer = Vec::new();
+        while let Ok(Some(chunk)) = res.chunk().await {
+            buffer.extend_from_slice(&chunk);
+
+            while let Some(pos) = buffer.iter().position(|&b| b == b'\n') {
+                let line_bytes: Vec<u8> = buffer.drain(..=pos).collect();
+                let line = String::from_utf8_lossy(&line_bytes);
+                let trimmed = line.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+
+                if let Ok(resp) = serde_json::from_str::<ChatResponse>(trimmed) {
+                    let delta_text = resp.message.effective_text();
+                    if !delta_text.is_empty() {
+                        on_delta(&delta_text);
+                        accumulated_content.push_str(&delta_text);
+                    }
+                    if let Some(tc) = resp.message.tool_calls {
+                        accumulated_tool_calls = Some(tc);
+                    }
+                    if resp.message.thinking.is_some() {
+                        thinking = resp.message.thinking;
+                    }
+                    if resp.message.reasoning_content.is_some() {
+                        reasoning_content = resp.message.reasoning_content;
+                    }
+                }
+            }
+        }
+
+        Ok(ChatMessageResponse {
+            role: "assistant".to_string(),
+            content: accumulated_content,
+            thinking,
+            reasoning_content,
+            tool_calls: accumulated_tool_calls,
+        })
+    }
 }

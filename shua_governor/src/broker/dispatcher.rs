@@ -680,6 +680,61 @@ impl Dispatcher {
                     let ollama_lifecycle = Arc::clone(&self.ollama);
 
                     let (tx, rx) = tokio::sync::oneshot::channel();
+                    let (step_tx, mut step_rx) = tokio::sync::mpsc::unbounded_channel::<crate::ai_router::agent_loop::AgentLoopStep>();
+                    let (delta_tx, mut delta_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+
+                    let client_tx_step = client_tx.clone();
+                    let req_id_step = frame.id.clone();
+                    tokio::spawn(async move {
+                        while let Some(s) = step_rx.recv().await {
+                            let payload = serde_json::json!({
+                                "turn": s.turn,
+                                "step_type": s.step_type,
+                                "model_content": s.model_content,
+                                "tool_calls": s.tool_calls.iter().map(|tc| serde_json::json!({
+                                    "tool_name": tc.tool_name,
+                                    "result_summary": tc.result_summary,
+                                    "success": tc.success,
+                                })).collect::<Vec<_>>(),
+                            });
+                            let payload_bytes = crate::broker::frame::HbpFrame::encode_payload(&payload).unwrap_or_default();
+                            let event_frame = crate::broker::frame::HbpFrame::stream_event(
+                                &req_id_step,
+                                "shua.governor",
+                                "stream.step",
+                                payload_bytes,
+                            );
+                            if let Ok(bytes) = event_frame.encode() {
+                                let _ = client_tx_step.send(bytes);
+                            }
+                        }
+                    });
+
+                    let client_tx_delta = client_tx.clone();
+                    let req_id_delta = frame.id.clone();
+                    tokio::spawn(async move {
+                        let mut seq = 0u64;
+                        while let Some(delta_text) = delta_rx.recv().await {
+                            seq += 1;
+                            let stream_frame = crate::broker::generated::hbp_models::StreamFrameDto {
+                                media_type: crate::broker::generated::hbp_enums::StreamMediaType::LlmToken,
+                                sequence_num: seq,
+                                chunk_data: delta_text,
+                                is_last: false,
+                            };
+                            let payload_bytes = crate::broker::frame::HbpFrame::encode_payload(&stream_frame).unwrap_or_default();
+                            let event_frame = crate::broker::frame::HbpFrame::stream_event(
+                                &req_id_delta,
+                                "shua.governor",
+                                "stream.chunk",
+                                payload_bytes,
+                            );
+                            if let Ok(bytes) = event_frame.encode() {
+                                let _ = client_tx_delta.send(bytes);
+                            }
+                        }
+                    });
+
                     self.ai_runtime.spawn(async move {
                         let result = crate::ai_router::agent_loop::McpAgentLoop::run(
                             &prompt_text,
@@ -692,6 +747,8 @@ impl Dispatcher {
                             max_prompt_chars,
                             min_inference_gap_ms,
                             context_messages,
+                            Some(step_tx),
+                            Some(delta_tx),
                         )
                         .await;
                         let _ = tx.send(result);

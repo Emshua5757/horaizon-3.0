@@ -133,6 +133,20 @@ impl HbpFrame {
         }
     }
 
+    /// Create a server-pushed stream EVENT frame echoing the original request transaction id
+    pub fn stream_event(req_id: &str, module: &str, event_name: &str, payload: Vec<u8>) -> Self {
+        Self {
+            v: 2,
+            t: MsgType::Event as u8,
+            id: req_id.to_string(),
+            mod_: module.to_string(),
+            op: event_name.to_string(),
+            ts: now_ms(),
+            p: payload,
+            err: None,
+        }
+    }
+
     /// Create a PONG frame
     pub fn pong() -> Self {
         Self {

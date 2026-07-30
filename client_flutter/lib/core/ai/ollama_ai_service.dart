@@ -84,19 +84,32 @@ class OllamaAiService {
         try {
           final chunkController = StreamController<OllamaStreamChunk>();
           final stepEventSub = _hbpClient.events.listen((eventFrame) {
-            if (eventFrame.txId == reqFrame.txId &&
-                (eventFrame.op == 'ai.route.step' || eventFrame.op == 'stream.step')) {
-              try {
-                final stepMap = _decodeHbpPayload(eventFrame.payload);
-                final step = AgentLoopStep.fromMap(stepMap);
-                _log('[HBP v2] Live Agent Loop Step event received (Turn ${step.turn}, type: ${step.stepType})');
-                chunkController.add(OllamaStreamChunk(
-                  content: '',
-                  done: false,
-                  routedNode: effectiveNode,
-                  steps: [step],
-                ));
-              } catch (_) {}
+            if (eventFrame.txId == reqFrame.txId) {
+              if (eventFrame.op == 'ai.route.step' || eventFrame.op == 'stream.step') {
+                try {
+                  final stepMap = _decodeHbpPayload(eventFrame.payload);
+                  final step = AgentLoopStep.fromMap(stepMap);
+                  _log('[HBP v2] Live Agent Loop Step event received (Turn ${step.turn}, type: ${step.stepType})');
+                  chunkController.add(OllamaStreamChunk(
+                    content: '',
+                    done: false,
+                    routedNode: effectiveNode,
+                    steps: [step],
+                  ));
+                } catch (_) {}
+              } else if (eventFrame.op == 'stream.chunk' || eventFrame.op == 'ai.route.delta') {
+                try {
+                  final chunkMap = _decodeHbpPayload(eventFrame.payload);
+                  final deltaText = chunkMap['chunk_data'] as String? ?? chunkMap['delta'] as String? ?? '';
+                  if (deltaText.isNotEmpty) {
+                    chunkController.add(OllamaStreamChunk(
+                      content: deltaText,
+                      done: false,
+                      routedNode: effectiveNode,
+                    ));
+                  }
+                } catch (_) {}
+              }
             }
           });
 

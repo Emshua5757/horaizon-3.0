@@ -159,6 +159,8 @@ impl McpAgentLoop {
         max_prompt_chars: usize,
         min_inference_gap_ms: u64,
         context_messages: Vec<ChatMessage>,
+        step_sender: Option<tokio::sync::mpsc::UnboundedSender<AgentLoopStep>>,
+        delta_sender: Option<tokio::sync::mpsc::UnboundedSender<String>>,
     ) -> Result<AgentLoopResponse> {
         // ── Prompt Guardrail: Tail-truncate oversized user prompts ────────────
         // Prevents the KV-cache allocation on RPi5 Ollama from ballooning even
@@ -280,7 +282,15 @@ impl McpAgentLoop {
                 None
             };
 
-            let res = match client.chat_with_tools(model, messages.clone(), tools_for_this_turn, -1).await {
+            let delta_sender_clone = delta_sender.clone();
+            let res = match client
+                .chat_with_tools_stream(model, messages.clone(), tools_for_this_turn, -1, move |delta| {
+                    if let Some(ref ds) = delta_sender_clone {
+                        let _ = ds.send(delta.to_string());
+                    }
+                })
+                .await
+            {
                 Ok(r) => r,
                 Err(e) => {
                     let err_msg = format!("{}", e);
@@ -351,12 +361,16 @@ impl McpAgentLoop {
                         messages.push(ChatMessage::tool(format!("Tool '{}' Result:\n{}", tool_name, tool_res.result)));
                     }
 
-                    steps.push(AgentLoopStep {
+                    let step = AgentLoopStep {
                         turn: iterations,
                         step_type: "tool_execution".to_string(),
                         model_content: res.content.clone(),
                         tool_calls: step_tool_calls,
-                    });
+                    };
+                    if let Some(ref sender) = step_sender {
+                        let _ = sender.send(step.clone());
+                    }
+                    steps.push(step);
                     continue;
                 }
             }
@@ -407,12 +421,16 @@ impl McpAgentLoop {
                     messages.push(ChatMessage::tool(format!("Tool '{}' Result:\n{}", mcp_call.name, tool_res.result)));
                 }
 
-                steps.push(AgentLoopStep {
+                let step = AgentLoopStep {
                     turn: iterations,
                     step_type: "inline_tool_execution".to_string(),
                     model_content: raw_text,
                     tool_calls: step_tool_calls,
-                });
+                };
+                if let Some(ref sender) = step_sender {
+                    let _ = sender.send(step.clone());
+                }
+                steps.push(step);
                 continue;
             }
 
@@ -428,12 +446,16 @@ impl McpAgentLoop {
                     "SystemQuery expected a tool call but model answered in free text — issuing corrective nudge"
                 );
 
-                steps.push(AgentLoopStep {
+                let step = AgentLoopStep {
                     turn: iterations,
                     step_type: "nudge".to_string(),
                     model_content: raw_text.clone(),
                     tool_calls: vec![],
-                });
+                };
+                if let Some(ref sender) = step_sender {
+                    let _ = sender.send(step.clone());
+                }
+                steps.push(step);
 
                 messages.push(ChatMessage {
                     role: "assistant".into(),
@@ -450,12 +472,16 @@ impl McpAgentLoop {
 
             // ── Step 4: Final answer — no tool calls, model completed reasoning ──
             final_reply = strip_tool_call_artifacts(&raw_text);
-            steps.push(AgentLoopStep {
+            let step = AgentLoopStep {
                 turn: iterations,
                 step_type: "final_answer".to_string(),
                 model_content: raw_text,
                 tool_calls: vec![],
-            });
+            };
+            if let Some(ref sender) = step_sender {
+                let _ = sender.send(step.clone());
+            }
+            steps.push(step);
             exit_reason = "clean_completion";
             break;
         }

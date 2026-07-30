@@ -2,4 +2,5 @@
 
 pub mod dispatcher;
 pub mod frame;
+pub mod generated;
 pub mod server;
