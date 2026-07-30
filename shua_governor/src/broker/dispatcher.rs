@@ -255,14 +255,16 @@ impl Dispatcher {
             return Some(HbpFrame::pong());
         }
 
-        info!(
-            module = "shua.governor",
-            subsystem = "dispatcher",
-            frame_mod = %frame.mod_,
-            op = %frame.op,
-            tx_id = %frame.id,
-            "Dispatching HBP frame"
-        );
+        if frame.op != "status" && frame.op != "ping" {
+            info!(
+                module = "shua.governor",
+                subsystem = "dispatcher",
+                frame_mod = %frame.mod_,
+                op = %frame.op,
+                tx_id = %frame.id,
+                "Dispatching HBP frame"
+            );
+        }
 
         match frame.mod_.as_str() {
             "shua.governor" => self.handle_governor(frame, client_tx, peer_ip).await,
@@ -716,6 +718,12 @@ impl Dispatcher {
                         let mut seq = 0u64;
                         while let Some(delta_text) = delta_rx.recv().await {
                             seq += 1;
+                            info!(
+                                subsystem = "hbp_stream",
+                                seq = seq,
+                                chunk = %delta_text,
+                                "⚡ Stream token delta frame dispatched"
+                            );
                             let stream_frame = crate::broker::generated::hbp_models::StreamFrameDto {
                                 media_type: crate::broker::generated::hbp_enums::StreamMediaType::LlmToken,
                                 sequence_num: seq,
