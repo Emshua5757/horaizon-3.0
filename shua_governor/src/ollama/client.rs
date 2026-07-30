@@ -112,7 +112,7 @@ impl ChatMessageResponse {
 impl OllamaClient {
     pub fn new(base_url: &str) -> Self {
         let http = Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
+            .timeout(std::time::Duration::from_secs(120))
             .connect_timeout(std::time::Duration::from_secs(5))
             .build()
             .unwrap_or_else(|_| Client::new());

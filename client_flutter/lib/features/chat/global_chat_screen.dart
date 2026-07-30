@@ -517,9 +517,32 @@ class _ChatMessageBubble extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   if (message.content.isEmpty && message.isStreaming)
-                    Text(
-                      'Typing…',
-                      style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, fontStyle: FontStyle.italic),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: cs.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Executing N-Turn Agent Loop (Reasoning & MCP Tools)…',
+                            style: TextStyle(
+                              color: cs.primary,
+                              fontSize: 11.5,
+                              fontStyle: FontStyle.italic,
+                              fontWeight: FontWeight.w500,
+                              fontFamily: 'JetBrainsMono',
+                            ),
+                          ),
+                        ],
+                      ),
                     )
                   else ...[
                     // Show collapsible agent loop card when there are multiple turns
