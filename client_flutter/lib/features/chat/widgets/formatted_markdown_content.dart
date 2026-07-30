@@ -6,53 +6,68 @@ import '../models/chat_message.dart';
 /// Collapsible N-Turn Agent Loop card — shows each iteration of the MCP tool-calling
 /// loop (like ChatGPT/Claude "thinking" blocks) with turn dividers, step type icons,
 /// and tool call result summaries.
-class AgentLoopCard extends StatefulWidget {
+/// Independent N-Turn Agent Loop card container — renders a dedicated card
+/// for each turn step (Turn 1: Tool Call, Turn 2: Nudge, etc.) so no turn step is ever lost or overwritten.
+class AgentLoopCard extends StatelessWidget {
   final List<AgentLoopStep> steps;
 
   const AgentLoopCard({super.key, required this.steps});
 
   @override
-  State<AgentLoopCard> createState() => _AgentLoopCardState();
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: steps.map((step) => _TurnStepCard(step: step)).toList(),
+    );
+  }
 }
 
-class _AgentLoopCardState extends State<AgentLoopCard> {
-  late bool _expanded;
+class _TurnStepCard extends StatefulWidget {
+  final AgentLoopStep step;
+  const _TurnStepCard({required this.step});
 
   @override
-  void initState() {
-    super.initState();
-    // Expanded by default when ≥2 turns (interesting), collapsed for 1-turn loops
-    _expanded = widget.steps.length >= 2;
-  }
+  State<_TurnStepCard> createState() => _TurnStepCardState();
+}
+
+class _TurnStepCardState extends State<_TurnStepCard> {
+  bool _expanded = true;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final step = widget.step;
+    final isError = step.toolCalls.any((tc) => !tc.success);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
         color: cs.surfaceContainerHigh.withValues(alpha: 0.35),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: cs.tertiary.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isError ? Colors.red.shade400.withValues(alpha: 0.5) : cs.tertiary.withValues(alpha: 0.4),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header — tap to expand/collapse
           InkWell(
             onTap: () => setState(() => _expanded = !_expanded),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
                 children: [
-                  Icon(Icons.loop_rounded, size: 16, color: cs.tertiary),
+                  Icon(
+                    step.stepType == 'nudge' ? Icons.warning_amber_rounded : Icons.precision_manufacturing_rounded,
+                    size: 15,
+                    color: isError ? Colors.red.shade300 : cs.tertiary,
+                  ),
                   const SizedBox(width: 8),
                   Text(
-                    'AGENT LOOP (${widget.steps.length} ${widget.steps.length == 1 ? "TURN" : "TURNS"})',
+                    'TURN ${step.turn} · ${step.stepTypeIcon} ${step.stepTypeLabel.toUpperCase()}',
                     style: TextStyle(
-                      color: cs.tertiary,
+                      color: isError ? Colors.red.shade300 : cs.tertiary,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.8,
@@ -71,22 +86,7 @@ class _AgentLoopCardState extends State<AgentLoopCard> {
           ),
           if (_expanded) ...[
             const Divider(height: 1, thickness: 1),
-            ...widget.steps.asMap().entries.map((entry) {
-              final index = entry.key;
-              final step = entry.value;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (index > 0)
-                    Divider(
-                      height: 1,
-                      thickness: 1,
-                      color: cs.outlineVariant.withValues(alpha: 0.3),
-                    ),
-                  _AgentLoopStepTile(step: step),
-                ],
-              );
-            }),
+            _AgentLoopStepTile(step: step),
           ],
         ],
       ),
