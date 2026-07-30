@@ -15,6 +15,8 @@ class OllamaStreamChunk {
   final double? evalTokensPerSec;
   final int? totalDurationMs;
   final AiOffloadTarget? routedNode;
+  /// Agent loop steps for N-turn visibility in the UI.
+  final List<AgentLoopStep> steps;
 
   OllamaStreamChunk({
     required this.content,
@@ -22,6 +24,7 @@ class OllamaStreamChunk {
     this.evalTokensPerSec,
     this.totalDurationMs,
     this.routedNode,
+    this.steps = const [],
   });
 }
 
@@ -85,15 +88,22 @@ class OllamaAiService {
           final iterations = payloadMap['iterations'] as int? ?? 1;
           final toolsCalled = (payloadMap['tools_called'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
 
+          // ── Parse agent loop steps for N-turn UI ──────────────
+          final stepsRaw = payloadMap['steps'] as List<dynamic>? ?? [];
+          final steps = stepsRaw
+              .whereType<Map<String, dynamic>>()
+              .map((s) => AgentLoopStep.fromMap(s))
+              .toList();
+
           // ── Telemetry: log decode result for debugging ──────────────
           if (reply.isEmpty) {
             _log('[HBP v2] WARNING: decoded reply is EMPTY — payloadMap keys=${payloadMap.keys.toList()}, payload bytes=${resFrame.payload.length}', LogLevel.warn);
           } else {
             final replyPreview = reply.length > 80 ? '${reply.substring(0, 80)}...' : reply;
-            _log('[HBP v2] shua_governor agent loop finished ($iterations turns, tools: $toolsCalled): $replyPreview');
+            _log('[HBP v2] shua_governor agent loop finished ($iterations turns, tools: $toolsCalled, steps: ${steps.length}): $replyPreview');
           }
 
-          yield OllamaStreamChunk(content: reply, done: true, routedNode: effectiveNode);
+          yield OllamaStreamChunk(content: reply, done: true, routedNode: effectiveNode, steps: steps);
           return;
         } catch (e) {
           _log('[HBP v2] governor.ai.route RPC failed ($e)', LogLevel.warn);

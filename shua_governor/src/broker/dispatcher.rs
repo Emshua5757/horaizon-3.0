@@ -267,7 +267,11 @@ impl Dispatcher {
         match frame.mod_.as_str() {
             "shua.governor" => self.handle_governor(frame, client_tx, peer_ip).await,
             other => {
-                warn!(subsystem = "dispatcher", module = other, "Unknown target module");
+                warn!(
+                    subsystem = "dispatcher",
+                    module = other,
+                    "Unknown target module"
+                );
                 Some(HbpFrame::error_response(
                     &frame.id,
                     &frame.mod_,
@@ -299,9 +303,9 @@ impl Dispatcher {
             "status" => {
                 let modules = self.process_manager.status_snapshot().await;
                 let loaded_model = self.ollama.current_model().await;
-                let ram_mb = loaded_model.as_ref().and_then(|m| {
-                    self.ollama.registry().find(m).map(|rm| rm.ram_mb as f32)
-                });
+                let ram_mb = loaded_model
+                    .as_ref()
+                    .and_then(|m| self.ollama.registry().find(m).map(|rm| rm.ram_mb as f32));
 
                 // Sample RPi5 SoC Temperature from /sys/class/thermal/thermal_zone0/temp
                 let temp_c = std::fs::read_to_string("/sys/class/thermal/thermal_zone0/temp")
@@ -335,7 +339,11 @@ impl Dispatcher {
 
                 let uptime_s = std::fs::read_to_string("/proc/uptime")
                     .ok()
-                    .and_then(|s| s.split_whitespace().next().and_then(|v| v.parse::<f64>().ok()))
+                    .and_then(|s| {
+                        s.split_whitespace()
+                            .next()
+                            .and_then(|v| v.parse::<f64>().ok())
+                    })
                     .map(|u| u as u64)
                     .unwrap_or(0);
 
@@ -353,7 +361,12 @@ impl Dispatcher {
                     }
                 });
                 let payload = HbpFrame::encode_payload(&payload_data).unwrap_or_default();
-                Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                Some(HbpFrame::response(
+                    &frame.id,
+                    &frame.mod_,
+                    &frame.op,
+                    payload,
+                ))
             }
 
             "config.get" | "governor.config.get" => {
@@ -369,7 +382,12 @@ impl Dispatcher {
                     log_retention_days: cfg.governor.log_retention_days,
                 };
                 let payload = HbpFrame::encode_payload(&dto).unwrap_or_default();
-                Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                Some(HbpFrame::response(
+                    &frame.id,
+                    &frame.mod_,
+                    &frame.op,
+                    payload,
+                ))
             }
 
             "config.update" | "governor.config.update" => {
@@ -389,7 +407,12 @@ impl Dispatcher {
                     let _ = cfg.save(save_path);
 
                     let payload = HbpFrame::encode_payload(&dto).unwrap_or_default();
-                    Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                    Some(HbpFrame::response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        payload,
+                    ))
                 } else {
                     Some(HbpFrame::error_response(
                         &frame.id,
@@ -404,9 +427,15 @@ impl Dispatcher {
                 if let Ok(req) = frame.decode_payload::<ModuleOpRequest>() {
                     match self.process_manager.wake(&req.module).await {
                         Ok(_) => {
-                            let res = serde_json::json!({ "status": "woken", "module": req.module });
+                            let res =
+                                serde_json::json!({ "status": "woken", "module": req.module });
                             let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
-                            Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                            Some(HbpFrame::response(
+                                &frame.id,
+                                &frame.mod_,
+                                &frame.op,
+                                payload,
+                            ))
                         }
                         Err(e) => Some(HbpFrame::error_response(
                             &frame.id,
@@ -429,9 +458,15 @@ impl Dispatcher {
                 if let Ok(req) = frame.decode_payload::<ModuleOpRequest>() {
                     match self.process_manager.sleep(&req.module).await {
                         Ok(_) => {
-                            let res = serde_json::json!({ "status": "sleeping", "module": req.module });
+                            let res =
+                                serde_json::json!({ "status": "sleeping", "module": req.module });
                             let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
-                            Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                            Some(HbpFrame::response(
+                                &frame.id,
+                                &frame.mod_,
+                                &frame.op,
+                                payload,
+                            ))
                         }
                         Err(e) => Some(HbpFrame::error_response(
                             &frame.id,
@@ -457,9 +492,12 @@ impl Dispatcher {
                         Ok(_) => {
                             let duration_ms = start.elapsed().as_millis() as u32;
                             let loaded_model = self.ollama.current_model().await;
-                            let ram_mb = loaded_model.as_ref().and_then(|m| {
-                                self.ollama.registry().find(m).map(|rm| rm.ram_mb as f32)
-                            }).unwrap_or(0.0);
+                            let ram_mb = loaded_model
+                                .as_ref()
+                                .and_then(|m| {
+                                    self.ollama.registry().find(m).map(|rm| rm.ram_mb as f32)
+                                })
+                                .unwrap_or(0.0);
 
                             let res = serde_json::json!({
                                 "loaded_model": loaded_model,
@@ -467,7 +505,12 @@ impl Dispatcher {
                                 "duration_ms": duration_ms
                             });
                             let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
-                            Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                            Some(HbpFrame::response(
+                                &frame.id,
+                                &frame.mod_,
+                                &frame.op,
+                                payload,
+                            ))
                         }
                         Err(e) => Some(HbpFrame::error_response(
                             &frame.id,
@@ -486,34 +529,41 @@ impl Dispatcher {
                 }
             }
 
-            "ollama.evict" | "governor.ollama.evict" => {
-                match self.ollama.evict().await {
-                    Ok(_) => {
-                        let res = serde_json::json!({ "status": "evicted" });
-                        let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
-                        Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
-                    }
-                    Err(e) => Some(HbpFrame::error_response(
+            "ollama.evict" | "governor.ollama.evict" => match self.ollama.evict().await {
+                Ok(_) => {
+                    let res = serde_json::json!({ "status": "evicted" });
+                    let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
+                    Some(HbpFrame::response(
                         &frame.id,
                         &frame.mod_,
                         &frame.op,
-                        &format!("ERR_OLLAMA_EVICT: {e}"),
-                    )),
+                        payload,
+                    ))
                 }
-            }
+                Err(e) => Some(HbpFrame::error_response(
+                    &frame.id,
+                    &frame.mod_,
+                    &frame.op,
+                    &format!("ERR_OLLAMA_EVICT: {e}"),
+                )),
+            },
 
             "ai.route" | "governor.ai.route" => {
                 if let Ok(req) = frame.decode_payload::<AiRouteRequest>() {
                     let start = std::time::Instant::now();
-                    let (intent, matched_rule, confidence) = IntentClassifier::classify(&req.prompt, req.context_hint.as_deref());
+                    let (intent, matched_rule, confidence) =
+                        IntentClassifier::classify(&req.prompt, req.context_hint.as_deref());
                     let prompt_chars = req.prompt.len();
 
                     let raw_offload = req.offload_device_url.as_deref();
                     let resolved_offload = raw_offload.map(|url| {
                         if let Some(ip) = peer_ip {
-                            if (url.contains("127.0.0.1") || url.contains("localhost")) && !ip.is_loopback() {
-                                return url.replace("127.0.0.1", &ip.to_string())
-                                          .replace("localhost", &ip.to_string());
+                            if (url.contains("127.0.0.1") || url.contains("localhost"))
+                                && !ip.is_loopback()
+                            {
+                                return url
+                                    .replace("127.0.0.1", &ip.to_string())
+                                    .replace("localhost", &ip.to_string());
                             }
                         }
                         url.to_string()
@@ -524,11 +574,12 @@ impl Dispatcher {
                     // requested model with the lightest available model to
                     // prevent further thermal pressure.
                     let thermal_override = if resolved_offload.is_none() {
-                        let soc_temp = std::fs::read_to_string("/sys/class/thermal/thermal_zone0/temp")
-                            .ok()
-                            .and_then(|s| s.trim().parse::<f64>().ok())
-                            .map(|mdeg| mdeg / 1000.0)
-                            .unwrap_or(0.0);
+                        let soc_temp =
+                            std::fs::read_to_string("/sys/class/thermal/thermal_zone0/temp")
+                                .ok()
+                                .and_then(|s| s.trim().parse::<f64>().ok())
+                                .map(|mdeg| mdeg / 1000.0)
+                                .unwrap_or(0.0);
                         if soc_temp > 68.0 {
                             warn!(
                                 subsystem = "dispatcher",
@@ -550,10 +601,21 @@ impl Dispatcher {
                         req.model.as_deref()
                     };
 
-                    let budget = PromptBudget::for_intent(&intent, resolved_offload.as_deref(), effective_model_req);
+                    let budget = PromptBudget::for_intent(
+                        &intent,
+                        resolved_offload.as_deref(),
+                        effective_model_req,
+                    );
 
-                    let target_node = if budget.offload_url.is_some() { "offload_windows" } else { "local_rpi5" };
-                    let target_url = budget.offload_url.clone().unwrap_or_else(|| self.ollama.client().base_url().to_string());
+                    let target_node = if budget.offload_url.is_some() {
+                        "offload_windows"
+                    } else {
+                        "local_rpi5"
+                    };
+                    let target_url = budget
+                        .offload_url
+                        .clone()
+                        .unwrap_or_else(|| self.ollama.client().base_url().to_string());
 
                     info!(
                         subsystem = "dispatcher",
@@ -588,7 +650,8 @@ impl Dispatcher {
 
                     // ── Load persistent conversation history from SQLite ───────
                     let db_path = crate::logging::flush::resolved_db_path();
-                    let chat_store = crate::ai_router::chat_history::ChatHistoryStore::new(&db_path);
+                    let chat_store =
+                        crate::ai_router::chat_history::ChatHistoryStore::new(&db_path);
                     let _ = chat_store.ensure_schema();
                     let context_messages = if let Some(ref sid) = req.session_id {
                         chat_store.load_context(sid)
@@ -602,7 +665,11 @@ impl Dispatcher {
                         let _ = chat_store.append(sid, "user", &req.prompt);
                     }
 
-                    let scope = req.context_hint.as_deref().unwrap_or("governor").to_string();
+                    let scope = req
+                        .context_hint
+                        .as_deref()
+                        .unwrap_or("governor")
+                        .to_string();
                     let prompt_text = req.prompt.clone();
                     let session_id_owned = req.session_id.clone();
                     let model_name = budget.model.clone();
@@ -625,19 +692,26 @@ impl Dispatcher {
                             max_prompt_chars,
                             min_inference_gap_ms,
                             context_messages,
-                        ).await;
+                        )
+                        .await;
                         let _ = tx.send(result);
                     });
 
-                    let (reply, iterations, tools_called, prompt_truncated) = match rx.await {
-                        Ok(Ok(res)) => (res.final_reply, res.iterations, res.tools_called, res.prompt_truncated),
+                    let (reply, iterations, tools_called, prompt_truncated, steps) = match rx.await {
+                        Ok(Ok(res)) => (
+                            res.final_reply,
+                            res.iterations,
+                            res.tools_called,
+                            res.prompt_truncated,
+                            res.steps,
+                        ),
                         Ok(Err(e)) => {
                             warn!(subsystem = "dispatcher", error = %e, "MCP agent loop error");
-                            (format!("[AI Router Error] {}", e), 1, vec![], false)
+                            (format!("[AI Router Error] {}", e), 1, vec![], false, vec![])
                         }
                         Err(_) => {
                             warn!(subsystem = "dispatcher", "AI runtime task channel canceled");
-                            ("ERR_AI_RUNTIME_CANCELED".to_string(), 1, vec![], false)
+                            ("ERR_AI_RUNTIME_CANCELED".to_string(), 1, vec![], false, vec![])
                         }
                     };
 
@@ -649,6 +723,19 @@ impl Dispatcher {
                     }
 
                     let duration_ms = start.elapsed().as_millis() as u32;
+                    let steps_json: Vec<serde_json::Value> = steps.iter().map(|s| {
+                        serde_json::json!({
+                            "turn": s.turn,
+                            "step_type": s.step_type,
+                            "model_content": s.model_content,
+                            "tool_calls": s.tool_calls.iter().map(|tc| serde_json::json!({
+                                "tool_name": tc.tool_name,
+                                "arguments": tc.arguments,
+                                "result_summary": tc.result_summary,
+                                "success": tc.success,
+                            })).collect::<Vec<_>>(),
+                        })
+                    }).collect();
                     let res = serde_json::json!({
                         "model_used": budget.model,
                         "intent": intent.as_str(),
@@ -660,10 +747,16 @@ impl Dispatcher {
                         "prompt_chars": prompt_chars,
                         "truncated": prompt_truncated,
                         "thermal_override": thermal_override,
-                        "duration_ms": duration_ms
+                        "duration_ms": duration_ms,
+                        "steps": steps_json
                     });
                     let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
-                    Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                    Some(HbpFrame::response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        payload,
+                    ))
                 } else {
                     Some(HbpFrame::error_response(
                         &frame.id,
@@ -676,19 +769,41 @@ impl Dispatcher {
 
             "governor.mcp.tools" | "mcp.tools" => {
                 #[derive(serde::Deserialize)]
-                struct ScopeReq { scope: Option<String> }
-                let scope = frame.decode_payload::<ScopeReq>().ok().and_then(|r| r.scope).unwrap_or_else(|| "governor".into());
+                struct ScopeReq {
+                    scope: Option<String>,
+                }
+                let scope = frame
+                    .decode_payload::<ScopeReq>()
+                    .ok()
+                    .and_then(|r| r.scope)
+                    .unwrap_or_else(|| "governor".into());
                 let all_tools = self.mcp_aggregator.get_system_tools();
-                let filtered = crate::mcp::scope_filter::ScopeFilter::filter_tools(all_tools, &scope);
+                let filtered =
+                    crate::mcp::scope_filter::ScopeFilter::filter_tools(all_tools, &scope);
                 let payload = HbpFrame::encode_payload(&filtered).unwrap_or_default();
-                Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                Some(HbpFrame::response(
+                    &frame.id,
+                    &frame.mod_,
+                    &frame.op,
+                    payload,
+                ))
             }
 
             "governor.mcp.call" | "mcp.call" => {
                 if let Ok(call) = frame.decode_payload::<crate::mcp::McpToolCall>() {
-                    let resp = crate::mcp::executor::McpExecutor::execute(&call, &self.process_manager, &self.ollama).await;
+                    let resp = crate::mcp::executor::McpExecutor::execute(
+                        &call,
+                        &self.process_manager,
+                        &self.ollama,
+                    )
+                    .await;
                     let payload = HbpFrame::encode_payload(&resp).unwrap_or_default();
-                    Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                    Some(HbpFrame::response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        payload,
+                    ))
                 } else {
                     Some(HbpFrame::error_response(
                         &frame.id,
@@ -702,10 +817,15 @@ impl Dispatcher {
             "governor.logs.subscribe" | "logs.subscribe" => {
                 let filter: LogFilter = frame.decode_payload().unwrap_or_default();
                 self.log_broadcaster.subscribe(client_tx, filter).await;
-                
+
                 let res = serde_json::json!({ "subscribed": true });
                 let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
-                Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                Some(HbpFrame::response(
+                    &frame.id,
+                    &frame.mod_,
+                    &frame.op,
+                    payload,
+                ))
             }
 
             "governor.log.emit" | "log.emit" => {
@@ -717,7 +837,9 @@ impl Dispatcher {
                             .as_millis() as u64,
                         level: req.level.unwrap_or(3),
                         module: MODULE_FLUTTER,
-                        subsystem: req.subsystem.unwrap_or_else(|| "flutter_client".to_string()),
+                        subsystem: req
+                            .subsystem
+                            .unwrap_or_else(|| "flutter_client".to_string()),
                         msg: req.msg,
                         tags: req.tags.unwrap_or(0),
                         custom_tags: None,
@@ -729,7 +851,12 @@ impl Dispatcher {
                     }
                     let res = serde_json::json!({ "status": "ok" });
                     let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
-                    Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                    Some(HbpFrame::response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        payload,
+                    ))
                 } else {
                     Some(HbpFrame::error_response(
                         &frame.id,
@@ -775,7 +902,8 @@ impl Dispatcher {
                         offset,
                     };
                     query_logs_from_db(params)
-                }).await;
+                })
+                .await;
 
                 match query_res {
                     Ok(Ok((total, entries))) => {
@@ -784,7 +912,12 @@ impl Dispatcher {
                             "entries": entries
                         });
                         let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
-                        Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                        Some(HbpFrame::response(
+                            &frame.id,
+                            &frame.mod_,
+                            &frame.op,
+                            payload,
+                        ))
                     }
                     Ok(Err(e)) => Some(HbpFrame::error_response(
                         &frame.id,
@@ -802,7 +935,11 @@ impl Dispatcher {
             }
 
             other => {
-                warn!(subsystem = "dispatcher", op = other, "Unknown governor operation");
+                warn!(
+                    subsystem = "dispatcher",
+                    op = other,
+                    "Unknown governor operation"
+                );
                 Some(HbpFrame::error_response(
                     &frame.id,
                     &frame.mod_,

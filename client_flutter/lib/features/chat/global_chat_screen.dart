@@ -521,8 +521,12 @@ class _ChatMessageBubble extends StatelessWidget {
                       'Typing…',
                       style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, fontStyle: FontStyle.italic),
                     )
-                  else
+                  else ...[
+                    // Show collapsible agent loop card when there are multiple turns
+                    if (!isUser && message.steps.length > 1)
+                      AgentLoopCard(steps: message.steps),
                     FormattedMarkdownContent(content: message.content),
+                  ],
                 ],
               ),
             ),

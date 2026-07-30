@@ -1,6 +1,204 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../models/chat_message.dart';
+
+/// Collapsible N-Turn Agent Loop card — shows each iteration of the MCP tool-calling
+/// loop (like ChatGPT/Claude "thinking" blocks) with turn dividers, step type icons,
+/// and tool call result summaries.
+class AgentLoopCard extends StatefulWidget {
+  final List<AgentLoopStep> steps;
+
+  const AgentLoopCard({super.key, required this.steps});
+
+  @override
+  State<AgentLoopCard> createState() => _AgentLoopCardState();
+}
+
+class _AgentLoopCardState extends State<AgentLoopCard> {
+  late bool _expanded;
+
+  @override
+  void initState() {
+    super.initState();
+    // Expanded by default when ≥2 turns (interesting), collapsed for 1-turn loops
+    _expanded = widget.steps.length >= 2;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHigh.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cs.tertiary.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header — tap to expand/collapse
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  Icon(Icons.loop_rounded, size: 16, color: cs.tertiary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'AGENT LOOP (${widget.steps.length} ${widget.steps.length == 1 ? "TURN" : "TURNS"})',
+                    style: TextStyle(
+                      color: cs.tertiary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.8,
+                      fontFamily: 'JetBrainsMono',
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    _expanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                    size: 18,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_expanded) ...[
+            const Divider(height: 1, thickness: 1),
+            ...widget.steps.asMap().entries.map((entry) {
+              final index = entry.key;
+              final step = entry.value;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (index > 0)
+                    Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: cs.outlineVariant.withValues(alpha: 0.3),
+                    ),
+                  _AgentLoopStepTile(step: step),
+                ],
+              );
+            }),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AgentLoopStepTile extends StatelessWidget {
+  final AgentLoopStep step;
+
+  const _AgentLoopStepTile({required this.step});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isError = step.toolCalls.any((tc) => !tc.success);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Step header: Turn N · 🔧 step_type
+          Row(
+            children: [
+              Text(
+                'Turn ${step.turn}',
+                style: TextStyle(
+                  color: cs.onSurfaceVariant,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'JetBrainsMono',
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text('·', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10)),
+              const SizedBox(width: 6),
+              Text(
+                '${step.stepTypeIcon} ${step.stepTypeLabel}',
+                style: TextStyle(
+                  color: isError ? Colors.red.shade300 : cs.tertiary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'JetBrainsMono',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          // Model content preview (truncated)
+          if (step.modelContent.isNotEmpty)
+            SelectableText(
+              step.modelContent.length > 200
+                  ? '${step.modelContent.substring(0, 200)}…'
+                  : step.modelContent,
+              style: TextStyle(
+                color: cs.onSurfaceVariant.withValues(alpha: 0.8),
+                fontSize: 11,
+                height: 1.4,
+                fontFamily: 'JetBrainsMono',
+              ),
+            ),
+          // Tool call results
+          ...step.toolCalls.map((tc) => Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tc.success ? '✅' : '❌',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            tc.toolName,
+                            style: TextStyle(
+                              color: tc.success ? cs.primary : Colors.red.shade300,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'JetBrainsMono',
+                            ),
+                          ),
+                          if (tc.resultSummary.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: SelectableText(
+                                tc.resultSummary.length > 200
+                                    ? '${tc.resultSummary.substring(0, 200)}…'
+                                    : tc.resultSummary,
+                                style: TextStyle(
+                                  color: cs.onSurfaceVariant.withValues(alpha: 0.6),
+                                  fontSize: 10,
+                                  fontFamily: 'JetBrainsMono',
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+}
+
 /// Rich Theme-Aware Markdown & Fenced Code Block Renderer for JOSH AI Chat.
 /// Renders headers, lists, inline code, and syntax-styled code cards (bash, rust, json, mermaid, batch)
 /// with a 1-click "Copy Code" button and responsive theme integration.

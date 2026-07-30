@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use anyhow::Result;
+use serde::Serialize;
 use tracing::{error, info, warn};
 use tokio::sync::Semaphore;
 use tokio::time::{timeout, Duration};
@@ -35,6 +36,10 @@ fn strip_tool_call_artifacts(text: &str) -> String {
     static RE_JSON_FENCE: Lazy<Regex> = Lazy::new(|| {
         Regex::new(r#"(?s)```(?:json)?\s*\{[^`]*"name"[^`]*\}\s*```"#).expect("valid regex")
     });
+    // Bare JSON tool call fragments: {"name":"...","arguments":...}
+    static RE_BARE_JSON: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r#"\{\s*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:\s*\{[^}]*\}\s*\}"#).expect("valid regex")
+    });
     // tool_response: ... inline narration sections
     // Note: Rust `regex` crate does not support look-ahead (?=...), so we
     // match through the double-newline delimiter (or end of string) instead.
@@ -48,20 +53,73 @@ fn strip_tool_call_artifacts(text: &str) -> String {
 
     let cleaned = RE_XML.replace_all(text, "");
     let cleaned = RE_JSON_FENCE.replace_all(&cleaned, "");
+    let cleaned = RE_BARE_JSON.replace_all(&cleaned, "");
     let cleaned = RE_TOOL_RESP.replace_all(&cleaned, "");
     RE_BLANK.replace_all(cleaned.trim(), "\n\n").trim().to_string()
 }
 
-/// Returns true when the model embedded a tool call inline in `content` text
-/// rather than using the structured `tool_calls` field (qwen2.5 quirk).
-fn inline_tool_calls_detected(content: &str) -> bool {
-    content.contains("<tool_call>") ||
-    (content.contains("```json") && content.contains("\"name\"")) ||
-    content.contains("{\"name\":") // raw JSON tool call fragment
+/// Parses inline tool call JSON objects from model content text.
+/// Handles three formats emitted by qwen2.5 and similar models:
+///  1. `<tool_call>{"name":...}</tool_call>` XML-wrapped
+///  2. ` ```json {"name":...} ``` ` fenced blocks
+///  3. Bare `{"name":"...","arguments":{...}}` on a line
+///
+/// Returns Vec of parsed McpToolCall. O(n) single-pass scan.
+fn parse_inline_tool_calls(content: &str) -> Vec<McpToolCall> {
+    let mut calls = Vec::new();
+
+    // Strategy: find JSON objects containing "name" and "arguments" keys.
+    // We scan for opening braces and try to parse JSON from that position.
+    for line in content.lines() {
+        let trimmed = line.trim()
+            .trim_start_matches("<tool_call>")
+            .trim_end_matches("</tool_call>")
+            .trim();
+
+        // Skip lines that are clearly not tool call JSON
+        if !trimmed.starts_with('{') || !trimmed.contains("\"name\"") {
+            continue;
+        }
+
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(trimmed) {
+            if let (Some(name), Some(args)) = (
+                parsed.get("name").and_then(|v| v.as_str()),
+                parsed.get("arguments"),
+            ) {
+                calls.push(McpToolCall {
+                    id: None,
+                    name: name.to_string(),
+                    arguments: args.clone(),
+                });
+            }
+        }
+    }
+
+    calls
 }
 
 
 static LOCAL_INFERENCE_SEMAPHORE: Semaphore = Semaphore::const_new(1);
+
+/// Record of a single tool call executed during an agent loop turn.
+#[derive(Debug, Clone, Serialize)]
+pub struct ToolCallStep {
+    pub tool_name: String,
+    pub arguments: serde_json::Value,
+    /// Truncated result for wire efficiency (max 500 chars).
+    pub result_summary: String,
+    pub success: bool,
+}
+
+/// Record of a single turn within the N-turn agent loop.
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentLoopStep {
+    pub turn: usize,
+    /// One of: "tool_execution", "inline_tool_execution", "nudge", "final_answer"
+    pub step_type: String,
+    pub model_content: String,
+    pub tool_calls: Vec<ToolCallStep>,
+}
 
 pub struct AgentLoopResponse {
     pub final_reply: String,
@@ -69,6 +127,8 @@ pub struct AgentLoopResponse {
     pub tools_called: Vec<String>,
     /// Whether the user prompt was tail-truncated before sending to the LLM.
     pub prompt_truncated: bool,
+    /// Detailed record of each turn for Flutter UI visibility.
+    pub steps: Vec<AgentLoopStep>,
 }
 
 pub struct McpAgentLoop;
@@ -192,6 +252,7 @@ impl McpAgentLoop {
         let mut exit_reason = "max_iterations_reached";
         let mut last_error: Option<String> = None;
         let mut nudged_for_tool_use = false;
+        let mut steps: Vec<AgentLoopStep> = Vec::new();
 
         while iterations < MAX_AGENT_ITERATIONS {
             iterations += 1;
@@ -254,7 +315,7 @@ impl McpAgentLoop {
                 }
             };
 
-            // Check if LLM requested tool calls
+            // ── Step 1: Check for structured tool calls (Ollama native) ────
             if let Some(ref tool_calls) = res.tool_calls {
                 if !tool_calls.is_empty() {
                     info!(
@@ -264,17 +325,16 @@ impl McpAgentLoop {
                         model = model,
                         turn = %format!("{}/{}", iterations, MAX_AGENT_ITERATIONS),
                         tool_count = tool_calls.len(),
-                        "LLM requested MCP tool execution"
+                        "LLM requested MCP tool execution (structured)"
                     );
 
-                    // Append assistant's tool_calls message to context
                     messages.push(ChatMessage {
                         role: "assistant".into(),
                         content: res.content.clone(),
                         tool_calls: Some(tool_calls.clone()),
                     });
 
-                    // Execute each requested MCP tool locally on RPi 5
+                    let mut step_tool_calls = Vec::new();
                     for tc in tool_calls {
                         let tool_name = &tc.function.name;
                         tools_called.push(tool_name.clone());
@@ -296,18 +356,83 @@ impl McpAgentLoop {
                         );
 
                         let tool_res = McpExecutor::execute(&mcp_call, process_manager, ollama_lifecycle).await;
+                        let result_str = tool_res.result.to_string();
+                        step_tool_calls.push(ToolCallStep {
+                            tool_name: tool_name.clone(),
+                            arguments: tc.function.arguments.clone(),
+                            result_summary: if result_str.len() > 500 { format!("{}…", &result_str[..500]) } else { result_str },
+                            success: tool_res.success,
+                        });
 
-                        // Append tool execution result JSON to message context for next turn
                         messages.push(ChatMessage::tool(format!("Tool '{}' Result:\n{}", tool_name, tool_res.result)));
                     }
 
+                    steps.push(AgentLoopStep {
+                        turn: iterations,
+                        step_type: "tool_execution".to_string(),
+                        model_content: res.content.clone(),
+                        tool_calls: step_tool_calls,
+                    });
                     continue;
                 }
             }
 
-            // No tool calls requested. If this intent requires guaranteed tool use and
-            // we haven't nudged yet, give the model one corrective retry instead of
-            // silently accepting a hallucinated free-text answer.
+            // ── Step 2: Check for inline tool calls in content (qwen2.5 quirk) ──
+            let raw_text = res.effective_text();
+            let inline_calls = parse_inline_tool_calls(&raw_text);
+            if !inline_calls.is_empty() {
+                info!(
+                    subsystem = "agent_loop",
+                    prompt = %effective_prompt,
+                    target_url = %client.base_url(),
+                    model = model,
+                    turn = %format!("{}/{}", iterations, MAX_AGENT_ITERATIONS),
+                    inline_count = inline_calls.len(),
+                    "Detected inline tool calls in content — parsing and executing"
+                );
+
+                messages.push(ChatMessage {
+                    role: "assistant".into(),
+                    content: raw_text.clone(),
+                    tool_calls: None,
+                });
+
+                let mut step_tool_calls = Vec::new();
+                for mcp_call in &inline_calls {
+                    tools_called.push(mcp_call.name.clone());
+
+                    info!(
+                        subsystem = "agent_loop",
+                        prompt = %effective_prompt,
+                        target_url = %client.base_url(),
+                        turn = %format!("{}/{}", iterations, MAX_AGENT_ITERATIONS),
+                        tool_name = %mcp_call.name,
+                        arguments = %mcp_call.arguments,
+                        "Executing inline-parsed MCP tool on RPi 5"
+                    );
+
+                    let tool_res = McpExecutor::execute(mcp_call, process_manager, ollama_lifecycle).await;
+                    let result_str = tool_res.result.to_string();
+                    step_tool_calls.push(ToolCallStep {
+                        tool_name: mcp_call.name.clone(),
+                        arguments: mcp_call.arguments.clone(),
+                        result_summary: if result_str.len() > 500 { format!("{}…", &result_str[..500]) } else { result_str },
+                        success: tool_res.success,
+                    });
+
+                    messages.push(ChatMessage::tool(format!("Tool '{}' Result:\n{}", mcp_call.name, tool_res.result)));
+                }
+
+                steps.push(AgentLoopStep {
+                    turn: iterations,
+                    step_type: "inline_tool_execution".to_string(),
+                    model_content: raw_text,
+                    tool_calls: step_tool_calls,
+                });
+                continue;
+            }
+
+            // ── Step 3: No tool calls detected — nudge if force_tool_choice ──
             if force_tool_choice && !nudged_for_tool_use {
                 nudged_for_tool_use = true;
                 warn!(
@@ -319,7 +444,13 @@ impl McpAgentLoop {
                     "SystemQuery expected a tool call but model answered in free text — issuing corrective nudge"
                 );
 
-                // Preserve the model's own (rejected) reply in context, then nudge.
+                steps.push(AgentLoopStep {
+                    turn: iterations,
+                    step_type: "nudge".to_string(),
+                    model_content: raw_text.clone(),
+                    tool_calls: vec![],
+                });
+
                 messages.push(ChatMessage {
                     role: "assistant".into(),
                     content: res.content.clone(),
@@ -333,37 +464,14 @@ impl McpAgentLoop {
                 continue;
             }
 
-            // Detect inline tool-call artifacts: some models (e.g. qwen2.5) emit
-            // <tool_call>...</tool_call> XML directly in `content` instead of using
-            // the structured `tool_calls` field. Treat these the same as structured
-            // tool calls — nudge the model to produce a clean answer.
-            let raw_text = res.effective_text();
-            if inline_tool_calls_detected(&raw_text) && !nudged_for_tool_use {
-                nudged_for_tool_use = true;
-                warn!(
-                    subsystem = "agent_loop",
-                    prompt = %effective_prompt,
-                    target_url = %client.base_url(),
-                    model = model,
-                    turn = iterations,
-                    "Detected inline <tool_call> artifacts in content — nudging for clean final answer"
-                );
-                messages.push(ChatMessage {
-                    role: "assistant".into(),
-                    content: raw_text.clone(),
-                    tool_calls: None,
-                });
-                messages.push(ChatMessage::user(
-                    "Your previous response contained raw tool call markup. \
-                    The tool has already been executed. Please provide a clean, \
-                    human-readable summary of the results without any <tool_call> tags or JSON blocks."
-                        .to_string(),
-                ));
-                continue;
-            }
-
-            // No tool calls requested: LLM completed reasoning and outputted final response
+            // ── Step 4: Final answer — no tool calls, model completed reasoning ──
             final_reply = strip_tool_call_artifacts(&raw_text);
+            steps.push(AgentLoopStep {
+                turn: iterations,
+                step_type: "final_answer".to_string(),
+                model_content: raw_text,
+                tool_calls: vec![],
+            });
             exit_reason = "clean_completion";
             break;
         }
@@ -417,6 +525,7 @@ impl McpAgentLoop {
             iterations,
             tools_called,
             prompt_truncated,
+            steps,
         })
     }
 }
@@ -441,5 +550,44 @@ mod tests {
         expected.push_str(TRUNCATION_SUFFIX);
         assert_eq!(expected.len(), limit);
         assert!(expected.ends_with(TRUNCATION_SUFFIX));
+    }
+
+    #[test]
+    fn test_parse_inline_tool_calls_bare_json() {
+        let content = r#"I'll check that for you.
+{"name": "governor_get_metrics", "arguments": {}}
+"#;
+        let calls = parse_inline_tool_calls(content);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "governor_get_metrics");
+    }
+
+    #[test]
+    fn test_parse_inline_tool_calls_xml_wrapped() {
+        let content = r#"Let me look.
+<tool_call>{"name": "governor_query_logs", "arguments": {"limit": 50}}</tool_call>
+"#;
+        let calls = parse_inline_tool_calls(content);
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "governor_query_logs");
+        assert_eq!(calls[0].arguments["limit"], 50);
+    }
+
+    #[test]
+    fn test_parse_inline_tool_calls_no_match() {
+        let content = "Hello! I'm JOSH, your AI assistant. How can I help?";
+        let calls = parse_inline_tool_calls(content);
+        assert!(calls.is_empty());
+    }
+
+    #[test]
+    fn test_strip_bare_json_tool_call() {
+        let text = r#"Let me check.
+{"name": "governor_get_metrics", "arguments": {}}
+Some more text."#;
+        let stripped = strip_tool_call_artifacts(text);
+        assert!(!stripped.contains("governor_get_metrics"));
+        assert!(stripped.contains("Let me check"));
+        assert!(stripped.contains("Some more text"));
     }
 }

@@ -226,6 +226,7 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
               isStreaming: !chunk.done,
               evalTokensPerSec: chunk.evalTokensPerSec ?? m.evalTokensPerSec,
               totalDurationMs: chunk.totalDurationMs ?? m.totalDurationMs,
+              steps: chunk.steps.isNotEmpty ? chunk.steps : m.steps,
             );
           }
           return m;
