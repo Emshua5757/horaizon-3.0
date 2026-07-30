@@ -68,6 +68,13 @@ export interface SentimentEvent {
   label: string;
 }
 
+/** Server-pushed real-time entry update event for multi-device optimistic concurrency */
+export interface EntryUpdatedEvent {
+  entry_id: string;
+  block_id: string;
+  version: number;
+}
+
 /** Module process description and live telemetry returned in governor.status */
 export interface ModuleEntry {
   /** Module namespace string e.g. shua.resume */
@@ -137,6 +144,30 @@ export interface AiRouteResponse {
   intent: IntentClass;
   reply: string;
   duration_ms: number;
+  /** List of agent loop turn step records */
+  steps: AgentLoopStepDto[];
+}
+
+/** Record of a single tool call executed within an agent loop step */
+export interface ToolCallStepDto {
+  /** Name of the executed MCP tool */
+  tool_name: string;
+  /** Truncated string summary of the tool execution output */
+  result_summary: string;
+  /** True if tool executed successfully */
+  success: boolean;
+}
+
+/** Record of a single turn iteration in the N-turn agent loop */
+export interface AgentLoopStepDto {
+  /** Turn iteration index (1..5) */
+  turn: number;
+  /** Step category (tool_execution, inline_tool_execution, nudge, final_answer) */
+  step_type: string;
+  /** Raw LLM output text for this turn */
+  model_content: string;
+  /** List of tool calls executed during this turn */
+  tool_calls: ToolCallStepDto[];
 }
 
 /** System configuration settings payload returned/updated via governor.config.* */
@@ -157,6 +188,18 @@ export interface GovernorConfigDto {
   dream_loop_cron: string;
   /** SQLite log database retention period in days */
   log_retention_days: number;
+}
+
+/** Universal HBP Stream Frame container for arbitrary data/media streams */
+export interface StreamFrameDto {
+  /** Media stream classification (LlmToken, AudioPcm, VideoNal, etc.) */
+  media_type: StreamMediaType;
+  /** Monotonic chunk sequence index (0, 1, 2...) */
+  sequence_num: number;
+  /** UTF-8 text delta string or Base64/MsgPack binary data chunk */
+  chunk_data: string;
+  /** True if this chunk terminates the active stream */
+  is_last: boolean;
 }
 
 /** Client WebSocket subscription filter for live log events */

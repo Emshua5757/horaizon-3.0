@@ -25,14 +25,24 @@ const (
 	ShuaDiaryEntryGet = "shua.diary.entry.get"
 	// Create a new diary entry
 	ShuaDiaryEntryCreate = "shua.diary.entry.create"
+	// Upsert diary entry metadata or block array with optimistic version check
+	ShuaDiaryEntrySave = "shua.diary.entry.save"
 	// Delete a diary entry
 	ShuaDiaryEntryDelete = "shua.diary.entry.delete"
+	// Full-text search (FTS5) across diary entry text and block contents
+	ShuaDiarySearch = "shua.diary.search"
+	// Upload binary media file to Pi 5 Content-Addressable Media Vault
+	ShuaDiaryMediaUpload = "shua.diary.media.upload"
+	// Retrieve media file metadata and URL from Media Vault
+	ShuaDiaryMediaGet = "shua.diary.media.get"
 	// Upsert a block (debounced)
 	ShuaDiaryBlockSave = "shua.diary.block.save"
 	// Reorder blocks with LexoRank
 	ShuaDiaryBlockReorder = "shua.diary.block.reorder"
 	// Delete a diary block
 	ShuaDiaryBlockDelete = "shua.diary.block.delete"
+	// Server-pushed real-time entry update notification
+	ShuaDiaryEntryUpdated = "shua.diary.entry.updated"
 	// Server-pushed sentiment score after a block save
 	ShuaDiarySentimentScore = "shua.diary.sentiment.score"
 	// Elevate a diary entry to the Global Identity Matrix
@@ -53,6 +63,10 @@ const (
 	ShuaGovernorOllamaEvict = "shua.governor.ollama.evict"
 	// Route a prompt through the intent classifier and get an AI reply
 	ShuaGovernorAiRoute = "shua.governor.ai.route"
+	// Universal server-pushed stream packet for LLM tokens, Audio, Video, and Telemetry
+	ShuaGovernorStreamChunk = "shua.governor.stream.chunk"
+	// Server-pushed milestone event for agent turn changes and tool execution results
+	ShuaGovernorStreamStep = "shua.governor.stream.step"
 	// Subscribe or update WebSocket live log stream filter
 	ShuaGovernorLogsSubscribe = "shua.governor.logs.subscribe"
 	// Ingest client diagnostic log event into Governor

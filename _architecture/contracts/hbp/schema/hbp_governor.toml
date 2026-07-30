@@ -184,6 +184,54 @@ type        = "str"
 index       = 4
 name        = "duration_ms"
 type        = "u32"
+[[structs.fields]]
+index       = 5
+name        = "steps"
+type        = "AgentLoopStepDto[]"
+description = "List of agent loop turn step records"
+
+[[structs]]
+name        = "ToolCallStepDto"
+description = "Record of a single tool call executed within an agent loop step"
+[[structs.fields]]
+index       = 1
+name        = "tool_name"
+type        = "str"
+description = "Name of the executed MCP tool"
+[[structs.fields]]
+index       = 2
+name        = "result_summary"
+type        = "str"
+description = "Truncated string summary of the tool execution output"
+[[structs.fields]]
+index       = 3
+name        = "success"
+type        = "bool"
+description = "True if tool executed successfully"
+
+[[structs]]
+name        = "AgentLoopStepDto"
+description = "Record of a single turn iteration in the N-turn agent loop"
+[[structs.fields]]
+index       = 1
+name        = "turn"
+type        = "u32"
+description = "Turn iteration index (1..5)"
+[[structs.fields]]
+index       = 2
+name        = "step_type"
+type        = "str"
+description = "Step category (tool_execution, inline_tool_execution, nudge, final_answer)"
+[[structs.fields]]
+index       = 3
+name        = "model_content"
+type        = "str"
+description = "Raw LLM output text for this turn"
+[[structs.fields]]
+index       = 4
+name        = "tool_calls"
+type        = "ToolCallStepDto[]"
+description = "List of tool calls executed during this turn"
 
 [[structs]]
 name        = "GovernorConfigDto"
@@ -296,6 +344,55 @@ description     = "Evict the currently loaded Ollama model (keep_alive: 0)"
 request_struct  = ""
 response_struct = ""
 
+[[enums]]
+name        = "StreamMediaType"
+description = "Universal Media Type Classifier for HBP Stream Packets"
+[[enums.variants]]
+name = "LlmToken"
+value = 1
+[[enums.variants]]
+name = "AudioPcm"
+value = 2
+[[enums.variants]]
+name = "AudioOpus"
+value = 3
+[[enums.variants]]
+name = "VideoNal"
+value = 4
+[[enums.variants]]
+name = "VideoWebp"
+value = 5
+[[enums.variants]]
+name = "StepMilestone"
+value = 6
+[[enums.variants]]
+name = "TelemetryMetric"
+value = 7
+
+[[structs]]
+name        = "StreamFrameDto"
+description = "Universal HBP Stream Frame container for arbitrary data/media streams"
+[[structs.fields]]
+index       = 1
+name        = "media_type"
+type        = "StreamMediaType"
+description = "Media stream classification (LlmToken, AudioPcm, VideoNal, etc.)"
+[[structs.fields]]
+index       = 2
+name        = "sequence_num"
+type        = "u64"
+description = "Monotonic chunk sequence index (0, 1, 2...)"
+[[structs.fields]]
+index       = 3
+name        = "chunk_data"
+type        = "str"
+description = "UTF-8 text delta string or Base64/MsgPack binary data chunk"
+[[structs.fields]]
+index       = 4
+name        = "is_last"
+type        = "bool"
+description = "True if this chunk terminates the active stream"
+
 [[operations]]
 module          = "shua.governor"
 name            = "ai.route"
@@ -304,3 +401,21 @@ requires_auth   = true
 description     = "Route a prompt through the intent classifier and get an AI reply"
 request_struct  = "AiRouteRequest"
 response_struct = "AiRouteResponse"
+
+[[operations]]
+module          = "shua.governor"
+name            = "stream.chunk"
+type            = "stream"
+requires_auth   = true
+description     = "Universal server-pushed stream packet for LLM tokens, Audio, Video, and Telemetry"
+request_struct  = ""
+response_struct = "StreamFrameDto"
+
+[[operations]]
+module          = "shua.governor"
+name            = "stream.step"
+type            = "stream"
+requires_auth   = true
+description     = "Server-pushed milestone event for agent turn changes and tool execution results"
+request_struct  = ""
+response_struct = "AgentLoopStepDto"

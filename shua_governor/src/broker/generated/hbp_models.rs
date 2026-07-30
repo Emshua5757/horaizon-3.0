@@ -87,6 +87,17 @@ pub struct SentimentEvent {
     pub label: String,
 }
 
+/// Server-pushed real-time entry update event for multi-device optimistic concurrency
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EntryUpdatedEvent {
+    /// Index 1
+    pub entry_id: String,
+    /// Index 2
+    pub block_id: String,
+    /// Index 3
+    pub version: u32,
+}
+
 /// Module process description and live telemetry returned in governor.status
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModuleEntry {
@@ -180,6 +191,32 @@ pub struct AiRouteResponse {
     pub reply: String,
     /// Index 4
     pub duration_ms: u32,
+    /// Index 5: List of agent loop turn step records
+    pub steps: Vec<AgentLoopStepDto>,
+}
+
+/// Record of a single tool call executed within an agent loop step
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCallStepDto {
+    /// Index 1: Name of the executed MCP tool
+    pub tool_name: String,
+    /// Index 2: Truncated string summary of the tool execution output
+    pub result_summary: String,
+    /// Index 3: True if tool executed successfully
+    pub success: bool,
+}
+
+/// Record of a single turn iteration in the N-turn agent loop
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentLoopStepDto {
+    /// Index 1: Turn iteration index (1..5)
+    pub turn: u32,
+    /// Index 2: Step category (tool_execution, inline_tool_execution, nudge, final_answer)
+    pub step_type: String,
+    /// Index 3: Raw LLM output text for this turn
+    pub model_content: String,
+    /// Index 4: List of tool calls executed during this turn
+    pub tool_calls: Vec<ToolCallStepDto>,
 }
 
 /// System configuration settings payload returned/updated via governor.config.*
@@ -202,6 +239,19 @@ pub struct GovernorConfigDto {
     pub dream_loop_cron: String,
     /// Index 8: SQLite log database retention period in days
     pub log_retention_days: u32,
+}
+
+/// Universal HBP Stream Frame container for arbitrary data/media streams
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StreamFrameDto {
+    /// Index 1: Media stream classification (LlmToken, AudioPcm, VideoNal, etc.)
+    pub media_type: StreamMediaType,
+    /// Index 2: Monotonic chunk sequence index (0, 1, 2...)
+    pub sequence_num: u64,
+    /// Index 3: UTF-8 text delta string or Base64/MsgPack binary data chunk
+    pub chunk_data: String,
+    /// Index 4: True if this chunk terminates the active stream
+    pub is_last: bool,
 }
 
 /// Client WebSocket subscription filter for live log events

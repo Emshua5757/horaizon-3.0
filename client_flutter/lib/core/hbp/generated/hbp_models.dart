@@ -182,6 +182,30 @@ class SentimentEvent {
 
 }
 
+/// Server-pushed real-time entry update event for multi-device optimistic concurrency
+class EntryUpdatedEvent {
+  final String entryId;
+  final String blockId;
+  final int version;
+
+  const EntryUpdatedEvent({required this.entryId, required this.blockId, required this.version});
+
+  factory EntryUpdatedEvent.fromMap(Map<String, dynamic> m) {
+    return EntryUpdatedEvent(
+      entryId: m['entry_id'] as String,
+      blockId: m['block_id'] as String,
+      version: m['version'] as int,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'entry_id': entryId,
+    'block_id': blockId,
+    'version': version,
+  };
+
+}
+
 /// Module process description and live telemetry returned in governor.status
 class ModuleEntry {
   /// Module namespace string e.g. shua.resume
@@ -370,8 +394,10 @@ class AiRouteResponse {
   final IntentClass intent;
   final String reply;
   final int durationMs;
+  /// List of agent loop turn step records
+  final List<AgentLoopStepDto> steps;
 
-  const AiRouteResponse({required this.modelUsed, required this.intent, required this.reply, required this.durationMs});
+  const AiRouteResponse({required this.modelUsed, required this.intent, required this.reply, required this.durationMs, required this.steps});
 
   factory AiRouteResponse.fromMap(Map<String, dynamic> m) {
     return AiRouteResponse(
@@ -379,6 +405,7 @@ class AiRouteResponse {
       intent: IntentClass.fromInt(m['intent'] as int),
       reply: m['reply'] as String,
       durationMs: m['duration_ms'] as int,
+      steps: (m['steps'] as List).map((e) => AgentLoopStepDto.fromMap(e as Map<String, dynamic>)).toList(),
     );
   }
 
@@ -387,6 +414,65 @@ class AiRouteResponse {
     'intent': intent.value,
     'reply': reply,
     'duration_ms': durationMs,
+    'steps': steps.map((e) => e.toMap()).toList(),
+  };
+
+}
+
+/// Record of a single tool call executed within an agent loop step
+class ToolCallStepDto {
+  /// Name of the executed MCP tool
+  final String toolName;
+  /// Truncated string summary of the tool execution output
+  final String resultSummary;
+  /// True if tool executed successfully
+  final bool success;
+
+  const ToolCallStepDto({required this.toolName, required this.resultSummary, required this.success});
+
+  factory ToolCallStepDto.fromMap(Map<String, dynamic> m) {
+    return ToolCallStepDto(
+      toolName: m['tool_name'] as String,
+      resultSummary: m['result_summary'] as String,
+      success: m['success'] as bool,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'tool_name': toolName,
+    'result_summary': resultSummary,
+    'success': success,
+  };
+
+}
+
+/// Record of a single turn iteration in the N-turn agent loop
+class AgentLoopStepDto {
+  /// Turn iteration index (1..5)
+  final int turn;
+  /// Step category (tool_execution, inline_tool_execution, nudge, final_answer)
+  final String stepType;
+  /// Raw LLM output text for this turn
+  final String modelContent;
+  /// List of tool calls executed during this turn
+  final List<ToolCallStepDto> toolCalls;
+
+  const AgentLoopStepDto({required this.turn, required this.stepType, required this.modelContent, required this.toolCalls});
+
+  factory AgentLoopStepDto.fromMap(Map<String, dynamic> m) {
+    return AgentLoopStepDto(
+      turn: m['turn'] as int,
+      stepType: m['step_type'] as String,
+      modelContent: m['model_content'] as String,
+      toolCalls: (m['tool_calls'] as List).map((e) => ToolCallStepDto.fromMap(e as Map<String, dynamic>)).toList(),
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'turn': turn,
+    'step_type': stepType,
+    'model_content': modelContent,
+    'tool_calls': toolCalls.map((e) => e.toMap()).toList(),
   };
 
 }
@@ -434,6 +520,37 @@ class GovernorConfigDto {
     'dream_loop_enabled': dreamLoopEnabled,
     'dream_loop_cron': dreamLoopCron,
     'log_retention_days': logRetentionDays,
+  };
+
+}
+
+/// Universal HBP Stream Frame container for arbitrary data/media streams
+class StreamFrameDto {
+  /// Media stream classification (LlmToken, AudioPcm, VideoNal, etc.)
+  final StreamMediaType mediaType;
+  /// Monotonic chunk sequence index (0, 1, 2...)
+  final int sequenceNum;
+  /// UTF-8 text delta string or Base64/MsgPack binary data chunk
+  final String chunkData;
+  /// True if this chunk terminates the active stream
+  final bool isLast;
+
+  const StreamFrameDto({required this.mediaType, required this.sequenceNum, required this.chunkData, required this.isLast});
+
+  factory StreamFrameDto.fromMap(Map<String, dynamic> m) {
+    return StreamFrameDto(
+      mediaType: StreamMediaType.fromInt(m['media_type'] as int),
+      sequenceNum: m['sequence_num'] as int,
+      chunkData: m['chunk_data'] as String,
+      isLast: m['is_last'] as bool,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'media_type': mediaType.value,
+    'sequence_num': sequenceNum,
+    'chunk_data': chunkData,
+    'is_last': isLast,
   };
 
 }

@@ -72,3 +72,22 @@ enum IntentClass {
         orElse: () => throw ArgumentError('Unknown IntentClass: $v'));
   }
 }
+
+/// Universal Media Type Classifier for HBP Stream Packets
+enum StreamMediaType {
+  LlmToken(1),
+  AudioPcm(2),
+  AudioOpus(3),
+  VideoNal(4),
+  VideoWebp(5),
+  StepMilestone(6),
+  TelemetryMetric(7),
+
+  const StreamMediaType(this.value);
+  final int value;
+
+  static StreamMediaType fromInt(int v) {
+    return StreamMediaType.values.firstWhere((e) => e.value == v,
+        orElse: () => throw ArgumentError('Unknown StreamMediaType: $v'));
+  }
+}

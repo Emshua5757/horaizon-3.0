@@ -38,3 +38,13 @@ class IntentClass(IntEnum):
     REFLECTIVEDIALOGUE = 2
     CODEAST = 3
     COPILOTCOMMAND = 4
+
+# Universal Media Type Classifier for HBP Stream Packets
+class StreamMediaType(IntEnum):
+    LLMTOKEN = 1
+    AUDIOPCM = 2
+    AUDIOOPUS = 3
+    VIDEONAL = 4
+    VIDEOWEBP = 5
+    STEPMILESTONE = 6
+    TELEMETRYMETRIC = 7
