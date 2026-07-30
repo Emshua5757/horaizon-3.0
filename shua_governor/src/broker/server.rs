@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use futures_util::{SinkExt, StreamExt};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpStream;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 use tracing::{error, info, warn};
 
@@ -20,7 +20,17 @@ impl BrokerServer {
     }
 
     pub async fn run(&self, addr: SocketAddr) -> Result<()> {
-        let listener = TcpListener::bind(addr).await?;
+        let socket = if addr.is_ipv4() {
+            tokio::net::TcpSocket::new_v4()?
+        } else {
+            tokio::net::TcpSocket::new_v6()?
+        };
+        socket.set_reuseaddr(true)?;
+        #[cfg(target_family = "unix")]
+        let _ = socket.set_reuseport(true);
+
+        socket.bind(addr)?;
+        let listener = socket.listen(1024)?;
         info!(
             module = "shua.governor",
             subsystem = "broker",

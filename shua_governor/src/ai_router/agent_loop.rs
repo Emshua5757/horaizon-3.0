@@ -463,9 +463,7 @@ impl McpAgentLoop {
                     tool_calls: None,
                 });
                 messages.push(ChatMessage::user(
-                    "You did not call a tool. This request requires calling the appropriate \
-                    MCP tool listed in your instructions before answering. Call it now."
-                        .to_string(),
+                    "COMMAND: Respond ONLY with the MCP tool call JSON format: `{\"name\": \"governor_get_metrics\", \"arguments\": {}}`. Do not write any thoughts, explanations, or meta-comments.".to_string(),
                 ));
                 continue;
             }
