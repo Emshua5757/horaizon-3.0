@@ -51,7 +51,7 @@ pub struct HbpFrame {
     /// Index 3: Transaction ID — UUID v4. RESPONSE echoes REQUEST id. EVENT generates its own.
     pub id: String,
     /// Index 4: Module namespace e.g. shua.resume
-    pub mod: String,
+    pub r#mod: String,
     /// Index 5: Operation name e.g. compile
     pub op: String,
     /// Index 6: Timestamp of creation (UTC)
