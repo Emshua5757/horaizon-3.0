@@ -58,16 +58,30 @@ class _TurnStepCardState extends State<_TurnStepCard> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
                 children: [
-                  Icon(
-                    step.stepType == 'nudge' ? Icons.warning_amber_rounded : Icons.precision_manufacturing_rounded,
-                    size: 15,
-                    color: isError ? Colors.red.shade300 : cs.tertiary,
-                  ),
+                  if (step.stepType == 'reasoning')
+                    SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: cs.primary,
+                      ),
+                    )
+                  else
+                    Icon(
+                      step.stepType == 'nudge'
+                          ? Icons.warning_amber_rounded
+                          : Icons.precision_manufacturing_rounded,
+                      size: 15,
+                      color: isError ? Colors.red.shade300 : cs.tertiary,
+                    ),
                   const SizedBox(width: 8),
                   Text(
-                    'TURN ${step.turn} · ${step.stepTypeIcon} ${step.stepTypeLabel.toUpperCase()}',
+                    'TURN ${step.turn} · ${step.stepType == "reasoning" ? "⚡ REASONING (LIVE)" : "${step.stepTypeIcon} ${step.stepTypeLabel.toUpperCase()}"}',
                     style: TextStyle(
-                      color: isError ? Colors.red.shade300 : cs.tertiary,
+                      color: step.stepType == 'reasoning'
+                          ? cs.primary
+                          : (isError ? Colors.red.shade300 : cs.tertiary),
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.8,

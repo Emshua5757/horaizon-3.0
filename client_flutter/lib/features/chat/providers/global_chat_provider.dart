@@ -202,11 +202,13 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
       sessionId: _sessionId,
     );
 
-    var currentContent = '';
+    var finalContent = '';
+    var liveReasoning = '';
+    var activeTurn = 1;
     var chunkCount = 0;
+
     _streamSub = stream.listen(
       (chunk) {
-        currentContent += chunk.content;
         chunkCount++;
         final targetNode = chunk.routedNode ?? state.offloadTarget;
 
@@ -223,17 +225,45 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
         final newMessages = state.messages.map((m) {
           if (m.id == assistantMsgId) {
             final updatedSteps = List<AgentLoopStep>.from(m.steps);
-            for (final newStep in chunk.steps) {
-              final idx = updatedSteps.indexWhere((s) => s.turn == newStep.turn);
-              if (idx >= 0) {
-                updatedSteps[idx] = newStep;
+
+            // 1. Handle incoming completed turn steps from shua_governor
+            if (chunk.steps.isNotEmpty) {
+              for (final incomingStep in chunk.steps) {
+                final idx = updatedSteps.indexWhere((s) => s.turn == incomingStep.turn);
+                if (idx >= 0) {
+                  updatedSteps[idx] = incomingStep;
+                } else {
+                  updatedSteps.add(incomingStep);
+                }
+                activeTurn = incomingStep.turn + 1;
+              }
+              liveReasoning = '';
+            } else if (chunk.content.isNotEmpty) {
+              // 2. Token delta chunk arrived live from Ollama
+              // If we have completed steps that did tool calls, token deltas belong to finalContent
+              final hasCompletedToolCalls = updatedSteps.any((s) => s.toolCalls.isNotEmpty);
+              if (hasCompletedToolCalls && updatedSteps.any((s) => s.stepType == 'final_answer' || chunk.done)) {
+                finalContent += chunk.content;
               } else {
-                updatedSteps.add(newStep);
+                // Token deltas belong to live reasoning stream for activeTurn
+                liveReasoning += chunk.content;
+                final liveStepIdx = updatedSteps.indexWhere((s) => s.turn == activeTurn);
+                final liveStep = AgentLoopStep(
+                  turn: activeTurn,
+                  stepType: 'reasoning',
+                  modelContent: liveReasoning,
+                  toolCalls: const [],
+                );
+                if (liveStepIdx >= 0) {
+                  updatedSteps[liveStepIdx] = liveStep;
+                } else {
+                  updatedSteps.add(liveStep);
+                }
               }
             }
 
             return m.copyWith(
-              content: currentContent,
+              content: finalContent,
               offloadTarget: targetNode,
               isStreaming: !chunk.done,
               evalTokensPerSec: chunk.evalTokensPerSec ?? m.evalTokensPerSec,
