@@ -203,7 +203,6 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
     );
 
     var finalContent = '';
-    var activeTurn = 1;
     var chunkCount = 0;
 
     _streamSub = stream.listen(
@@ -234,7 +233,6 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
                 } else {
                   updatedSteps.add(incomingStep);
                 }
-                activeTurn = incomingStep.turn + 1;
               }
             } else if (chunk.content.isNotEmpty) {
               // 2. Token delta chunk arrived live from Ollama — stream into message content

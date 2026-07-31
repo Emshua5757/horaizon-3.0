@@ -20,11 +20,13 @@ DEFAULT_OUTPUT = "compiled_context.md"
 def expand_paths(paths):
     expanded = []
     valid_exts = {".md", ".toml", ".json", ".yaml", ".yml", ".rs", ".ts", ".dart", ".go", ".cs"}
+    ignored_dirs = {"target", ".git", ".dart_tool", "build", "node_modules", ".n8n"}
     
     for p in paths:
         abs_p = os.path.abspath(p)
         if os.path.isdir(abs_p):
-            for root, _, files in os.walk(abs_p):
+            for root, dirs, files in os.walk(abs_p):
+                dirs[:] = [d for d in dirs if d not in ignored_dirs]
                 for f in sorted(files):
                     ext = os.path.splitext(f)[1].lower()
                     if ext in valid_exts:
