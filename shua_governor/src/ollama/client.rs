@@ -279,7 +279,8 @@ impl OllamaClient {
         let mut accumulated_thinking = String::new();
         let mut accumulated_tool_calls: Option<Vec<ToolCall>> = None;
         let mut thinking: Option<String> = None;
-        let mut reasoning_content: Option<String> = None;
+        let reasoning_content: Option<String> = None;
+        let mut in_thinking_stream = false;
 
         let mut buffer = Vec::new();
         while let Ok(Some(chunk)) = res.chunk().await {
@@ -294,23 +295,43 @@ impl OllamaClient {
                 }
 
                 if let Ok(resp) = serde_json::from_str::<ChatResponse>(trimmed) {
+                    // Stream thinking / reasoning tokens live wrapped in <think> tags
+                    let think_delta = resp.message.thinking.as_deref().or(resp.message.reasoning_content.as_deref());
+                    if let Some(t_delta) = think_delta {
+                        if !t_delta.is_empty() {
+                            if !in_thinking_stream {
+                                in_thinking_stream = true;
+                                on_delta("<think>\n");
+                                accumulated_content.push_str("<think>\n");
+                            }
+                            on_delta(t_delta);
+                            accumulated_thinking.push_str(t_delta);
+                            accumulated_content.push_str(t_delta);
+                            thinking = Some(accumulated_thinking.clone());
+                        }
+                    }
+
+                    // Stream standard content tokens live
                     if !resp.message.content.is_empty() {
+                        if in_thinking_stream {
+                            in_thinking_stream = false;
+                            on_delta("\n</think>\n");
+                            accumulated_content.push_str("\n</think>\n");
+                        }
                         on_delta(&resp.message.content);
                         accumulated_content.push_str(&resp.message.content);
                     }
-                    if let Some(ref t) = resp.message.thinking {
-                        accumulated_thinking.push_str(t);
-                        thinking = Some(accumulated_thinking.clone());
-                    }
-                    if let Some(ref r) = resp.message.reasoning_content {
-                        accumulated_thinking.push_str(r);
-                        reasoning_content = Some(accumulated_thinking.clone());
-                    }
+
                     if let Some(tc) = resp.message.tool_calls {
                         accumulated_tool_calls = Some(tc);
                     }
                 }
             }
+        }
+
+        if in_thinking_stream {
+            on_delta("\n</think>\n");
+            accumulated_content.push_str("\n</think>\n");
         }
 
         let final_content = if accumulated_content.trim().is_empty() && !accumulated_thinking.trim().is_empty() {
