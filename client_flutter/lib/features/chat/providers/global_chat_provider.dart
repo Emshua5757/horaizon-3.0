@@ -203,7 +203,6 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
     );
 
     var finalContent = '';
-    var liveReasoning = '';
     var activeTurn = 1;
     var chunkCount = 0;
 
@@ -237,29 +236,9 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
                 }
                 activeTurn = incomingStep.turn + 1;
               }
-              liveReasoning = '';
             } else if (chunk.content.isNotEmpty) {
-              // 2. Token delta chunk arrived live from Ollama
-              // If we have completed steps that did tool calls, token deltas belong to finalContent
-              final hasCompletedToolCalls = updatedSteps.any((s) => s.toolCalls.isNotEmpty);
-              if (hasCompletedToolCalls && updatedSteps.any((s) => s.stepType == 'final_answer' || chunk.done)) {
-                finalContent += chunk.content;
-              } else {
-                // Token deltas belong to live reasoning stream for activeTurn
-                liveReasoning += chunk.content;
-                final liveStepIdx = updatedSteps.indexWhere((s) => s.turn == activeTurn);
-                final liveStep = AgentLoopStep(
-                  turn: activeTurn,
-                  stepType: 'reasoning',
-                  modelContent: liveReasoning,
-                  toolCalls: const [],
-                );
-                if (liveStepIdx >= 0) {
-                  updatedSteps[liveStepIdx] = liveStep;
-                } else {
-                  updatedSteps.add(liveStep);
-                }
-              }
+              // 2. Token delta chunk arrived live from Ollama — stream into message content
+              finalContent += chunk.content;
             }
 
             return m.copyWith(
@@ -282,9 +261,9 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
 
         if (chunk.done) {
           // ── Telemetry: log full reply preview + stats ──────────────
-          final replyPreview = currentContent.length > 120
-              ? '${currentContent.substring(0, 120)}…'
-              : currentContent;
+          final replyPreview = finalContent.length > 120
+              ? '${finalContent.substring(0, 120)}…'
+              : finalContent;
           final tokStr = chunk.evalTokensPerSec?.toStringAsFixed(1) ?? 'N/A';
           final durationStr = chunk.totalDurationMs != null
               ? '${chunk.totalDurationMs}ms'
@@ -297,7 +276,7 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
               'model': state.selectedModel,
               'target': targetNode.shortLabel,
               'chunks': chunkCount,
-              'reply_chars': currentContent.length,
+              'reply_chars': finalContent.length,
               'eval_toks_per_s': tokStr,
               'duration_ms': chunk.totalDurationMs ?? 0,
             },
@@ -312,7 +291,7 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
           metadata: {
             'model': state.selectedModel,
             'target': state.offloadTarget.shortLabel,
-            'partial_chars': currentContent.length,
+            'partial_chars': finalContent.length,
             'chunks_received': chunkCount,
           },
         );
@@ -320,7 +299,7 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
         final newMessages = state.messages.map((m) {
           if (m.id == assistantMsgId) {
             return m.copyWith(
-              content: '$currentContent\n[Error: $e]',
+              content: '$finalContent\n[Error: $e]',
               isStreaming: false,
             );
           }
@@ -334,7 +313,7 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
       },
       onDone: () {
         // Guard: if stream ended but no done chunk was received (0-reply edge case)
-        if (currentContent.isEmpty && chunkCount == 0) {
+        if (finalContent.isEmpty && chunkCount == 0) {
           _logger?.log(
             subsystem: 'AI_CHAT',
             level: LogLevel.warn,

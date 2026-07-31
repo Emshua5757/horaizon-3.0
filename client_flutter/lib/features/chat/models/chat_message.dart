@@ -108,6 +108,8 @@ class AgentLoopStep {
         return '🔧';
       case 'nudge':
         return '🔄';
+      case 'reasoning':
+        return '🧠';
       case 'final_answer':
         return '💬';
       default:
@@ -123,6 +125,8 @@ class AgentLoopStep {
         return 'Inline Tool Execution';
       case 'nudge':
         return 'Corrective Nudge';
+      case 'reasoning':
+        return 'Model Reasoning';
       case 'final_answer':
         return 'Final Answer';
       default:

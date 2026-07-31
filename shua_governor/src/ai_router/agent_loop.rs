@@ -254,6 +254,7 @@ impl McpAgentLoop {
         let mut exit_reason = "max_iterations_reached";
         let mut last_error: Option<String> = None;
         let mut nudged_for_tool_use = false;
+        let mut tool_requirement_satisfied = false;
         let mut steps: Vec<AgentLoopStep> = Vec::new();
 
         while iterations < MAX_AGENT_ITERATIONS {
@@ -275,8 +276,15 @@ impl McpAgentLoop {
                 "Executing N-turn agent loop iteration"
             );
 
+            // If a tool requirement was already satisfied in a previous turn, remind model not to re-trigger tools
+            if tool_requirement_satisfied {
+                messages.push(ChatMessage::system(
+                    "System Note: You have already executed the requested MCP tool in a prior turn. Do NOT call any more tools; present your final answer directly using the tool result above."
+                ));
+            }
+
             // Send tools schema only on turn 1; subsequent turns pass None
-            let tools_for_this_turn = if iterations == 1 {
+            let tools_for_this_turn = if iterations == 1 && !tool_requirement_satisfied {
                 Some(tools_json.clone())
             } else {
                 None
@@ -312,6 +320,7 @@ impl McpAgentLoop {
             // ── Step 1: Check for structured tool calls (Ollama native) ────
             if let Some(ref tool_calls) = res.tool_calls {
                 if !tool_calls.is_empty() {
+                    tool_requirement_satisfied = true;
                     info!(
                         subsystem = "agent_loop",
                         prompt = %effective_prompt,
@@ -322,9 +331,10 @@ impl McpAgentLoop {
                         "LLM requested MCP tool execution (structured)"
                     );
 
+                    let cleaned_content = crate::ollama::client::strip_think_tags(&strip_tool_call_artifacts(&res.content));
                     messages.push(ChatMessage {
                         role: "assistant".into(),
-                        content: res.content.clone(),
+                        content: cleaned_content,
                         tool_calls: Some(tool_calls.clone()),
                     });
 
@@ -379,6 +389,7 @@ impl McpAgentLoop {
             let raw_text = res.effective_text();
             let inline_calls = parse_inline_tool_calls(&raw_text);
             if !inline_calls.is_empty() {
+                tool_requirement_satisfied = true;
                 info!(
                     subsystem = "agent_loop",
                     prompt = %effective_prompt,
@@ -389,9 +400,10 @@ impl McpAgentLoop {
                     "Detected inline tool calls in content — parsing and executing"
                 );
 
+                let cleaned_raw_text = crate::ollama::client::strip_think_tags(&strip_tool_call_artifacts(&raw_text));
                 messages.push(ChatMessage {
                     role: "assistant".into(),
-                    content: raw_text.clone(),
+                    content: cleaned_raw_text,
                     tool_calls: None,
                 });
 
@@ -435,7 +447,7 @@ impl McpAgentLoop {
             }
 
             // ── Step 3: No tool calls detected — nudge if force_tool_choice ──
-            if force_tool_choice && !nudged_for_tool_use {
+            if force_tool_choice && !nudged_for_tool_use && !tool_requirement_satisfied {
                 nudged_for_tool_use = true;
                 warn!(
                     subsystem = "agent_loop",
@@ -457,13 +469,14 @@ impl McpAgentLoop {
                 }
                 steps.push(step);
 
+                let cleaned_nudge_content = crate::ollama::client::strip_think_tags(&strip_tool_call_artifacts(&res.content));
                 messages.push(ChatMessage {
                     role: "assistant".into(),
-                    content: res.content.clone(),
+                    content: cleaned_nudge_content,
                     tool_calls: None,
                 });
-                messages.push(ChatMessage::user(
-                    "COMMAND: Respond ONLY with the MCP tool call JSON format: `{\"name\": \"governor_get_metrics\", \"arguments\": {}}`. Do not write any thoughts, explanations, or meta-comments.".to_string(),
+                messages.push(ChatMessage::system(
+                    "[GOVERNOR-INJECTED] COMMAND: Respond ONLY with the MCP tool call JSON format: `{\"name\": \"governor_get_metrics\", \"arguments\": {}}`. Do not write any thoughts, explanations, or meta-comments.".to_string(),
                 ));
                 continue;
             }
@@ -545,7 +558,7 @@ mod tests {
     #[test]
     fn test_max_agent_iterations_constant() {
         assert_eq!(MAX_AGENT_ITERATIONS, 5);
-        assert_eq!(PER_CALL_TIMEOUT_SECS, 45);
+        assert_eq!(PER_CALL_TIMEOUT_SECS, 90);
     }
 
     #[test]

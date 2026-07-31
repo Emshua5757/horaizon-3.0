@@ -58,15 +58,28 @@ impl McpExecutor {
                     .map(|u| u as u64)
                     .unwrap_or(14200);
 
+                let ram_used_pct = if ram_total_mb > 0 {
+                    ((ram_used_mb as f64 / ram_total_mb as f64) * 1000.0).round() / 10.0
+                } else {
+                    0.0
+                };
+                let ram_formatted = format!("{} / {} MB ({:.1}%)", ram_used_mb, ram_total_mb, ram_used_pct);
+                let uptime_hours = uptime_s / 3600;
+                let uptime_mins = (uptime_s % 3600) / 60;
+                let governor_uptime_human = format!("{}h {}m", uptime_hours, uptime_mins);
+
                 let result = serde_json::json!({
                     "system": "Raspberry Pi 5 Edge (ARM Cortex-A76)",
                     "status": "operational",
                     "cpu_utilization_pct": 8.0,
                     "ram_used_mb": ram_used_mb,
                     "ram_total_mb": ram_total_mb,
+                    "ram_used_pct": ram_used_pct,
+                    "ram_formatted": ram_formatted,
                     "temp_c": temp_c,
                     "nvme_status": "healthy",
                     "governor_uptime_s": uptime_s,
+                    "governor_uptime_human": governor_uptime_human,
                     "modules": modules,
                     "ollama": {
                         "loaded_model": loaded_model
