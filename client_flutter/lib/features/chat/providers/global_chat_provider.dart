@@ -234,9 +234,15 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
                   updatedSteps.add(incomingStep);
                 }
               }
-            } else if (chunk.content.isNotEmpty) {
-              // 2. Token delta chunk arrived live from Ollama — stream into message content
-              finalContent += chunk.content;
+            }
+
+            // 2. Token delta chunk or final completion payload from Ollama / shua_governor
+            if (chunk.content.isNotEmpty) {
+              if (chunk.done) {
+                finalContent = chunk.content;
+              } else {
+                finalContent += chunk.content;
+              }
             }
 
             return m.copyWith(
