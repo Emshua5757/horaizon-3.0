@@ -18,6 +18,8 @@ struct ChatPayload {
     keep_alive: serde_json::Value,
     #[serde(skip_serializing_if = "Option::is_none")]
     options: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    think: Option<serde_json::Value>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -94,20 +96,32 @@ pub struct ChatMessageResponse {
     pub tool_calls: Option<Vec<ToolCall>>,
 }
 
+pub fn strip_think_tags(text: &str) -> String {
+    use once_cell::sync::Lazy;
+    use regex::Regex;
+
+    static RE_THINK: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r"(?s)<think>.*?</think>").expect("valid regex")
+    });
+    RE_THINK.replace_all(text, "").trim().to_string()
+}
+
 impl ChatMessageResponse {
     pub fn effective_text(&self) -> String {
-        if !self.content.trim().is_empty() {
+        let raw = if !self.content.trim().is_empty() {
             self.content.clone()
         } else if let Some(ref r) = self.reasoning_content {
             if !r.trim().is_empty() {
-                return r.clone();
+                r.clone()
+            } else {
+                self.content.clone()
             }
-            self.content.clone()
         } else if let Some(ref t) = self.thinking {
             t.clone()
         } else {
             self.content.clone()
-        }
+        };
+        strip_think_tags(&raw)
     }
 }
 
@@ -142,6 +156,7 @@ impl OllamaClient {
             stream: false,
             keep_alive: serde_json::json!(-1),
             options: None,
+            think: None,
         };
 
         self.http
@@ -173,6 +188,7 @@ impl OllamaClient {
             stream: false,
             keep_alive: serde_json::json!(0),
             options: None,
+            think: None,
         };
 
         self.http
@@ -213,6 +229,7 @@ impl OllamaClient {
             stream: false,
             keep_alive: serde_json::json!(keep_alive),
             options: Some(serde_json::json!({"num_ctx": 8192})),
+            think: Some(serde_json::json!(true)),
         };
 
         let resp: ChatResponse = self
@@ -247,6 +264,7 @@ impl OllamaClient {
             stream: true,
             keep_alive: serde_json::json!(keep_alive),
             options: Some(serde_json::json!({"num_ctx": 8192})),
+            think: Some(serde_json::json!(true)),
         };
 
         let mut res = self
@@ -258,6 +276,7 @@ impl OllamaClient {
             .error_for_status()?;
 
         let mut accumulated_content = String::new();
+        let mut accumulated_thinking = String::new();
         let mut accumulated_tool_calls: Option<Vec<ToolCall>> = None;
         let mut thinking: Option<String> = None;
         let mut reasoning_content: Option<String> = None;
@@ -275,30 +294,61 @@ impl OllamaClient {
                 }
 
                 if let Ok(resp) = serde_json::from_str::<ChatResponse>(trimmed) {
-                    let delta_text = resp.message.effective_text();
-                    if !delta_text.is_empty() {
-                        on_delta(&delta_text);
-                        accumulated_content.push_str(&delta_text);
+                    if !resp.message.content.is_empty() {
+                        on_delta(&resp.message.content);
+                        accumulated_content.push_str(&resp.message.content);
+                    }
+                    if let Some(ref t) = resp.message.thinking {
+                        accumulated_thinking.push_str(t);
+                        thinking = Some(accumulated_thinking.clone());
+                    }
+                    if let Some(ref r) = resp.message.reasoning_content {
+                        accumulated_thinking.push_str(r);
+                        reasoning_content = Some(accumulated_thinking.clone());
                     }
                     if let Some(tc) = resp.message.tool_calls {
                         accumulated_tool_calls = Some(tc);
-                    }
-                    if resp.message.thinking.is_some() {
-                        thinking = resp.message.thinking;
-                    }
-                    if resp.message.reasoning_content.is_some() {
-                        reasoning_content = resp.message.reasoning_content;
                     }
                 }
             }
         }
 
+        let final_content = if accumulated_content.trim().is_empty() && !accumulated_thinking.trim().is_empty() {
+            strip_think_tags(&accumulated_thinking)
+        } else {
+            strip_think_tags(&accumulated_content)
+        };
+
         Ok(ChatMessageResponse {
             role: "assistant".to_string(),
-            content: accumulated_content,
+            content: final_content,
             thinking,
             reasoning_content,
             tool_calls: accumulated_tool_calls,
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_strip_think_tags() {
+        let input = "Sure! <think>Let me calculate 2+2=4</think> The answer is 4.";
+        assert_eq!(strip_think_tags(input), "Sure!  The answer is 4.");
+    }
+
+    #[test]
+    fn test_effective_text_strips_inline_think_tags() {
+        let msg = ChatMessageResponse {
+            role: "assistant".to_string(),
+            content: "<think>Internal thoughts</think>Final response".to_string(),
+            thinking: None,
+            reasoning_content: None,
+            tool_calls: None,
+        };
+        assert_eq!(msg.effective_text(), "Final response");
+    }
+}
+

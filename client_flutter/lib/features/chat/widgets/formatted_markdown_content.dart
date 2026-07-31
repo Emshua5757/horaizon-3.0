@@ -15,9 +15,79 @@ class AgentLoopCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: steps.map((step) => _TurnStepCard(step: step)).toList(),
+      children: [
+        if (steps.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6, left: 2, right: 2),
+            child: Row(
+              children: [
+                Icon(Icons.loop_rounded, size: 14, color: cs.tertiary),
+                const SizedBox(width: 6),
+                Text(
+                  'AGENT LOOP (${steps.length} ${steps.length == 1 ? "TURN" : "TURNS"})',
+                  style: TextStyle(
+                    color: cs.tertiary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.8,
+                    fontFamily: 'JetBrainsMono',
+                  ),
+                ),
+                const Spacer(),
+                InkWell(
+                  onTap: () {
+                    final allTurnsText = steps.map((s) {
+                      final toolsStr = s.toolCalls
+                          .map((tc) => '  • Tool ${tc.toolName} (${tc.success ? "Success" : "Failed"}):\n    ${tc.resultSummary}')
+                          .join('\n\n');
+                      final body = s.modelContent.trim();
+                      return '[Turn ${s.turn} · ${s.stepTypeIcon} ${s.stepTypeLabel.toUpperCase()}]\n'
+                          '${body.isNotEmpty ? body : "(No text)"}'
+                          '${toolsStr.isNotEmpty ? "\n" + toolsStr : ""}';
+                    }).join('\n\n----------------------------------------\n\n');
+
+                    final fullExport = '========================================\n'
+                        '  JOSH AGENT LOOP EXECUTION (${steps.length} TURNS)\n'
+                        '========================================\n\n'
+                        '$allTurnsText';
+
+                    Clipboard.setData(ClipboardData(text: fullExport));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Copied all ${steps.length} agent loop turns & tool outputs to clipboard!'),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(4),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.copy_all_rounded, size: 13, color: cs.tertiary),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Copy All Turns',
+                          style: TextStyle(
+                            color: cs.tertiary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'JetBrainsMono',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ...steps.map((step) => _TurnStepCard(step: step)),
+      ],
     );
   }
 }
@@ -89,6 +159,27 @@ class _TurnStepCardState extends State<_TurnStepCard> {
                     ),
                   ),
                   const Spacer(),
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: Icon(Icons.copy_rounded, size: 14, color: cs.primary),
+                    tooltip: 'Copy Turn ${step.turn} details',
+                    onPressed: () {
+                      final toolsStr = step.toolCalls
+                          .map((tc) => '• Tool ${tc.toolName} (${tc.success ? "Success" : "Failed"}):\n  ${tc.resultSummary}')
+                          .join('\n\n');
+                      final turnExport = '[Turn ${step.turn} · ${step.stepTypeIcon} ${step.stepTypeLabel.toUpperCase()}]\n'
+                          '${step.modelContent.trim()}\n'
+                          '${toolsStr.isNotEmpty ? "\n" + toolsStr : ""}';
+                      Clipboard.setData(ClipboardData(text: turnExport.trim()));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Copied Turn ${step.turn} (${step.stepTypeLabel}) details to clipboard!'),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 8),
                   Icon(
                     _expanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
                     size: 18,
@@ -108,15 +199,29 @@ class _TurnStepCardState extends State<_TurnStepCard> {
   }
 }
 
-class _AgentLoopStepTile extends StatelessWidget {
+class _AgentLoopStepTile extends StatefulWidget {
   final AgentLoopStep step;
 
   const _AgentLoopStepTile({required this.step});
 
   @override
+  State<_AgentLoopStepTile> createState() => _AgentLoopStepTileState();
+}
+
+class _AgentLoopStepTileState extends State<_AgentLoopStepTile> {
+  bool _showFullContent = false;
+  final Set<String> _expandedToolResults = {};
+
+  @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final step = widget.step;
     final isError = step.toolCalls.any((tc) => !tc.success);
+
+    final isLongContent = step.modelContent.length > 200;
+    final displayedContent = isLongContent && !_showFullContent
+        ? '${step.modelContent.substring(0, 200)}…'
+        : step.modelContent;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -150,12 +255,11 @@ class _AgentLoopStepTile extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          // Model content preview (truncated)
-          if (step.modelContent.isNotEmpty)
+
+          // Model content (with Show Full / Show Less toggle)
+          if (step.modelContent.isNotEmpty) ...[
             SelectableText(
-              step.modelContent.length > 200
-                  ? '${step.modelContent.substring(0, 200)}…'
-                  : step.modelContent,
+              displayedContent,
               style: TextStyle(
                 color: cs.onSurfaceVariant.withValues(alpha: 0.8),
                 fontSize: 11,
@@ -163,50 +267,112 @@ class _AgentLoopStepTile extends StatelessWidget {
                 fontFamily: 'JetBrainsMono',
               ),
             ),
-          // Tool call results
-          ...step.toolCalls.map((tc) => Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      tc.success ? '✅' : '❌',
-                      style: const TextStyle(fontSize: 11),
+            if (isLongContent)
+              Padding(
+                padding: const EdgeInsets.only(top: 2, bottom: 4),
+                child: InkWell(
+                  onTap: () => setState(() => _showFullContent = !_showFullContent),
+                  borderRadius: BorderRadius.circular(4),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _showFullContent ? 'Show Less ▴' : 'Show Full reasoning ▾',
+                          style: TextStyle(
+                            color: cs.primary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'JetBrainsMono',
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            tc.toolName,
-                            style: TextStyle(
-                              color: tc.success ? cs.primary : Colors.red.shade300,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              fontFamily: 'JetBrainsMono',
+                  ),
+                ),
+              ),
+          ],
+
+          // Tool call results (with per-tool Show Full toggle)
+          ...step.toolCalls.map((tc) {
+            final isLongToolRes = tc.resultSummary.length > 200;
+            final isExpanded = _expandedToolResults.contains(tc.toolName);
+            final displayedToolRes = isLongToolRes && !isExpanded
+                ? '${tc.resultSummary.substring(0, 200)}…'
+                : tc.resultSummary;
+
+            return Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tc.success ? '✅' : '❌',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          tc.toolName,
+                          style: TextStyle(
+                            color: tc.success ? cs.primary : Colors.red.shade300,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'JetBrainsMono',
+                          ),
+                        ),
+                        if (tc.resultSummary.isNotEmpty) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: SelectableText(
+                              displayedToolRes,
+                              style: TextStyle(
+                                color: cs.onSurfaceVariant.withValues(alpha: 0.6),
+                                fontSize: 10,
+                                fontFamily: 'JetBrainsMono',
+                              ),
                             ),
                           ),
-                          if (tc.resultSummary.isNotEmpty)
+                          if (isLongToolRes)
                             Padding(
                               padding: const EdgeInsets.only(top: 2),
-                              child: SelectableText(
-                                tc.resultSummary.length > 200
-                                    ? '${tc.resultSummary.substring(0, 200)}…'
-                                    : tc.resultSummary,
-                                style: TextStyle(
-                                  color: cs.onSurfaceVariant.withValues(alpha: 0.6),
-                                  fontSize: 10,
-                                  fontFamily: 'JetBrainsMono',
+                              child: InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    if (isExpanded) {
+                                      _expandedToolResults.remove(tc.toolName);
+                                    } else {
+                                      _expandedToolResults.add(tc.toolName);
+                                    }
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(4),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                  child: Text(
+                                    isExpanded ? 'Show Less ▴' : 'Show Full tool output ▾',
+                                    style: TextStyle(
+                                      color: cs.primary,
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.bold,
+                                      fontFamily: 'JetBrainsMono',
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
                         ],
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-              )),
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );
@@ -246,6 +412,10 @@ class FormattedMarkdownContent extends StatelessWidget {
     );
   }
 
+  static String stripThinkTags(String input) {
+    return input.replaceAll(RegExp(r'<think>.*?</think>', dotAll: true), '').trim();
+  }
+
   List<_ParsedBlock> _parseBlocks(String input) {
     final List<_ParsedBlock> blocks = [];
     final lines = input.split('\n');
@@ -270,20 +440,38 @@ class FormattedMarkdownContent extends StatelessWidget {
     }
 
     for (final line in lines) {
-      final trimmed = line.trim();
-
-      if (trimmed.startsWith('<think>')) {
+      if (line.contains('<think>')) {
+        final parts = line.split('<think>');
+        if (parts[0].trim().isNotEmpty) {
+          currentBuffer.add(parts[0]);
+        }
         flushBuffer();
         inThinking = true;
-        currentBuffer.add(line.replaceAll('<think>', ''));
+        final remainder = parts.sublist(1).join('<think>');
+        if (remainder.contains('</think>')) {
+          final endParts = remainder.split('</think>');
+          currentBuffer.add(endParts[0]);
+          flushBuffer();
+          inThinking = false;
+          if (endParts.length > 1 && endParts[1].trim().isNotEmpty) {
+            currentBuffer.add(endParts.sublist(1).join('</think>'));
+          }
+        } else {
+          currentBuffer.add(remainder);
+        }
         continue;
-      } else if (trimmed.contains('</think>')) {
-        currentBuffer.add(line.replaceAll('</think>', ''));
+      } else if (line.contains('</think>')) {
+        final parts = line.split('</think>');
+        currentBuffer.add(parts[0]);
         flushBuffer();
         inThinking = false;
+        if (parts.length > 1 && parts[1].trim().isNotEmpty) {
+          currentBuffer.add(parts.sublist(1).join('</think>'));
+        }
         continue;
       }
 
+      final trimmed = line.trim();
       if (trimmed.startsWith('🛠️ **[MCP Tool') || trimmed.startsWith('⚙️ **[Governor Telemetry')) {
         flushBuffer();
         blocks.add(_ParsedBlock(

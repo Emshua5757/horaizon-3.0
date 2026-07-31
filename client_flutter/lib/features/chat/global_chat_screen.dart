@@ -166,9 +166,10 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> {
                     for (final msg in chatState.messages) {
                       final sender = msg.role == ChatRole.user ? 'JOSHUA (User)' : 'JOSH AI (${msg.modelName})';
                       final tokInfo = msg.evalTokensPerSec != null ? ' [${msg.evalTokensPerSec!.toStringAsFixed(1)} tok/s]' : '';
+                      final cleanContent = FormattedMarkdownContent.stripThinkTags(msg.content);
                       sb.writeln('[$sender - ${msg.timestamp}$tokInfo]');
                       sb.writeln('Target: ${msg.offloadTarget.shortLabel}');
-                      sb.writeln('Content:\n${msg.content}');
+                      sb.writeln('Content:\n$cleanContent');
                       sb.writeln('\n----------------------------------------\n');
                     }
 
