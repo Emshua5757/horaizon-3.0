@@ -101,15 +101,10 @@ class OllamaAiService {
                   eventFrame.op == 'ai.route.delta' ||
                   eventFrame.op == 'shua.governor.stream.chunk') {
                 try {
-                  final decoded = _decodeHbpPayload(eventFrame.payload);
-                  String deltaText = '';
-                  if (decoded is Map) {
-                    deltaText = decoded['chunk_data'] as String? ??
-                        decoded['delta'] as String? ??
-                        '';
-                  } else if (decoded is List && decoded.length >= 3) {
-                    deltaText = decoded[2]?.toString() ?? '';
-                  }
+                  final chunkMap = _decodeHbpPayload(eventFrame.payload);
+                  final deltaText = chunkMap['chunk_data'] as String? ??
+                      chunkMap['delta'] as String? ??
+                      '';
                   if (deltaText.isNotEmpty) {
                     chunkController.add(OllamaStreamChunk(
                       content: deltaText,
