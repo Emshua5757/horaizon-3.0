@@ -1,12 +1,14 @@
 use serde::{Deserialize, Serialize};
 
+use crate::ollama::client::KeepAlive;
+
 /// A model registered in config.toml
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegisteredModel {
     pub name:       String,     // e.g. "qwen2.5:1.5b"
     pub ram_mb:     u32,        // estimated RAM footprint
     pub role:       String,     // "primary_dialogue" | "text_generator" | "embeddings"
-    pub keep_alive: i32,        // 0 = evict immediately after inference
+    pub keep_alive: KeepAlive,  // KeepAlive enum
 }
 
 pub struct ModelRegistry {

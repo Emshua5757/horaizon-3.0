@@ -46,7 +46,7 @@ pub struct OllamaModelConfig {
     pub name: String,
     pub ram_mb: u32,
     pub role: String,
-    pub keep_alive: i32,
+    pub keep_alive: crate::ollama::client::KeepAlive,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -86,13 +86,13 @@ impl Default for AppConfig {
                         name: "qwen2.5:1.5b".into(),
                         ram_mb: 980,
                         role: "primary_dialogue".into(),
-                        keep_alive: -1,
+                        keep_alive: crate::ollama::client::KeepAlive::Forever,
                     },
                     OllamaModelConfig {
                         name: "llama3.2:3b".into(),
                         ram_mb: 2000,
                         role: "text_generator".into(),
-                        keep_alive: -1,
+                        keep_alive: crate::ollama::client::KeepAlive::Forever,
                     },
                 ],
             },

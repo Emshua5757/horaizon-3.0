@@ -2,7 +2,7 @@
 
 | Field | Value |
 | :--- | :--- |
-| **Status** | [ ] In Progress (Part 2: Eviction Race & Client Cleanup) |
+| **Status** | [x] Completed |
 | **Phase** | Phase 1 / Phase 2 Follow-up |
 | **Type** | AI-executable |
 | **Language** | Rust / Dart (Flutter) |
@@ -93,7 +93,7 @@
 
 - [x] Plain questions without tool calls display correctly in Flutter client UI without empty bubbles.
 - [x] Reasoning tokens from `qwen3.5` / `deepseek-r1` are cleanly separated into `thinking` buffers and stream live token-by-token over HBP.
-- [ ] Concurrent `load()` calls for a different model block or error while an active `ModelGuard` holds an inference reservation.
-- [ ] Eviction errors in `OllamaLifecycle` are returned as explicit errors rather than silently swallowed.
-- [ ] `ChatMessageResponse::effective_text()` returns `thinking` text when `reasoning_content` is an empty string `Some("")`.
-- [ ] `cargo test` and `flutter test` pass with zero compiler warnings.
+- [x] Concurrent `load()` calls for a different model block or error while an active `ModelGuard` holds an inference reservation.
+- [x] Eviction errors in `OllamaLifecycle` are returned as explicit errors rather than silently swallowed.
+- [x] `ChatMessageResponse::effective_text()` returns `thinking` text when `reasoning_content` is an empty string `Some("")`.
+- [x] `cargo test` and `flutter test` pass with zero compiler warnings.

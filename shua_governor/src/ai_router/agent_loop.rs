@@ -236,6 +236,25 @@ impl McpAgentLoop {
             || client.base_url().contains("localhost")
             || client.base_url().contains("0.0.0.0");
 
+        let _model_guard = if is_local {
+            info!(
+                subsystem = "agent_loop",
+                prompt = %effective_prompt,
+                target_url = %client.base_url(),
+                model = model,
+                "Reserving local model guard for agent loop turn"
+            );
+            ollama_lifecycle.reserve(model).await.ok()
+        } else {
+            None
+        };
+
+        let keep_alive = ollama_lifecycle
+            .registry()
+            .find(model)
+            .map(|m| m.keep_alive)
+            .unwrap_or(crate::ollama::client::KeepAlive::Forever);
+
         let _permit = if is_local {
             info!(
                 subsystem = "agent_loop",
@@ -292,7 +311,7 @@ impl McpAgentLoop {
 
             let delta_sender_clone = delta_sender.clone();
             let res = match client
-                .chat_with_tools_stream(model, messages.clone(), tools_for_this_turn, -1, move |delta| {
+                .chat_with_tools_stream(model, messages.clone(), tools_for_this_turn, keep_alive, move |delta| {
                     if let Some(ref ds) = delta_sender_clone {
                         let _ = ds.send(delta.to_string());
                     }
@@ -506,7 +525,7 @@ impl McpAgentLoop {
             );
             if let Ok(Ok(direct_res)) = timeout(
                 Duration::from_secs(PER_CALL_TIMEOUT_SECS),
-                client.chat_with_tools(model, messages, None, -1),
+                client.chat_with_tools(model, messages, None, keep_alive),
             ).await {
                 final_reply = strip_tool_call_artifacts(&direct_res.effective_text());
             }
