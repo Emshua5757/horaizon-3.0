@@ -2,7 +2,7 @@
 
 | Field | Value |
 | :--- | :--- |
-| **Status** | [x] Completed |
+| **Status** | [ ] In Progress (Awaiting User Manual Verification) |
 | **Phase** | Phase 1 / Phase 2 Follow-up |
 | **Type** | AI-executable |
 | **Language** | Rust / Dart (Flutter) |
