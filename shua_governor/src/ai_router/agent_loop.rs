@@ -203,6 +203,7 @@ impl McpAgentLoop {
             5. `governor_load_ollama_model`: Loads a specified LLM model into RAM/VRAM. \
             INSTRUCTIONS: \
             - When asked for system health, NVMe status, hardware metrics, or uptime, call `governor_get_metrics`. \
+            - When presenting system health or telemetry summaries, ALWAYS format metrics (RAM, CPU, Temperature, NVMe Status, Module Allocation) in clean Markdown tables (e.g. `| Metric | Value | Status |`). \
             - When asked for system logs, errors, activity.db, or `governor_query_logs`, call `governor_query_logs`. \
             - When asked what MCP tools are available, list the horAIzon 3.0 system tools above.{}",
             scope, tool_enforcement_clause
