@@ -405,6 +405,8 @@ class FormattedMarkdownContent extends StatelessWidget {
             language: block.language,
             code: block.text,
           );
+        } else if (block.isTableBlock) {
+          return _MarkdownTableWidget(tableText: block.text);
         } else {
           return _TextBlockRenderer(text: block.text);
         }
@@ -422,8 +424,10 @@ class FormattedMarkdownContent extends StatelessWidget {
 
     bool inCode = false;
     bool inThinking = false;
+    bool inTable = false;
     String currentLang = '';
     final List<String> currentBuffer = [];
+    final List<String> tableBuffer = [];
 
     void flushBuffer() {
       if (currentBuffer.isEmpty) return;
@@ -439,8 +443,22 @@ class FormattedMarkdownContent extends StatelessWidget {
       currentBuffer.clear();
     }
 
+    void flushTable() {
+      if (tableBuffer.isEmpty) return;
+      final text = tableBuffer.join('\n').trim();
+      if (text.isNotEmpty) {
+        blocks.add(_ParsedBlock(
+          isTableBlock: true,
+          text: text,
+        ));
+      }
+      tableBuffer.clear();
+      inTable = false;
+    }
+
     for (final line in lines) {
       if (line.contains('<think>')) {
+        if (inTable) flushTable();
         final parts = line.split('<think>');
         if (parts[0].trim().isNotEmpty) {
           currentBuffer.add(parts[0]);
@@ -461,6 +479,7 @@ class FormattedMarkdownContent extends StatelessWidget {
         }
         continue;
       } else if (line.contains('</think>')) {
+        if (inTable) flushTable();
         final parts = line.split('</think>');
         currentBuffer.add(parts[0]);
         flushBuffer();
@@ -473,6 +492,7 @@ class FormattedMarkdownContent extends StatelessWidget {
 
       final trimmed = line.trim();
       if (trimmed.startsWith('🛠️ **[MCP Tool') || trimmed.startsWith('⚙️ **[Governor Telemetry')) {
+        if (inTable) flushTable();
         flushBuffer();
         blocks.add(_ParsedBlock(
           isThinkingBlock: true,
@@ -482,6 +502,7 @@ class FormattedMarkdownContent extends StatelessWidget {
       }
 
       if (trimmed.startsWith('```')) {
+        if (inTable) flushTable();
         if (inCode) {
           flushBuffer();
           inCode = false;
@@ -491,11 +512,27 @@ class FormattedMarkdownContent extends StatelessWidget {
           inCode = true;
           currentLang = trimmed.substring(3).trim();
         }
-      } else {
-        currentBuffer.add(line);
+        continue;
       }
+
+      // Check for Markdown table row (| Header | Header |)
+      if (!inCode && !inThinking) {
+        if (trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.length > 2) {
+          if (!inTable) {
+            flushBuffer();
+            inTable = true;
+          }
+          tableBuffer.add(line);
+          continue;
+        } else if (inTable) {
+          flushTable();
+        }
+      }
+
+      currentBuffer.add(line);
     }
 
+    if (inTable) flushTable();
     flushBuffer();
     return blocks;
   }
@@ -504,12 +541,14 @@ class FormattedMarkdownContent extends StatelessWidget {
 class _ParsedBlock {
   final bool isCodeBlock;
   final bool isThinkingBlock;
+  final bool isTableBlock;
   final String language;
   final String text;
 
   _ParsedBlock({
     this.isCodeBlock = false,
     this.isThinkingBlock = false,
+    this.isTableBlock = false,
     this.language = '',
     required this.text,
   });
@@ -871,6 +910,95 @@ class _RichInlineText extends StatelessWidget {
       TextSpan(
         style: TextStyle(color: cs.onSurface, fontSize: 13, height: 1.45),
         children: spans,
+      ),
+    );
+  }
+}
+
+class _MarkdownTableWidget extends StatelessWidget {
+  final String tableText;
+
+  const _MarkdownTableWidget({required this.tableText});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final lines = tableText.split('\n').where((l) => l.trim().isNotEmpty).toList();
+    if (lines.isEmpty) return const SizedBox.shrink();
+
+    List<String> parseRow(String row) {
+      final trimmed = row.trim();
+      final content = trimmed.startsWith('|') ? trimmed.substring(1) : trimmed;
+      final cleaned = content.endsWith('|') ? content.substring(0, content.length - 1) : content;
+      return cleaned.split('|').map((cell) => cell.trim()).toList();
+    }
+
+    final headerRow = parseRow(lines[0]);
+    final dataRows = <List<String>>[];
+
+    for (var i = 1; i < lines.length; i++) {
+      final line = lines[i].trim();
+      if (line.replaceAll(RegExp(r'[\|\:\-\s]'), '').isEmpty) {
+        continue;
+      }
+      dataRows.add(parseRow(line));
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLow.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.3)),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Table(
+            defaultColumnWidth: const IntrinsicColumnWidth(),
+            children: [
+              TableRow(
+                decoration: BoxDecoration(
+                  color: cs.surfaceContainerHigh.withValues(alpha: 0.8),
+                ),
+                children: headerRow.map((cell) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Text(
+                      cell,
+                      style: TextStyle(
+                        color: cs.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        fontFamily: 'JetBrainsMono',
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              ...dataRows.asMap().entries.map((entry) {
+                final rowIndex = entry.key;
+                final rowCells = entry.value;
+                final isEven = rowIndex % 2 == 0;
+
+                return TableRow(
+                  decoration: BoxDecoration(
+                    color: isEven
+                        ? Colors.transparent
+                        : cs.surfaceContainerHighest.withValues(alpha: 0.15),
+                  ),
+                  children: rowCells.map((cell) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      child: _RichInlineText(text: cell),
+                    );
+                  }).toList(),
+                );
+              }),
+            ],
+          ),
+        ),
       ),
     );
   }
