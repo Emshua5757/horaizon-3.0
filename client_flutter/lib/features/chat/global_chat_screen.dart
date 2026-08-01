@@ -581,8 +581,35 @@ class _ChatMessageBubble extends StatelessWidget {
                         ],
                       ),
                     )
-                  else if (message.content.isNotEmpty)
+                  else if (message.content.isNotEmpty) ...[
                     FormattedMarkdownContent(content: message.content),
+                    if (message.isStreaming)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 10,
+                              height: 10,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: cs.primary,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Streaming tokens…',
+                              style: TextStyle(
+                                color: cs.primary,
+                                fontSize: 10,
+                                fontFamily: 'JetBrainsMono',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ],
               ),
             ),

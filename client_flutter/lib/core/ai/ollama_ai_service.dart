@@ -97,10 +97,14 @@ class OllamaAiService {
                     steps: [step],
                   ));
                 } catch (_) {}
-              } else if (eventFrame.op == 'stream.chunk' || eventFrame.op == 'ai.route.delta') {
+              } else if (eventFrame.op == 'stream.chunk' ||
+                  eventFrame.op == 'ai.route.delta' ||
+                  eventFrame.op == 'shua.governor.stream.chunk') {
                 try {
                   final chunkMap = _decodeHbpPayload(eventFrame.payload);
-                  final deltaText = chunkMap['chunk_data'] as String? ?? chunkMap['delta'] as String? ?? '';
+                  final deltaText = chunkMap['chunk_data'] as String? ??
+                      chunkMap['delta'] as String? ??
+                      '';
                   if (deltaText.isNotEmpty) {
                     chunkController.add(OllamaStreamChunk(
                       content: deltaText,
@@ -108,7 +112,9 @@ class OllamaAiService {
                       routedNode: effectiveNode,
                     ));
                   }
-                } catch (_) {}
+                } catch (e) {
+                  _log('[HBP v2] ERROR decoding stream chunk: $e', LogLevel.warn);
+                }
               }
             }
           });
