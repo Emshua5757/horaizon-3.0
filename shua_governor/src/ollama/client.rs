@@ -8,6 +8,107 @@ pub struct OllamaClient {
     base_url: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeepAlive {
+    /// Keep model loaded indefinitely (-1)
+    Forever,
+    /// Unload model immediately after inference (0)
+    Immediate,
+    /// Keep model loaded for custom duration in seconds
+    Seconds(i64),
+}
+
+impl KeepAlive {
+    pub fn as_i64(&self) -> i64 {
+        match self {
+            KeepAlive::Forever => -1,
+            KeepAlive::Immediate => 0,
+            KeepAlive::Seconds(s) => *s,
+        }
+    }
+}
+
+impl Default for KeepAlive {
+    fn default() -> Self {
+        KeepAlive::Forever
+    }
+}
+
+impl From<i32> for KeepAlive {
+    fn from(val: i32) -> Self {
+        match val {
+            -1 => KeepAlive::Forever,
+            0 => KeepAlive::Immediate,
+            s => KeepAlive::Seconds(s as i64),
+        }
+    }
+}
+
+impl From<i64> for KeepAlive {
+    fn from(val: i64) -> Self {
+        match val {
+            -1 => KeepAlive::Forever,
+            0 => KeepAlive::Immediate,
+            s => KeepAlive::Seconds(s),
+        }
+    }
+}
+
+impl Serialize for KeepAlive {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_i64(self.as_i64())
+    }
+}
+
+impl<'de> Deserialize<'de> for KeepAlive {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct KeepAliveVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for KeepAliveVisitor {
+            type Value = KeepAlive;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("an integer or string representing keep_alive seconds (-1, 0, or positive duration)")
+            }
+
+            fn visit_i64<E>(self, v: i64) -> Result<KeepAlive, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(KeepAlive::from(v))
+            }
+
+            fn visit_u64<E>(self, v: u64) -> Result<KeepAlive, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(KeepAlive::from(v as i64))
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<KeepAlive, E>
+            where
+                E: serde::de::Error,
+            {
+                if v == "-1" || v.eq_ignore_ascii_case("forever") {
+                    Ok(KeepAlive::Forever)
+                } else if v == "0" || v.eq_ignore_ascii_case("immediate") {
+                    Ok(KeepAlive::Immediate)
+                } else {
+                    v.parse::<i64>().map(KeepAlive::from).map_err(E::custom)
+                }
+            }
+        }
+
+        deserializer.deserialize_any(KeepAliveVisitor)
+    }
+}
+
 #[derive(Serialize)]
 struct ChatPayload {
     model: String,
@@ -15,7 +116,7 @@ struct ChatPayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     tools: Option<Vec<serde_json::Value>>,
     stream: bool,
-    keep_alive: serde_json::Value,
+    keep_alive: KeepAlive,
     #[serde(skip_serializing_if = "Option::is_none")]
     options: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -109,19 +210,15 @@ pub fn strip_think_tags(text: &str) -> String {
 impl ChatMessageResponse {
     pub fn effective_text(&self) -> String {
         let raw = if !self.content.trim().is_empty() {
-            self.content.clone()
-        } else if let Some(ref r) = self.reasoning_content {
-            if !r.trim().is_empty() {
-                r.clone()
-            } else {
-                self.content.clone()
-            }
-        } else if let Some(ref t) = self.thinking {
-            t.clone()
+            self.content.as_str()
+        } else if let Some(r) = self.reasoning_content.as_deref().filter(|s| !s.trim().is_empty()) {
+            r
+        } else if let Some(t) = self.thinking.as_deref().filter(|s| !s.trim().is_empty()) {
+            t
         } else {
-            self.content.clone()
+            self.content.as_str()
         };
-        strip_think_tags(&raw)
+        strip_think_tags(raw)
     }
 }
 
@@ -143,7 +240,7 @@ impl OllamaClient {
         &self.base_url
     }
 
-    /// Load a model into RAM by sending a no-op chat (keep_alive = -1 keeps it alive)
+    /// Load a model into RAM by sending a no-op chat (keep_alive = Forever keeps it alive)
     pub async fn load_model(&self, model: &str) -> Result<()> {
         let payload = ChatPayload {
             model: model.to_string(),
@@ -154,7 +251,7 @@ impl OllamaClient {
             }],
             tools: None,
             stream: false,
-            keep_alive: serde_json::json!(-1),
+            keep_alive: KeepAlive::Forever,
             options: None,
             think: None,
         };
@@ -175,7 +272,7 @@ impl OllamaClient {
         Ok(())
     }
 
-    /// Evict a model from RAM immediately
+    /// Evict a model from RAM immediately (keep_alive = Immediate)
     pub async fn evict_model(&self, model: &str) -> Result<()> {
         let payload = ChatPayload {
             model: model.to_string(),
@@ -186,7 +283,7 @@ impl OllamaClient {
             }],
             tools: None,
             stream: false,
-            keep_alive: serde_json::json!(0),
+            keep_alive: KeepAlive::Immediate,
             options: None,
             think: None,
         };
@@ -209,7 +306,7 @@ impl OllamaClient {
 
     /// Send a chat prompt and return the response string
     #[allow(dead_code)]
-    pub async fn chat(&self, model: &str, messages: Vec<ChatMessage>, keep_alive: i32) -> Result<String> {
+    pub async fn chat(&self, model: &str, messages: Vec<ChatMessage>, keep_alive: KeepAlive) -> Result<String> {
         let resp = self.chat_with_tools(model, messages, None, keep_alive).await?;
         Ok(resp.content)
     }
@@ -220,14 +317,14 @@ impl OllamaClient {
         model: &str,
         messages: Vec<ChatMessage>,
         tools: Option<Vec<serde_json::Value>>,
-        keep_alive: i32,
+        keep_alive: KeepAlive,
     ) -> Result<ChatMessageResponse> {
         let payload = ChatPayload {
             model: model.to_string(),
             messages,
             tools,
             stream: false,
-            keep_alive: serde_json::json!(keep_alive),
+            keep_alive,
             options: Some(serde_json::json!({"num_ctx": 8192})),
             think: Some(serde_json::json!(true)),
         };
@@ -251,7 +348,7 @@ impl OllamaClient {
         model: &str,
         messages: Vec<ChatMessage>,
         tools: Option<Vec<serde_json::Value>>,
-        keep_alive: i32,
+        keep_alive: KeepAlive,
         mut on_delta: F,
     ) -> Result<ChatMessageResponse>
     where
@@ -262,7 +359,7 @@ impl OllamaClient {
             messages,
             tools,
             stream: true,
-            keep_alive: serde_json::json!(keep_alive),
+            keep_alive,
             options: Some(serde_json::json!({"num_ctx": 8192})),
             think: Some(serde_json::json!(true)),
         };
@@ -278,8 +375,6 @@ impl OllamaClient {
         let mut accumulated_content = String::new();
         let mut accumulated_thinking = String::new();
         let mut accumulated_tool_calls: Option<Vec<ToolCall>> = None;
-        let mut thinking: Option<String> = None;
-        let reasoning_content: Option<String> = None;
         let mut in_thinking_stream = false;
 
         let mut buffer = Vec::new();
@@ -302,12 +397,9 @@ impl OllamaClient {
                             if !in_thinking_stream {
                                 in_thinking_stream = true;
                                 on_delta("<think>\n");
-                                accumulated_content.push_str("<think>\n");
                             }
                             on_delta(t_delta);
                             accumulated_thinking.push_str(t_delta);
-                            accumulated_content.push_str(t_delta);
-                            thinking = Some(accumulated_thinking.clone());
                         }
                     }
 
@@ -316,7 +408,6 @@ impl OllamaClient {
                         if in_thinking_stream {
                             in_thinking_stream = false;
                             on_delta("\n</think>\n");
-                            accumulated_content.push_str("\n</think>\n");
                         }
                         on_delta(&resp.message.content);
                         accumulated_content.push_str(&resp.message.content);
@@ -331,11 +422,16 @@ impl OllamaClient {
 
         if in_thinking_stream {
             on_delta("\n</think>\n");
-            accumulated_content.push_str("\n</think>\n");
         }
 
-        let final_content = if accumulated_content.trim().is_empty() && !accumulated_thinking.trim().is_empty() {
-            strip_think_tags(&accumulated_thinking)
+        let thinking = if !accumulated_thinking.trim().is_empty() {
+            Some(accumulated_thinking.clone())
+        } else {
+            None
+        };
+
+        let final_content = if accumulated_content.trim().is_empty() && thinking.is_some() {
+            strip_think_tags(thinking.as_deref().unwrap_or_default())
         } else {
             strip_think_tags(&accumulated_content)
         };
@@ -343,8 +439,8 @@ impl OllamaClient {
         Ok(ChatMessageResponse {
             role: "assistant".to_string(),
             content: final_content,
-            thinking,
-            reasoning_content,
+            thinking: thinking.clone(),
+            reasoning_content: thinking,
             tool_calls: accumulated_tool_calls,
         })
     }
@@ -371,5 +467,37 @@ mod tests {
         };
         assert_eq!(msg.effective_text(), "Final response");
     }
-}
 
+    #[test]
+    fn test_effective_text_fallback_with_empty_reasoning_content() {
+        let msg = ChatMessageResponse {
+            role: "assistant".to_string(),
+            content: "".to_string(),
+            reasoning_content: Some("".to_string()),
+            thinking: Some("real text".to_string()),
+            tool_calls: None,
+        };
+        assert_eq!(msg.effective_text(), "real text");
+    }
+
+    #[test]
+    fn test_keep_alive_serde() {
+        let ka_forever = KeepAlive::Forever;
+        let serialized = serde_json::to_string(&ka_forever).unwrap();
+        assert_eq!(serialized, "-1");
+        let deserialized: KeepAlive = serde_json::from_str("-1").unwrap();
+        assert_eq!(deserialized, KeepAlive::Forever);
+
+        let ka_imm = KeepAlive::Immediate;
+        let serialized = serde_json::to_string(&ka_imm).unwrap();
+        assert_eq!(serialized, "0");
+        let deserialized: KeepAlive = serde_json::from_str("0").unwrap();
+        assert_eq!(deserialized, KeepAlive::Immediate);
+
+        let ka_sec = KeepAlive::Seconds(300);
+        let serialized = serde_json::to_string(&ka_sec).unwrap();
+        assert_eq!(serialized, "300");
+        let deserialized: KeepAlive = serde_json::from_str("300").unwrap();
+        assert_eq!(deserialized, KeepAlive::Seconds(300));
+    }
+}
