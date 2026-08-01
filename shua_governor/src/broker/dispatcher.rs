@@ -724,13 +724,13 @@ impl Dispatcher {
                                 chunk = %delta_text,
                                 "⚡ Stream token delta frame dispatched"
                             );
-                            let stream_frame = crate::broker::generated::hbp_models::StreamFrameDto {
-                                media_type: crate::broker::generated::hbp_enums::StreamMediaType::LlmToken,
-                                sequence_num: seq,
-                                chunk_data: delta_text,
-                                is_last: false,
-                            };
-                            let payload_bytes = crate::broker::frame::HbpFrame::encode_payload(&stream_frame).unwrap_or_default();
+                            let stream_payload = serde_json::json!({
+                                "media_type": "LlmToken",
+                                "sequence_num": seq,
+                                "chunk_data": delta_text,
+                                "is_last": false,
+                            });
+                            let payload_bytes = crate::broker::frame::HbpFrame::encode_payload(&stream_payload).unwrap_or_default();
                             let event_frame = crate::broker::frame::HbpFrame::stream_event(
                                 &req_id_delta,
                                 "shua.governor",
