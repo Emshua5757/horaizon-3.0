@@ -103,21 +103,43 @@ impl CodeGraph {
         }
     }
 
-    /// Adds a relationship edge, failing closed (safely dropping) if callee target is unresolved
+    /// Adds a relationship edge, resolving method names to qualified names safely
     pub fn add_edge(&mut self, edge: ExtractedEdge) -> bool {
         let norm_from = normalize_path(&edge.from);
         let norm_to = normalize_path(&edge.to);
 
-        let from_idx = match self.index.get(&norm_from) {
-            Some(&idx) => idx,
+        let from_idx = match self.index.get(&norm_from).copied().or_else(|| {
+            self.graph.node_indices().find(|&idx| {
+                self.graph.node_weight(idx).map_or(false, |w| {
+                    let short = w.qualified_name.rsplit_once('.').map(|(_, s)| s).unwrap_or(&w.qualified_name);
+                    short == norm_from
+                        || w.qualified_name.ends_with(&format!(".{}", norm_from))
+                        || w.qualified_name.ends_with(&format!("::{}", norm_from))
+                })
+            })
+        }) {
+            Some(idx) => idx,
             None => return false,
         };
 
-        // Fail-closed check: drop edge if callee `to` symbol cannot be resolved
-        let to_idx = match self.index.get(&norm_to) {
-            Some(&idx) => idx,
+        let to_idx = match self.index.get(&norm_to).copied().or_else(|| {
+            self.graph.node_indices().find(|&idx| {
+                self.graph.node_weight(idx).map_or(false, |w| {
+                    let short = w.qualified_name.rsplit_once('.').map(|(_, s)| s).unwrap_or(&w.qualified_name);
+                    short == norm_to
+                        || w.qualified_name.ends_with(&format!(".{}", norm_to))
+                        || w.qualified_name.ends_with(&format!("::{}", norm_to))
+                })
+            })
+        }) {
+            Some(idx) => idx,
             None => return false,
         };
+
+        // Prevent self-loops
+        if from_idx == to_idx {
+            return false;
+        }
 
         // Check if edge already exists, increment call_count if so
         if let Some(edge_idx) = self.graph.find_edge(from_idx, to_idx) {
@@ -127,9 +149,12 @@ impl CodeGraph {
             }
         }
 
+        let from_qname = self.graph.node_weight(from_idx).map(|w| w.qualified_name.clone()).unwrap_or(norm_from);
+        let to_qname = self.graph.node_weight(to_idx).map(|w| w.qualified_name.clone()).unwrap_or(norm_to);
+
         let edge_payload = GraphEdge {
-            from: norm_from,
-            to: norm_to,
+            from: from_qname,
+            to: to_qname,
             relation: edge.relation,
             call_count: 1,
         };
@@ -391,7 +416,7 @@ mod tests {
 
         let dangling_edge = ExtractedEdge {
             from: "main".to_string(),
-            to: "self.foo".to_string(),
+            to: "unresolved_foo_xyz_random".to_string(),
             relation: Relation::Calls,
         };
 

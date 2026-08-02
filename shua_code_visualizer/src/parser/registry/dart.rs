@@ -81,6 +81,7 @@ impl LanguageExtractor for DartExtractor {
         let mut cursor = QueryCursor::new();
         let matches = cursor.matches(&query, tree.root_node(), code.as_bytes());
         let mut symbols = Vec::new();
+        let mut known_symbol_names = HashSet::new();
 
         for mat in matches {
             let mut name = String::new();
@@ -204,6 +205,8 @@ impl LanguageExtractor for DartExtractor {
                 let loc = end_line.saturating_sub(start_line) + 1;
                 let id = format!("{}:{}", file_path, name);
 
+                known_symbol_names.insert(name.clone());
+
                 symbols.push(ExtractedSymbol {
                     id,
                     kind,
@@ -246,8 +249,9 @@ impl LanguageExtractor for DartExtractor {
                             let mut caller_qualified = String::new();
                             let mut parent = node.parent();
                             while let Some(p) = parent {
-                                if p.kind() == "method_signature" || p.kind() == "function_signature" {
-                                    caller_qualified = resolve_dart_qualified_name(p, code);
+                                let p_name = resolve_dart_qualified_name(p, code);
+                                if !p_name.is_empty() && known_symbol_names.contains(&p_name) {
+                                    caller_qualified = p_name;
                                     break;
                                 }
                                 parent = p.parent();
