@@ -211,7 +211,7 @@ class _TopologyPainter extends CustomPainter {
       final paint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = isHighlighted ? 2.4 : 1.2
-        ..color = baseColor.withValues(alpha: opacity);
+        ..color = baseColor.withOpacity(opacity);
 
       final mid = Offset((from.dx + to.dx) / 2, (from.dy + to.dy) / 2);
       final control =
@@ -245,11 +245,11 @@ class _TopologyPainter extends CustomPainter {
       } else {
         fill = const Color(0xFF42A5F5);
       }
-      if (isDimmed) fill = fill.withValues(alpha: 0.16);
+      if (isDimmed) fill = fill.withOpacity(0.16);
 
       if (n.isHub && !isDimmed) {
         final halo = Paint()
-          ..color = fill.withValues(alpha: 0.25)
+          ..color = fill.withOpacity(0.25)
           ..style = PaintingStyle.fill;
         canvas.drawCircle(pos, radius + 8, halo);
       }
