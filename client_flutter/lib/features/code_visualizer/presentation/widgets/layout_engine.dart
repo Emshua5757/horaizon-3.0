@@ -19,8 +19,8 @@ class LayoutEngine {
     if (nodes.isEmpty) return [];
 
     final result = <NodePosition>[];
-    const double colWidth = 290.0;
-    const double rowHeight = 150.0;
+    const double colWidth = 300.0;
+    const double rowHeight = 160.0;
     const int maxCols = 4;
 
     // Group nodes by file/module
@@ -38,8 +38,8 @@ class LayoutEngine {
         final totalCalls = node.fanIn + node.fanOut;
         final isHub = totalCalls >= 3 || node.riskScore >= 10.0;
 
-        final width = isHub ? 250.0 : 210.0;
-        final height = isHub ? 80.0 : 65.0;
+        final width = isHub ? 260.0 : 220.0;
+        final height = isHub ? 96.0 : 82.0;
 
         final x = colIndex * colWidth + 60.0;
         final y = rowIndex * rowHeight + 60.0;

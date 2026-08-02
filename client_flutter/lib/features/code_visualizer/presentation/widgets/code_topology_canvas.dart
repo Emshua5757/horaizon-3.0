@@ -190,8 +190,8 @@ class _NodeCard extends StatelessWidget {
 
     return Container(
       width: position.size.width,
-      height: position.size.height,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      constraints: BoxConstraints(minHeight: position.size.height),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: isSelected
             ? cs.primaryContainer
@@ -214,10 +214,11 @@ class _NodeCard extends StatelessWidget {
             ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
+      child: ClipRect(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
           // Row 1: Kind & Call Count Badge
           Row(
             children: [
@@ -287,6 +288,7 @@ class _NodeCard extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }
