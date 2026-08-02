@@ -487,4 +487,65 @@ mod tests {
         let remaining = graph.index.get("fn3").expect("fn3 in src/b.rs must survive");
         assert_eq!(graph.graph.node_weight(*remaining).unwrap().qualified_name, "fn3");
     }
+
+    #[test]
+    fn test_tarjan_scc_cycle_detection() {
+        let mut graph = CodeGraph::new();
+
+        let s1 = ExtractedSymbol {
+            id: "src/a.rs:fn_a".to_string(),
+            kind: GraphNodeKind::Function,
+            qualified_name: "fn_a".to_string(),
+            file: "src/a.rs".to_string(),
+            line: 1,
+            params: vec![],
+            return_type: None,
+            complexity: 1,
+            side_effects: vec![],
+            intent: None,
+            loc: 5,
+            is_public: true,
+            is_test: false,
+        };
+
+        let s2 = ExtractedSymbol {
+            id: "src/b.rs:fn_b".to_string(),
+            kind: GraphNodeKind::Function,
+            qualified_name: "fn_b".to_string(),
+            file: "src/b.rs".to_string(),
+            line: 1,
+            params: vec![],
+            return_type: None,
+            complexity: 1,
+            side_effects: vec![],
+            intent: None,
+            loc: 5,
+            is_public: true,
+            is_test: false,
+        };
+
+        graph.add_symbol(s1);
+        graph.add_symbol(s2);
+
+        // Mutual recursion call loop: fn_a -> fn_b and fn_b -> fn_a
+        graph.add_edge(ExtractedEdge {
+            from: "fn_a".to_string(),
+            to: "fn_b".to_string(),
+            relation: Relation::Calls,
+        });
+        graph.add_edge(ExtractedEdge {
+            from: "fn_b".to_string(),
+            to: "fn_a".to_string(),
+            relation: Relation::Calls,
+        });
+
+        graph.update_degree_metrics();
+
+        let node_a = graph.graph.node_weights().find(|w| w.qualified_name == "fn_a").unwrap();
+        let node_b = graph.graph.node_weights().find(|w| w.qualified_name == "fn_b").unwrap();
+
+        assert!(node_a.scc_id.is_some(), "Mutual recursion fn_a must have non-null scc_id");
+        assert!(node_b.scc_id.is_some(), "Mutual recursion fn_b must have non-null scc_id");
+        assert_eq!(node_a.scc_id, node_b.scc_id, "Both functions in mutual recursion loop must share the same scc_id");
+    }
 }

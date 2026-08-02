@@ -81,7 +81,6 @@ impl LanguageExtractor for DartExtractor {
         let mut cursor = QueryCursor::new();
         let matches = cursor.matches(&query, tree.root_node(), code.as_bytes());
         let mut symbols = Vec::new();
-        let mut known_symbol_names = HashSet::new();
 
         for mat in matches {
             let mut name = String::new();
@@ -205,8 +204,6 @@ impl LanguageExtractor for DartExtractor {
                 let loc = end_line.saturating_sub(start_line) + 1;
                 let id = format!("{}:{}", file_path, name);
 
-                known_symbol_names.insert(name.clone());
-
                 symbols.push(ExtractedSymbol {
                     id,
                     kind,
@@ -225,13 +222,12 @@ impl LanguageExtractor for DartExtractor {
             }
         }
 
-        // Extract call site edges using fully-qualified caller names
+        // Extract Dart call site edges by matching AST call identifiers to enclosing line ranges
         let mut edges = Vec::new();
         let mut edge_set = HashSet::new();
 
         let call_query_str = r#"
-            (method_invocation
-              name: (identifier) @callee) @call
+            (identifier) @callee
             (import_or_export) @import
         "#;
 
@@ -245,26 +241,24 @@ impl LanguageExtractor for DartExtractor {
                     let node = cap.node;
 
                     if cap_name == "callee" {
-                        if let Ok(callee_text) = node.utf8_text(code.as_bytes()) {
-                            let mut caller_qualified = String::new();
-                            let mut parent = node.parent();
-                            while let Some(p) = parent {
-                                let p_name = resolve_dart_qualified_name(p, code);
-                                if !p_name.is_empty() && known_symbol_names.contains(&p_name) {
-                                    caller_qualified = p_name;
-                                    break;
-                                }
-                                parent = p.parent();
-                            }
-
-                            if !caller_qualified.is_empty() && !callee_text.is_empty() && caller_qualified != callee_text {
-                                let edge = ExtractedEdge {
-                                    from: caller_qualified,
-                                    to: callee_text.to_string(),
-                                    relation: Relation::Calls,
-                                };
-                                if edge_set.insert(edge.clone()) {
-                                    edges.push(edge);
+                        let line = node.range().start_point.row as u32 + 1;
+                        if let Some(caller_sym) = symbols.iter().find(|s| line >= s.line && line <= s.line + s.loc) {
+                            if let Ok(callee_text) = node.utf8_text(code.as_bytes()) {
+                                let callee_clean = callee_text.trim().to_string();
+                                if !callee_clean.is_empty()
+                                    && caller_sym.qualified_name != callee_clean
+                                    && !caller_sym.qualified_name.ends_with(&format!(".{}", callee_clean))
+                                    && callee_clean.chars().next().map_or(false, |c| c.is_alphabetic() || c == '_')
+                                    && !["if", "else", "for", "while", "return", "var", "final", "const", "super", "this", "true", "false", "null", "dynamic", "void", "int", "double", "String", "bool", "List", "Map", "Set"].contains(&callee_clean.as_str())
+                                {
+                                    let edge = ExtractedEdge {
+                                        from: caller_sym.qualified_name.clone(),
+                                        to: callee_clean,
+                                        relation: Relation::Calls,
+                                    };
+                                    if edge_set.insert(edge.clone()) {
+                                        edges.push(edge);
+                                    }
                                 }
                             }
                         }
