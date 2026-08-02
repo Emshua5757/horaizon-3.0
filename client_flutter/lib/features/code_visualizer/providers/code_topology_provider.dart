@@ -29,6 +29,12 @@ final topologyDataSourceProvider = Provider<TopologyDataSource>((ref) {
   return StandaloneDataSource(workspacePath: targetPath);
 });
 
+/// StreamProvider broadcasting live TopologyDeltaEvents over Managed WebSocket IPC
+final topologyDeltaStreamProvider = StreamProvider<TopologyDeltaEvent>((ref) {
+  final dataSource = ref.watch(topologyDataSourceProvider);
+  return dataSource.deltaStream ?? const Stream<TopologyDeltaEvent>.empty();
+});
+
 /// FutureProvider loading the current TopologyGraphDataModel snapshot
 final codeTopologyProvider = FutureProvider<TopologyGraphDataModel>((ref) async {
   final dataSource = ref.watch(topologyDataSourceProvider);

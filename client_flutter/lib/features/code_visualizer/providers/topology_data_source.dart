@@ -174,3 +174,48 @@ class StandaloneDataSource implements TopologyDataSource {
     return const TopologyGraphDataModel(nodes: [], edges: []);
   }
 }
+
+/// Managed Subprocess Mode Data Source (Connects over HBP v2 WebSocket IPC)
+class ManagedDataSource implements TopologyDataSource {
+  final String wsUrl;
+  WebSocket? _socket;
+  final _deltaController = StreamController<TopologyDeltaEvent>.broadcast();
+
+  ManagedDataSource({this.wsUrl = 'ws://127.0.0.1:7700/hbp'});
+
+  @override
+  Stream<TopologyDeltaEvent> get deltaStream => _deltaController.stream;
+
+  @override
+  Future<List<String>?> tracePath(String fromId, String toId, {bool directed = false}) async {
+    return null;
+  }
+
+  @override
+  Future<Set<String>> blastRadius(String nodeId, {int maxDepth = 3}) async {
+    return {nodeId};
+  }
+
+  @override
+  Future<TopologyGraphDataModel> loadSnapshot() async {
+    try {
+      _socket = await WebSocket.connect(wsUrl);
+      _socket!.listen((data) {
+        if (data is String) {
+          final jsonMap = jsonDecode(data) as Map<String, dynamic>;
+          if (jsonMap.containsKey('affected_node_ids')) {
+            _deltaController.add(TopologyDeltaEvent.fromJson(jsonMap));
+          }
+        }
+      });
+    } catch (e) {
+      debugPrint('ManagedDataSource WebSocket connect error: $e');
+    }
+    return StandaloneDataSource(workspacePath: 'c:/horaizon-3.0/shua_code_visualizer/src').loadSnapshot();
+  }
+
+  void dispose() {
+    _socket?.close();
+    _deltaController.close();
+  }
+}
