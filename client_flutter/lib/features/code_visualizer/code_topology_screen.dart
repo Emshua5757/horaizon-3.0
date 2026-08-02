@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'models/topology_insights.dart';
+import 'models/topology_models.dart';
 import 'presentation/widgets/code_topology_canvas.dart';
 import 'presentation/widgets/layout_engine.dart';
 import 'presentation/widgets/path_tracer_panel.dart';
@@ -27,6 +28,23 @@ class CodeTopologyScreen extends ConsumerWidget {
     }
   }
 
+  int _countForFilter(TopologyGraphDataModel? data, InsightFilter? filter) {
+    if (data == null || data.nodes.isEmpty) return 0;
+    if (filter == null) return data.nodes.length;
+    switch (filter) {
+      case InsightFilter.godFunctions:
+        return data.nodes.where((n) => n.isGodFunction).length;
+      case InsightFilter.hubs:
+        return data.nodes.where((n) => n.isHub).length;
+      case InsightFilter.highRisk:
+        return data.nodes.where((n) => n.isHighRisk).length;
+      case InsightFilter.deadCode:
+        return data.nodes.where((n) => n.isDeadCode).length;
+      case InsightFilter.publicApis:
+        return data.nodes.where((n) => n.isPublicApi).length;
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
@@ -34,9 +52,12 @@ class CodeTopologyScreen extends ConsumerWidget {
     final selectedNode = ref.watch(selectedNodeProvider);
     final activePath = ref.watch(activeWorkspacePathProvider);
     final activeFilters = ref.watch(activeFiltersProvider);
+    final matchAll = ref.watch(filterMatchAllProvider);
     final currentLayout = ref.watch(selectedLayoutModeProvider);
     final pathStart = ref.watch(pathStartNodeProvider);
     final pathEnd = ref.watch(pathEndNodeProvider);
+
+    final graphData = topologyAsync.valueOrNull;
 
     return Scaffold(
       body: Column(
@@ -113,9 +134,10 @@ class CodeTopologyScreen extends ConsumerWidget {
                   ),
                   const SizedBox(width: 12),
 
-                  // Multi-Select Insight Filter Chips
+                  // Multi-Select Insight Filter Chips with Dynamic Count Badges
                   _FilterChip(
                     label: 'All',
+                    count: _countForFilter(graphData, null),
                     isSelected: activeFilters.isEmpty,
                     onSelected: (_) {
                       ref.read(activeFiltersProvider.notifier).state = {};
@@ -124,6 +146,7 @@ class CodeTopologyScreen extends ConsumerWidget {
                   const SizedBox(width: 6),
                   _FilterChip(
                     label: '👑 God Functions',
+                    count: _countForFilter(graphData, InsightFilter.godFunctions),
                     isSelected: activeFilters.contains(InsightFilter.godFunctions),
                     onSelected: (val) {
                       final updated = Set<InsightFilter>.from(activeFilters);
@@ -134,6 +157,7 @@ class CodeTopologyScreen extends ConsumerWidget {
                   const SizedBox(width: 6),
                   _FilterChip(
                     label: '🔥 Hubs',
+                    count: _countForFilter(graphData, InsightFilter.hubs),
                     isSelected: activeFilters.contains(InsightFilter.hubs),
                     onSelected: (val) {
                       final updated = Set<InsightFilter>.from(activeFilters);
@@ -144,6 +168,7 @@ class CodeTopologyScreen extends ConsumerWidget {
                   const SizedBox(width: 6),
                   _FilterChip(
                     label: '⚠️ High Risk',
+                    count: _countForFilter(graphData, InsightFilter.highRisk),
                     isSelected: activeFilters.contains(InsightFilter.highRisk),
                     onSelected: (val) {
                       final updated = Set<InsightFilter>.from(activeFilters);
@@ -154,6 +179,7 @@ class CodeTopologyScreen extends ConsumerWidget {
                   const SizedBox(width: 6),
                   _FilterChip(
                     label: '💀 Dead Code',
+                    count: _countForFilter(graphData, InsightFilter.deadCode),
                     isSelected: activeFilters.contains(InsightFilter.deadCode),
                     onSelected: (val) {
                       final updated = Set<InsightFilter>.from(activeFilters);
@@ -161,6 +187,19 @@ class CodeTopologyScreen extends ConsumerWidget {
                       ref.read(activeFiltersProvider.notifier).state = updated;
                     },
                   ),
+                  const SizedBox(width: 8),
+
+                  // AND / OR Toggle Button
+                  if (activeFilters.length > 1)
+                    InputChip(
+                      avatar: Icon(matchAll ? Icons.rule_rounded : Icons.alt_route_rounded, size: 14),
+                      label: Text(matchAll ? 'MATCH ALL (AND)' : 'MATCH ANY (OR)', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                      selected: matchAll,
+                      onPressed: () {
+                        ref.read(filterMatchAllProvider.notifier).state = !matchAll;
+                      },
+                    ),
+
                   const SizedBox(width: 12),
 
                   // Path Tracer Reset Button
@@ -202,12 +241,12 @@ class CodeTopologyScreen extends ConsumerWidget {
                 ),
               ),
               error: (err, stack) => Center(child: Text('Error loading topology: $err')),
-              data: (graphData) => Stack(
+              data: (data) => Stack(
                 children: [
                   Row(
                     children: [
                       Expanded(
-                        child: CodeTopologyCanvas(graphData: graphData),
+                        child: CodeTopologyCanvas(graphData: data),
                       ),
                       if (selectedNode != null)
                         SymbolInspectorDrawer(node: selectedNode),
@@ -216,7 +255,7 @@ class CodeTopologyScreen extends ConsumerWidget {
                   Positioned(
                     top: 12,
                     left: 12,
-                    child: PathTracerPanel(graphData: graphData),
+                    child: PathTracerPanel(graphData: data),
                   ),
                 ],
               ),
@@ -230,11 +269,13 @@ class CodeTopologyScreen extends ConsumerWidget {
 
 class _FilterChip extends StatelessWidget {
   final String label;
+  final int count;
   final bool isSelected;
   final ValueChanged<bool> onSelected;
 
   const _FilterChip({
     required this.label,
+    required this.count,
     required this.isSelected,
     required this.onSelected,
   });
@@ -242,7 +283,7 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FilterChip(
-      label: Text(label, style: const TextStyle(fontSize: 11)),
+      label: Text('$label ($count)', style: const TextStyle(fontSize: 11)),
       selected: isSelected,
       onSelected: onSelected,
       visualDensity: VisualDensity.compact,
