@@ -1,7 +1,11 @@
+// File: client_flutter/lib/features/code_visualizer/code_topology_screen.dart
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'models/topology_insights.dart';
 import 'presentation/widgets/code_topology_canvas.dart';
+import 'presentation/widgets/layout_engine.dart';
 import 'presentation/widgets/symbol_inspector_drawer.dart';
 import 'providers/code_topology_provider.dart';
 
@@ -16,6 +20,8 @@ class CodeTopologyScreen extends ConsumerWidget {
     if (selectedPath != null && selectedPath.isNotEmpty) {
       ref.read(activeWorkspacePathProvider.notifier).state = selectedPath;
       ref.read(selectedNodeProvider.notifier).state = null;
+      ref.read(pathStartNodeProvider.notifier).state = null;
+      ref.read(pathEndNodeProvider.notifier).state = null;
       ref.invalidate(codeTopologyProvider);
     }
   }
@@ -26,7 +32,10 @@ class CodeTopologyScreen extends ConsumerWidget {
     final topologyAsync = ref.watch(codeTopologyProvider);
     final selectedNode = ref.watch(selectedNodeProvider);
     final activePath = ref.watch(activeWorkspacePathProvider);
-    final currentFilter = ref.watch(graphFilterModeProvider);
+    final activeFilters = ref.watch(activeFiltersProvider);
+    final currentLayout = ref.watch(selectedLayoutModeProvider);
+    final pathStart = ref.watch(pathStartNodeProvider);
+    final pathEnd = ref.watch(pathEndNodeProvider);
 
     return Scaffold(
       body: Column(
@@ -69,6 +78,20 @@ class CodeTopologyScreen extends ConsumerWidget {
                   ),
                   const SizedBox(width: 12),
 
+                  // Layout Mode Segmented Control
+                  SegmentedButton<LayoutMode>(
+                    segments: const [
+                      ButtonSegment(value: LayoutMode.physics, label: Text('⚡ Physics Cluster')),
+                      ButtonSegment(value: LayoutMode.fileGrouped, label: Text('📁 File Grouped')),
+                      ButtonSegment(value: LayoutMode.callFlow, label: Text('🌲 Call Flow')),
+                    ],
+                    selected: {currentLayout},
+                    onSelectionChanged: (set) {
+                      ref.read(selectedLayoutModeProvider.notifier).state = set.first;
+                    },
+                  ),
+                  const SizedBox(width: 12),
+
                   // Search Bar
                   SizedBox(
                     width: 180,
@@ -89,21 +112,68 @@ class CodeTopologyScreen extends ConsumerWidget {
                   ),
                   const SizedBox(width: 12),
 
-                  // Filter Segmented Buttons
-                  SegmentedButton<GraphFilterMode>(
-                    segments: const [
-                      ButtonSegment(value: GraphFilterMode.all, label: Text('All')),
-                      ButtonSegment(value: GraphFilterMode.mostCalled, label: Text('🔥 Most Called')),
-                      ButtonSegment(value: GraphFilterMode.highRisk, label: Text('⚠️ High Risk')),
-                      ButtonSegment(value: GraphFilterMode.deadCode, label: Text('💀 Dead Code')),
-                    ],
-                    selected: {currentFilter},
-                    onSelectionChanged: (set) {
-                      ref.read(graphFilterModeProvider.notifier).state = set.first;
+                  // Multi-Select Insight Filter Chips
+                  _FilterChip(
+                    label: 'All',
+                    isSelected: activeFilters.isEmpty,
+                    onSelected: (_) {
+                      ref.read(activeFiltersProvider.notifier).state = {};
                     },
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 6),
+                  _FilterChip(
+                    label: '👑 God Functions',
+                    isSelected: activeFilters.contains(InsightFilter.godFunctions),
+                    onSelected: (val) {
+                      final updated = Set<InsightFilter>.from(activeFilters);
+                      val ? updated.add(InsightFilter.godFunctions) : updated.remove(InsightFilter.godFunctions);
+                      ref.read(activeFiltersProvider.notifier).state = updated;
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  _FilterChip(
+                    label: '🔥 Hubs',
+                    isSelected: activeFilters.contains(InsightFilter.hubs),
+                    onSelected: (val) {
+                      final updated = Set<InsightFilter>.from(activeFilters);
+                      val ? updated.add(InsightFilter.hubs) : updated.remove(InsightFilter.hubs);
+                      ref.read(activeFiltersProvider.notifier).state = updated;
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  _FilterChip(
+                    label: '⚠️ High Risk',
+                    isSelected: activeFilters.contains(InsightFilter.highRisk),
+                    onSelected: (val) {
+                      final updated = Set<InsightFilter>.from(activeFilters);
+                      val ? updated.add(InsightFilter.highRisk) : updated.remove(InsightFilter.highRisk);
+                      ref.read(activeFiltersProvider.notifier).state = updated;
+                    },
+                  ),
+                  const SizedBox(width: 6),
+                  _FilterChip(
+                    label: '💀 Dead Code',
+                    isSelected: activeFilters.contains(InsightFilter.deadCode),
+                    onSelected: (val) {
+                      final updated = Set<InsightFilter>.from(activeFilters);
+                      val ? updated.add(InsightFilter.deadCode) : updated.remove(InsightFilter.deadCode);
+                      ref.read(activeFiltersProvider.notifier).state = updated;
+                    },
+                  ),
+                  const SizedBox(width: 12),
 
+                  // Path Tracer Reset Button
+                  if (pathStart != null || pathEnd != null)
+                    ActionChip(
+                      avatar: const Icon(Icons.route_rounded, size: 14),
+                      label: Text('Path: ${pathStart?.qualifiedName ?? '?'} ➔ ${pathEnd?.qualifiedName ?? '?'}'),
+                      onPressed: () {
+                        ref.read(pathStartNodeProvider.notifier).state = null;
+                        ref.read(pathEndNodeProvider.notifier).state = null;
+                      },
+                    ),
+
+                  const SizedBox(width: 12),
                   IconButton(
                     icon: const Icon(Icons.refresh_rounded),
                     tooltip: 'Rescan Repository',
@@ -144,6 +214,29 @@ class CodeTopologyScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final ValueChanged<bool> onSelected;
+
+  const _FilterChip({
+    required this.label,
+    required this.isSelected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FilterChip(
+      label: Text(label, style: const TextStyle(fontSize: 11)),
+      selected: isSelected,
+      onSelected: onSelected,
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
   }
 }

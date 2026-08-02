@@ -1,16 +1,23 @@
 // File: client_flutter/lib/features/code_visualizer/presentation/widgets/symbol_inspector_drawer.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/topology_models.dart';
 import '../../models/topology_insights.dart';
+import '../../providers/code_topology_provider.dart';
 
-class SymbolInspectorDrawer extends StatelessWidget {
+class SymbolInspectorDrawer extends ConsumerWidget {
   final TopologyNodeModel node;
   const SymbolInspectorDrawer({super.key, required this.node});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
+    final pathStart = ref.watch(pathStartNodeProvider);
+    final pathEnd = ref.watch(pathEndNodeProvider);
+
+    final isStart = pathStart?.id == node.id;
+    final isEnd = pathEnd?.id == node.id;
 
     return Container(
       width: 320,
@@ -23,16 +30,65 @@ class SymbolInspectorDrawer extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              node.qualifiedName,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            // Title & Close Button
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    node.qualifiedName,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  onPressed: () {
+                    ref.read(selectedNodeProvider.notifier).state = null;
+                  },
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               '${node.file}:${node.line}',
-              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+              style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
             ),
             const SizedBox(height: 12),
+
+            // Shortest Path Tracer Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: Icon(isStart ? Icons.check_circle_rounded : Icons.play_arrow_rounded, size: 14),
+                    label: Text(isStart ? 'Path Start' : 'Set Start', style: const TextStyle(fontSize: 10)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                      side: BorderSide(color: isStart ? Colors.green : cs.outlineVariant),
+                    ),
+                    onPressed: () {
+                      ref.read(pathStartNodeProvider.notifier).state = isStart ? null : node;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: Icon(isEnd ? Icons.check_circle_rounded : Icons.flag_rounded, size: 14),
+                    label: Text(isEnd ? 'Path End' : 'Set End', style: const TextStyle(fontSize: 10)),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                      side: BorderSide(color: isEnd ? Colors.green : cs.outlineVariant),
+                    ),
+                    onPressed: () {
+                      ref.read(pathEndNodeProvider.notifier).state = isEnd ? null : node;
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Insight Badges
             Wrap(
               spacing: 6,
               runSpacing: 6,
@@ -49,6 +105,7 @@ class SymbolInspectorDrawer extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 18),
+
             _metricRow('Complexity', node.complexity.toString(),
                 warn: node.exceedsComplexityThreshold),
             _metricRow('Lines of Code', node.loc.toString(),
@@ -69,7 +126,7 @@ class SymbolInspectorDrawer extends StatelessWidget {
                     fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
               ),
               const SizedBox(height: 4),
-              Text(node.intent!, style: const TextStyle(fontSize: 13)),
+              Text(node.intent!, style: const TextStyle(fontSize: 12)),
               const SizedBox(height: 16),
             ],
             if (node.params.isNotEmpty) ...[
@@ -84,7 +141,7 @@ class SymbolInspectorDrawer extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(
                     '${p.name}: ${p.type}${p.isOptional ? '?' : ''}',
-                    style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+                    style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
                   ),
                 ),
               ),
@@ -103,7 +160,7 @@ class SymbolInspectorDrawer extends StatelessWidget {
                 children: node.sideEffects
                     .map(
                       (s) => Chip(
-                        label: Text(s, style: const TextStyle(fontSize: 11)),
+                        label: Text(s, style: const TextStyle(fontSize: 10)),
                         visualDensity: VisualDensity.compact,
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
@@ -144,7 +201,7 @@ class SymbolInspectorDrawer extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
               color: warn ? Colors.redAccent : null,
             ),

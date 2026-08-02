@@ -2,6 +2,7 @@
 
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/topology_models.dart';
 import '../../models/topology_insights.dart';
@@ -17,20 +18,88 @@ class CodeTopologyCanvas extends ConsumerStatefulWidget {
       _CodeTopologyCanvasState();
 }
 
-class _CodeTopologyCanvasState extends ConsumerState<CodeTopologyCanvas> {
-  GraphLayout? _cachedLayout;
+class _CodeTopologyCanvasState extends ConsumerState<CodeTopologyCanvas>
+    with SingleTickerProviderStateMixin {
+  late Ticker _ticker;
+  PhysicsSimulation? _physicsSim;
+  GraphLayout? _cachedStaticLayout;
   LayoutMode? _cachedMode;
   TopologyGraphDataModel? _cachedData;
 
-  GraphLayout _layoutFor(LayoutMode mode) {
-    if (_cachedLayout != null &&
+  final TransformationController _transformController =
+      TransformationController();
+  String? _draggedNodeId;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = createTicker(_onTick);
+    _initSimulation();
+  }
+
+  @override
+  void didUpdateWidget(covariant CodeTopologyCanvas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.graphData, widget.graphData)) {
+      _initSimulation();
+    }
+  }
+
+  void _initSimulation() {
+    _physicsSim = PhysicsSimulation(
+      nodes: widget.graphData.nodes,
+      edges: widget.graphData.edges,
+    );
+    _cachedStaticLayout = null;
+    _cachedData = widget.graphData;
+    _startTickerIfNeeded();
+  }
+
+  void _startTickerIfNeeded() {
+    final mode = ref.read(selectedLayoutModeProvider);
+    if (mode == LayoutMode.physics && !_ticker.isTicking) {
+      _physicsSim?.wakeUp();
+      _ticker.start();
+    }
+  }
+
+  void _onTick(Duration elapsed) {
+    final mode = ref.read(selectedLayoutModeProvider);
+    if (mode != LayoutMode.physics || _physicsSim == null) {
+      if (_ticker.isTicking) _ticker.stop();
+      return;
+    }
+
+    final isMoving = _physicsSim!.step(0.016);
+    setState(() {});
+
+    if (!isMoving && _draggedNodeId == null && _ticker.isTicking) {
+      _ticker.stop(); // Thermal cooling pause (0% CPU when idle)
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    _transformController.dispose();
+    super.dispose();
+  }
+
+  GraphLayout _currentLayout(LayoutMode mode) {
+    if (mode == LayoutMode.physics) {
+      return _physicsSim?.toLayout() ??
+          GraphLayoutEngine.compute(data: widget.graphData, mode: mode);
+    }
+
+    if (_cachedStaticLayout != null &&
         _cachedMode == mode &&
         identical(_cachedData, widget.graphData)) {
-      return _cachedLayout!;
+      return _cachedStaticLayout!;
     }
+
     final layout =
         GraphLayoutEngine.compute(data: widget.graphData, mode: mode);
-    _cachedLayout = layout;
+    _cachedStaticLayout = layout;
     _cachedMode = mode;
     _cachedData = widget.graphData;
     return layout;
@@ -45,75 +114,168 @@ class _CodeTopologyCanvasState extends ConsumerState<CodeTopologyCanvas> {
     return ids;
   }
 
+  List<String>? _findShortestPath(String fromId, String toId) {
+    if (fromId == toId) return [fromId];
+
+    final adj = <String, List<String>>{};
+    for (final e in widget.graphData.edges) {
+      adj.putIfAbsent(e.from, () => []).add(e.to);
+      adj.putIfAbsent(e.to, () => []).add(e.from);
+    }
+
+    final parent = <String, String>{};
+    final visited = <String>{fromId};
+    final queue = <String>[fromId];
+
+    while (queue.isNotEmpty) {
+      final curr = queue.removeAt(0);
+      if (curr == toId) {
+        final path = <String>[];
+        String? step = toId;
+        while (step != null) {
+          path.insert(0, step);
+          step = parent[step];
+        }
+        return path;
+      }
+
+      for (final next in adj[curr] ?? const <String>[]) {
+        if (!visited.contains(next)) {
+          visited.add(next);
+          parent[next] = curr;
+          queue.add(next);
+        }
+      }
+    }
+    return null; // Disconnected
+  }
+
   bool _passesFilter(
     TopologyNodeModel n,
-    GraphFilterMode filter,
+    Set<InsightFilter> activeFilters,
+    bool matchAll,
     String query,
   ) {
     if (query.isNotEmpty &&
         !n.qualifiedName.toLowerCase().contains(query.toLowerCase())) {
       return false;
     }
-    switch (filter) {
-      case GraphFilterMode.all:
-        return true;
-      case GraphFilterMode.mostCalled:
-        return (n.fanIn + n.fanOut) >= 4;
-      case GraphFilterMode.highRisk:
-        return n.isHighRisk || n.isGodFunction;
-      case GraphFilterMode.deadCode:
-        return n.isDeadCode;
+    if (activeFilters.isEmpty) return true;
+
+    final matches = [
+      if (activeFilters.contains(InsightFilter.godFunctions) && n.isGodFunction) true,
+      if (activeFilters.contains(InsightFilter.hubs) && n.isHub) true,
+      if (activeFilters.contains(InsightFilter.highRisk) && n.isHighRisk) true,
+      if (activeFilters.contains(InsightFilter.deadCode) && n.isDeadCode) true,
+      if (activeFilters.contains(InsightFilter.publicApis) && n.isPublicApi) true,
+    ];
+
+    if (matchAll) {
+      return matches.length == activeFilters.length;
     }
+    return matches.contains(true);
   }
 
-  TopologyNodeModel? _hitTest(Offset point, GraphLayout layout) {
+  TopologyNodeModel? _hitTest(Offset localPoint, GraphLayout layout) {
     for (final n in widget.graphData.nodes.reversed) {
       final pos = layout.positions[n.id];
       if (pos == null) continue;
-      if ((pos - point).distance <= _nodeRadius(n) + 4) return n;
+      if ((pos - localPoint).distance <= _nodeRadius(n) + 6) return n;
     }
     return null;
+  }
+
+  Offset _transformViewportToContent(Offset viewportPoint) {
+    final matrix = _transformController.value;
+    final inverted = Matrix4.inverted(matrix);
+    return MatrixUtils.transformPoint(inverted, viewportPoint);
   }
 
   @override
   Widget build(BuildContext context) {
     final mode = ref.watch(selectedLayoutModeProvider);
-    final filter = ref.watch(graphFilterModeProvider);
+    final activeFilters = ref.watch(activeFiltersProvider);
+    final matchAll = ref.watch(filterMatchAllProvider);
     final query = ref.watch(searchQueryProvider);
     final selected = ref.watch(selectedNodeProvider);
-    final layout = _layoutFor(mode);
-    final highlighted =
-        selected != null ? _neighborhoodOf(selected.id) : null;
+    final pathStart = ref.watch(pathStartNodeProvider);
+    final pathEnd = ref.watch(pathEndNodeProvider);
 
-    final width = max(layout.contentSize.width, 900.0);
-    final height = max(layout.contentSize.height, 700.0);
+    _startTickerIfNeeded();
+    final layout = _currentLayout(mode);
 
-    return Container(
-      color: const Color(0xFF0E1116),
-      child: InteractiveViewer(
-        minScale: 0.12,
-        maxScale: 3.0,
-        constrained: false,
-        boundaryMargin: const EdgeInsets.all(500),
-        child: SizedBox(
-          width: width,
-          height: height,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTapUp: (details) {
-              final tapped = _hitTest(details.localPosition, layout);
-              ref.read(selectedNodeProvider.notifier).state = tapped;
-            },
-            child: CustomPaint(
-              size: Size(width, height),
-              painter: _TopologyPainter(
-                graphData: widget.graphData,
-                layout: layout,
-                filter: filter,
-                query: query,
-                selectedId: selected?.id,
-                highlighted: highlighted,
-                passesFilter: _passesFilter,
+    // Calculate highlighted neighborhood or shortest path
+    Set<String>? highlighted;
+    List<String>? pathNodes;
+
+    if (pathStart != null && pathEnd != null) {
+      pathNodes = _findShortestPath(pathStart.id, pathEnd.id);
+      if (pathNodes != null) highlighted = pathNodes.toSet();
+    } else if (selected != null) {
+      highlighted = _neighborhoodOf(selected.id);
+    }
+
+    final width = max(layout.contentSize.width, 1200.0);
+    final height = max(layout.contentSize.height, 900.0);
+
+    return RepaintBoundary(
+      child: Container(
+        color: const Color(0xFF0E1116),
+        child: InteractiveViewer(
+          transformationController: _transformController,
+          minScale: 0.12,
+          maxScale: 3.0,
+          constrained: false,
+          boundaryMargin: const EdgeInsets.all(500),
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapUp: (details) {
+                final contentPoint = _transformViewportToContent(details.localPosition);
+                final tapped = _hitTest(contentPoint, layout);
+                ref.read(selectedNodeProvider.notifier).state = tapped;
+              },
+              onPanStart: (details) {
+                if (mode != LayoutMode.physics || _physicsSim == null) return;
+                final contentPoint = _transformViewportToContent(details.localPosition);
+                final hit = _hitTest(contentPoint, layout);
+                if (hit != null) {
+                  _draggedNodeId = hit.id;
+                  _physicsSim!.pinnedIds.add(hit.id);
+                  _startTickerIfNeeded();
+                }
+              },
+              onPanUpdate: (details) {
+                if (mode != LayoutMode.physics || _physicsSim == null || _draggedNodeId == null) return;
+                final contentPoint = _transformViewportToContent(details.localPosition);
+                final p = _physicsSim!.particles[_draggedNodeId];
+                if (p != null) {
+                  p.position = contentPoint;
+                  _physicsSim!.wakeUp();
+                  _startTickerIfNeeded();
+                }
+              },
+              onPanEnd: (_) {
+                if (_draggedNodeId != null) {
+                  _physicsSim?.pinnedIds.remove(_draggedNodeId);
+                  _draggedNodeId = null;
+                }
+              },
+              child: CustomPaint(
+                size: Size(width, height),
+                painter: _TopologyPainter(
+                  graphData: widget.graphData,
+                  layout: layout,
+                  activeFilters: activeFilters,
+                  matchAll: matchAll,
+                  query: query,
+                  selectedId: selected?.id,
+                  highlighted: highlighted,
+                  pathNodes: pathNodes,
+                  passesFilter: _passesFilter,
+                ),
               ),
             ),
           ),
@@ -132,19 +294,23 @@ double _nodeRadius(TopologyNodeModel n) {
 class _TopologyPainter extends CustomPainter {
   final TopologyGraphDataModel graphData;
   final GraphLayout layout;
-  final GraphFilterMode filter;
+  final Set<InsightFilter> activeFilters;
+  final bool matchAll;
   final String query;
   final String? selectedId;
   final Set<String>? highlighted;
-  final bool Function(TopologyNodeModel, GraphFilterMode, String) passesFilter;
+  final List<String>? pathNodes;
+  final bool Function(TopologyNodeModel, Set<InsightFilter>, bool, String) passesFilter;
 
   _TopologyPainter({
     required this.graphData,
     required this.layout,
-    required this.filter,
+    required this.activeFilters,
+    required this.matchAll,
     required this.query,
     required this.selectedId,
     required this.highlighted,
+    required this.pathNodes,
     required this.passesFilter,
   });
 
@@ -152,7 +318,7 @@ class _TopologyPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final visibleIds = {
       for (final n in graphData.nodes)
-        if (passesFilter(n, filter, query)) n.id,
+        if (passesFilter(n, activeFilters, matchAll, query)) n.id,
     };
 
     _paintFileGroups(canvas);
@@ -191,6 +357,14 @@ class _TopologyPainter extends CustomPainter {
   }
 
   void _paintEdges(Canvas canvas, Set<String> visibleIds) {
+    final pathEdgeSet = <String>{};
+    if (pathNodes != null && pathNodes!.length >= 2) {
+      for (int i = 0; i < pathNodes!.length - 1; i++) {
+        pathEdgeSet.add('${pathNodes![i]}->${pathNodes![i + 1]}');
+        pathEdgeSet.add('${pathNodes![i + 1]}->${pathNodes![i]}');
+      }
+    }
+
     for (final e in graphData.edges) {
       if (!visibleIds.contains(e.from) || !visibleIds.contains(e.to)) {
         continue;
@@ -199,18 +373,23 @@ class _TopologyPainter extends CustomPainter {
       final to = layout.positions[e.to];
       if (from == null || to == null) continue;
 
+      final isPathEdge = pathEdgeSet.contains('${e.from}->${e.to}') ||
+          pathEdgeSet.contains('${e.to}->${e.from}');
       final isHighlighted = highlighted != null &&
           highlighted!.contains(e.from) &&
           highlighted!.contains(e.to);
       final dimmed = highlighted != null && !isHighlighted;
 
-      final baseColor =
-          e.relation == 'Imports' ? const Color(0xFF64B5F6) : const Color(0xFFFFAB40);
-      final opacity = dimmed ? 0.08 : (isHighlighted ? 0.95 : 0.55);
+      final baseColor = isPathEdge
+          ? const Color(0xFF00E676) // Glowing green path
+          : (e.relation == 'Imports' ? const Color(0xFF64B5F6) : const Color(0xFFFFAB40));
+
+      final opacity = dimmed ? 0.08 : (isPathEdge ? 1.0 : (isHighlighted ? 0.95 : 0.55));
+      final strokeWidth = isPathEdge ? 3.2 : (isHighlighted ? 2.4 : 1.2);
 
       final paint = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = isHighlighted ? 2.4 : 1.2
+        ..strokeWidth = strokeWidth
         ..color = baseColor.withValues(alpha: opacity);
 
       final mid = Offset((from.dx + to.dx) / 2, (from.dy + to.dy) / 2);
@@ -301,11 +480,5 @@ class _TopologyPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _TopologyPainter oldDelegate) {
-    return oldDelegate.filter != filter ||
-        oldDelegate.query != query ||
-        oldDelegate.selectedId != selectedId ||
-        oldDelegate.highlighted != highlighted ||
-        !identical(oldDelegate.layout, layout);
-  }
+  bool shouldRepaint(covariant _TopologyPainter oldDelegate) => true;
 }
