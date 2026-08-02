@@ -1,0 +1,36 @@
+[package]
+name = "shua_code_visualizer"
+version = "0.1.0"
+edition = "2021"
+description = "horAIzon 3.0 AST scanner, code topology graph, metrics, and MCP server"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+schemars = "0.8"
+tokio = { version = "1.38", features = ["full"] }
+clap = { version = "4.5", features = ["derive"] }
+
+# Tree-sitter AST parser dependencies
+tree-sitter = "0.22"
+tree-sitter-rust = "0.21"
+tree-sitter-typescript = "0.21"
+tree-sitter-python = "0.21"
+tree-sitter-go = "0.21"
+tree-sitter-dart-orchard = "0.3.2"
+
+# Graph resolution, hash caching & file watcher dependencies
+petgraph = "0.6"
+xxhash-rust = { version = "0.8", features = ["xxh64"] }
+notify = "6.1"
+walkdir = "2.5"
+
+# HBP v2 WebSocket IPC broker dependencies
+tokio-tungstenite = "0.21"
+futures-util = "0.3"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.48", features = ["Win32_Foundation", "Win32_System_Threading"] }
+
+[dev-dependencies]
+pretty_assertions = "1.4"
