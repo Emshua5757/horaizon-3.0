@@ -42,6 +42,9 @@ dependencies:
   # Material You Android dynamic color
   dynamic_color: ^1.7.0
 
+  # File & Folder selection
+  file_picker: ^8.0.0
+
   # UUID generation
   uuid: ^4.4.0
 

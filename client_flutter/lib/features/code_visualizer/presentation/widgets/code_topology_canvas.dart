@@ -15,20 +15,41 @@ class CodeTopologyCanvas extends ConsumerWidget {
     final cs = Theme.of(context).colorScheme;
     final selectedNode = ref.watch(selectedNodeProvider);
     final searchQuery = ref.watch(searchQueryProvider).toLowerCase();
+    final filterMode = ref.watch(graphFilterModeProvider);
+
+    // Apply Filter Mode
+    var filteredNodes = graphData.nodes;
+    switch (filterMode) {
+      case GraphFilterMode.mostCalled:
+        filteredNodes = graphData.nodes
+            .where((n) => n.fanIn > 0 || n.fanOut > 0)
+            .toList()
+          ..sort((a, b) => (b.fanIn + b.fanOut).compareTo(a.fanIn + a.fanOut));
+        break;
+      case GraphFilterMode.highRisk:
+        filteredNodes = graphData.nodes.where((n) => n.riskScore > 0.0).toList()
+          ..sort((a, b) => b.riskScore.compareTo(a.riskScore));
+        break;
+      case GraphFilterMode.deadCode:
+        filteredNodes = graphData.nodes.where((n) => n.isOrphan).toList();
+        break;
+      case GraphFilterMode.all:
+        break;
+    }
 
     // 1. Calculate positions
-    final positionedNodes = LayoutEngine.computeLayout(graphData.nodes);
-    final posMap = {for (var p in positionedNodes) p.node.id: p.offset};
+    final positionedNodes = LayoutEngine.computeLayout(filteredNodes);
+    final posMap = {for (var p in positionedNodes) p.node.id: p};
 
     return Container(
       color: cs.surfaceContainerLowest,
       child: InteractiveViewer(
-        boundaryMargin: const EdgeInsets.all(1000),
-        minScale: 0.2,
+        boundaryMargin: const EdgeInsets.all(1200),
+        minScale: 0.15,
         maxScale: 3.5,
         child: SizedBox(
-          width: 2400,
-          height: 1800,
+          width: 2600,
+          height: 2000,
           child: Stack(
             children: [
               // Layer 1: Edge Canvas Painter (Curved relationship arrows)
@@ -59,7 +80,7 @@ class CodeTopologyCanvas extends ConsumerWidget {
                       ref.read(selectedNodeProvider.notifier).state = pn.node;
                     },
                     child: _NodeCard(
-                      node: pn.node,
+                      position: pn,
                       isSelected: isSelected,
                       isMatch: isMatch,
                     ),
@@ -77,7 +98,7 @@ class CodeTopologyCanvas extends ConsumerWidget {
 /// CustomPainter rendering directional bezier curved arrows for edges
 class EdgePainter extends CustomPainter {
   final List<TopologyEdgeModel> edges;
-  final Map<String, Offset> posMap;
+  final Map<String, NodePosition> posMap;
   final String? selectedNodeId;
   final Color primaryColor;
   final Color secondaryColor;
@@ -94,26 +115,23 @@ class EdgePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const nodeWidth = 220.0;
-    const nodeHeight = 70.0;
-
     for (final edge in edges) {
       final startPos = posMap[edge.from];
       final endPos = posMap[edge.to];
 
       if (startPos == null || endPos == null) continue;
 
-      final start = startPos + const Offset(nodeWidth / 2, nodeHeight / 2);
-      final end = endPos + const Offset(nodeWidth / 2, nodeHeight / 2);
+      final start = startPos.offset + Offset(startPos.size.width / 2, startPos.size.height / 2);
+      final end = endPos.offset + Offset(endPos.size.width / 2, endPos.size.height / 2);
 
       final isConnected = selectedNodeId != null &&
           (edge.from == selectedNodeId || edge.to == selectedNodeId);
 
       final color = isConnected
           ? (edge.relation == 'Calls' ? primaryColor : secondaryColor)
-          : (selectedNodeId != null ? disabledColor.withValues(alpha: 0.3) : disabledColor);
+          : (selectedNodeId != null ? disabledColor.withValues(alpha: 0.2) : disabledColor.withValues(alpha: 0.6));
 
-      final strokeWidth = isConnected ? 2.5 : 1.2;
+      final strokeWidth = isConnected ? 3.0 : 1.5;
 
       final paint = Paint()
         ..color = color
@@ -144,12 +162,12 @@ class EdgePainter extends CustomPainter {
 }
 
 class _NodeCard extends StatelessWidget {
-  final TopologyNodeModel node;
+  final NodePosition position;
   final bool isSelected;
   final bool isMatch;
 
   const _NodeCard({
-    required this.node,
+    required this.position,
     required this.isSelected,
     required this.isMatch,
   });
@@ -162,39 +180,49 @@ class _NodeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final node = position.node;
     final cs = Theme.of(context).colorScheme;
     final semantic = Theme.of(context).extension<AppSemanticPalette>();
     final compColor = _getComplexityColor(node.complexity, semantic);
 
+    final totalCalls = node.fanIn + node.fanOut;
+    final isHub = totalCalls >= 3 || node.riskScore >= 10.0;
+
     return Container(
-      width: 220,
-      padding: const EdgeInsets.all(12),
+      width: position.size.width,
+      height: position.size.height,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: isSelected ? cs.primaryContainer : cs.surface,
-        borderRadius: BorderRadius.circular(12),
+        color: isSelected
+            ? cs.primaryContainer
+            : (isHub ? cs.surfaceContainerHighest : cs.surface),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: isSelected
               ? cs.primary
-              : (isMatch ? Colors.amber : cs.outlineVariant),
-          width: isSelected || isMatch ? 2.5 : 1.0,
+              : (isMatch
+                  ? Colors.amber
+                  : (isHub ? cs.primary.withValues(alpha: 0.6) : cs.outlineVariant)),
+          width: isSelected || isMatch ? 2.5 : (isHub ? 1.8 : 1.0),
         ),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
+          if (isHub || isSelected)
+            BoxShadow(
+              color: cs.primary.withValues(alpha: 0.18),
+              blurRadius: 10,
+              spreadRadius: 1,
+            ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Row 1: Kind & Complexity Badge
+          // Row 1: Kind & Call Count Badge
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                 decoration: BoxDecoration(
                   color: cs.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(4),
@@ -202,33 +230,37 @@ class _NodeCard extends StatelessWidget {
                 child: Text(
                   node.kind.toUpperCase(),
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: 8,
                     fontWeight: FontWeight.bold,
                     color: cs.onSurfaceVariant,
                   ),
                 ),
               ),
               const Spacer(),
+              if (totalCalls > 0) ...[
+                Icon(Icons.call_made_rounded, size: 10, color: cs.primary),
+                const SizedBox(width: 2),
+                Text(
+                  '${node.fanIn} in / ${node.fanOut} out',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: cs.primary,
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
               Container(
-                width: 8,
-                height: 8,
+                width: 6,
+                height: 6,
                 decoration: BoxDecoration(
                   color: compColor,
                   shape: BoxShape.circle,
                 ),
               ),
-              const SizedBox(width: 4),
-              Text(
-                'CC ${node.complexity}',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: compColor,
-                ),
-              ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
 
           // Row 2: Qualified Name
           Text(
@@ -236,20 +268,20 @@ class _NodeCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: isHub ? 12 : 11,
               fontWeight: FontWeight.bold,
               color: isSelected ? cs.onPrimaryContainer : cs.onSurface,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
 
-          // Row 3: File Base Name
+          // Row 3: File Path
           Text(
             node.file.split(RegExp(r'[/\\]')).last,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: 9,
               color: cs.onSurfaceVariant,
             ),
           ),
