@@ -1,10 +1,12 @@
 use crate::graph::store::CodeGraph;
-use crate::mcp::schema::{BlastRadiusArgs, FindCallersArgs, ParseAstArgs, RenderGraphArgs, ThresholdConfig};
+use crate::mcp::schema::{
+    BlastRadiusArgs, FindCallersArgs, ParseAstArgs, ReadFileArgs, RenderGraphArgs, ThresholdConfig,
+};
 use crate::parser::parse_file;
 use petgraph::visit::EdgeRef;
 use serde_json::Value;
 
-/// Central dispatch handler for all 7 `code_*` MCP tools
+/// Central dispatch handler for all 8 `code_*` MCP tools
 pub struct McpHandler<'a> {
     pub graph: &'a mut CodeGraph,
     pub threshold_config: ThresholdConfig,
@@ -22,6 +24,7 @@ impl<'a> McpHandler<'a> {
     pub fn handle_tool_call(&mut self, tool_name: &str, args: &Value) -> Result<Value, String> {
         match tool_name {
             "code_parse_ast" => self.parse_ast(args),
+            "code_read_file" => self.read_file(args),
             "code_render_graph" => self.render_graph(args),
             "code_blast_radius" => self.blast_radius(args),
             "code_find_callers" => self.find_callers(args),
@@ -41,6 +44,41 @@ impl<'a> McpHandler<'a> {
 
         let res = parse_file(&code, &typed_args.file_path, None);
         serde_json::to_value(res).map_err(|e| e.to_string())
+    }
+
+    /// `code_read_file`: Fetches raw source code text or line-range snippet for target file
+    fn read_file(&self, args: &Value) -> Result<Value, String> {
+        let typed_args: ReadFileArgs = serde_json::from_value(args.clone())
+            .map_err(|e| format!("Invalid ReadFileArgs: {}", e))?;
+
+        let full_text = std::fs::read_to_string(&typed_args.file_path)
+            .map_err(|e| format!("Failed to read file '{}': {}", typed_args.file_path, e))?;
+
+        let lines: Vec<&str> = full_text.lines().collect();
+        let total_lines = lines.len() as u32;
+
+        let start = typed_args.start_line.unwrap_or(1).max(1) as usize;
+        let end = typed_args.end_line.unwrap_or(total_lines).min(total_lines) as usize;
+
+        if start > lines.len() || start > end {
+            return serde_json::to_value(serde_json::json!({
+                "file_path": typed_args.file_path,
+                "total_lines": total_lines,
+                "lines": [],
+                "code": ""
+            })).map_err(|e| e.to_string());
+        }
+
+        let sliced = &lines[(start - 1)..end];
+        let code_str = sliced.join("\n");
+
+        serde_json::to_value(serde_json::json!({
+            "file_path": typed_args.file_path,
+            "start_line": start,
+            "end_line": end,
+            "total_lines": total_lines,
+            "code": code_str
+        })).map_err(|e| e.to_string())
     }
 
     /// `code_render_graph`: Renders graph export payload filtered by module path and max depth

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/topology_models.dart';
 import '../../models/topology_insights.dart';
 import '../../providers/code_topology_provider.dart';
+import '../../providers/topology_data_source.dart';
 import 'layout_engine.dart';
 
 class CodeTopologyCanvas extends ConsumerStatefulWidget {
@@ -197,6 +198,8 @@ class _CodeTopologyCanvasState extends ConsumerState<CodeTopologyCanvas>
     final activeFilters = ref.watch(activeFiltersProvider);
     final matchAll = ref.watch(filterMatchAllProvider);
     final query = ref.watch(searchQueryProvider);
+    final isolationDepth = ref.watch(isolationDepthProvider);
+    final graphIndex = ref.watch(graphIndexProvider);
     final selected = ref.watch(selectedNodeProvider);
     final pathStart = ref.watch(pathStartNodeProvider);
     final pathEnd = ref.watch(pathEndNodeProvider);
@@ -215,8 +218,8 @@ class _CodeTopologyCanvasState extends ConsumerState<CodeTopologyCanvas>
       highlighted = _neighborhoodOf(selected.id);
     }
 
-    final width = max(layout.contentSize.width, 1200.0);
-    final height = max(layout.contentSize.height, 900.0);
+    final width = max(layout.contentSize.width, 1400.0);
+    final height = max(layout.contentSize.height, 1000.0);
 
     return RepaintBoundary(
       child: Container(
@@ -271,6 +274,8 @@ class _CodeTopologyCanvasState extends ConsumerState<CodeTopologyCanvas>
                   activeFilters: activeFilters,
                   matchAll: matchAll,
                   query: query,
+                  isolationDepth: isolationDepth,
+                  graphIndex: graphIndex,
                   selectedId: selected?.id,
                   highlighted: highlighted,
                   pathNodes: pathNodes,
@@ -297,6 +302,8 @@ class _TopologyPainter extends CustomPainter {
   final Set<InsightFilter> activeFilters;
   final bool matchAll;
   final String query;
+  final int isolationDepth;
+  final GraphIndex? graphIndex;
   final String? selectedId;
   final Set<String>? highlighted;
   final List<String>? pathNodes;
@@ -308,18 +315,46 @@ class _TopologyPainter extends CustomPainter {
     required this.activeFilters,
     required this.matchAll,
     required this.query,
+    required this.isolationDepth,
+    required this.graphIndex,
     required this.selectedId,
     required this.highlighted,
     required this.pathNodes,
     required this.passesFilter,
   });
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final visibleIds = {
+  Set<String> _computeVisibleIds() {
+    // 1. If N-Hop Isolation is active with search query or selected node
+    if (isolationDepth > 0 && graphIndex != null) {
+      final isolatedIds = <String>{};
+
+      if (query.isNotEmpty) {
+        final searchMatches = graphData.nodes
+            .where((n) => n.qualifiedName.toLowerCase().contains(query.toLowerCase()));
+        for (final matchNode in searchMatches) {
+          final nbrs = graphIndex!.blastRadiusLocal(matchNode.id, maxDepth: isolationDepth);
+          isolatedIds.addAll(nbrs);
+        }
+      } else if (selectedId != null) {
+        final nbrs = graphIndex!.blastRadiusLocal(selectedId!, maxDepth: isolationDepth);
+        isolatedIds.addAll(nbrs);
+      }
+
+      if (isolatedIds.isNotEmpty) {
+        return isolatedIds;
+      }
+    }
+
+    // 2. Standard filter matching
+    return {
       for (final n in graphData.nodes)
         if (passesFilter(n, activeFilters, matchAll, query)) n.id,
     };
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final visibleIds = _computeVisibleIds();
 
     _paintFileGroups(canvas);
     _paintEdges(canvas, visibleIds);
@@ -380,9 +415,10 @@ class _TopologyPainter extends CustomPainter {
           highlighted!.contains(e.to);
       final dimmed = highlighted != null && !isHighlighted;
 
+      final relLower = e.relation.toLowerCase();
       final baseColor = isPathEdge
           ? const Color(0xFF00E676) // Glowing green path
-          : (e.relation == 'Imports' ? const Color(0xFF64B5F6) : const Color(0xFFFFAB40));
+          : (relLower == 'imports' ? const Color(0xFF64B5F6) : const Color(0xFFFFAB40));
 
       final opacity = dimmed ? 0.08 : (isPathEdge ? 1.0 : (isHighlighted ? 0.95 : 0.55));
       final strokeWidth = isPathEdge ? 3.2 : (isHighlighted ? 2.4 : 1.2);

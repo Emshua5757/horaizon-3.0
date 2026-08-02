@@ -1,9 +1,18 @@
-use crate::mcp::schema::{ChangeType, GraphEdge, GraphNode, TopologyDeltaEvent, TopologyExportResponse};
+use crate::mcp::schema::{
+    ChangeType, GraphEdge, GraphNode, GraphNodeKind, ThresholdConfig, TopologyDeltaEvent,
+    TopologyExportResponse,
+};
 use crate::parser::extractor::{ExtractedEdge, ExtractedSymbol, ParseResult};
 use crate::parser::parse_file;
+use petgraph::algo::tarjan_scc;
 use petgraph::stable_graph::{NodeIndex, StableDiGraph};
 use petgraph::visit::{EdgeRef, IntoEdgeReferences};
 use std::collections::{HashMap, HashSet};
+
+/// Helper normalizing all Windows backslashes `\` to forward slashes `/`
+fn normalize_path(path: &str) -> String {
+    path.replace('\\', "/")
+}
 
 /// Checks if string matches module path target respecting boundary delimiters (`/`, `::`, `.`)
 fn is_module_match(file: &str, qualified_name: &str, target: &str) -> bool {
@@ -44,11 +53,20 @@ impl CodeGraph {
 
     /// Adds or updates an extracted symbol node in the graph
     pub fn add_symbol(&mut self, sym: ExtractedSymbol) -> NodeIndex {
+        let norm_id = normalize_path(&sym.id);
+        let norm_file = normalize_path(&sym.file);
+
+        let module_path = if norm_file.contains('/') {
+            norm_file.rsplit_once('/').map(|(dir, _)| dir).unwrap_or("root").to_string()
+        } else {
+            "root".to_string()
+        };
+
         let node_payload = GraphNode {
-            id: sym.id,
+            id: norm_id,
             kind: sym.kind,
             qualified_name: sym.qualified_name.clone(),
-            file: sym.file,
+            file: norm_file,
             line: sym.line,
             params: sym.params,
             return_type: sym.return_type,
@@ -65,6 +83,12 @@ impl CodeGraph {
             exceeds_param_threshold: false,
             exceeds_complexity_threshold: false,
             exceeds_loc_threshold: false,
+            is_entrypoint: false,
+            scc_id: None,
+            module_path,
+            is_async: false,
+            is_blocking: false,
+            dag_level: 0,
         };
 
         if let Some(&existing_idx) = self.index.get(&sym.qualified_name) {
@@ -81,28 +105,40 @@ impl CodeGraph {
 
     /// Adds a relationship edge, failing closed (safely dropping) if callee target is unresolved
     pub fn add_edge(&mut self, edge: ExtractedEdge) -> bool {
-        let from_idx = match self.index.get(&edge.from) {
+        let norm_from = normalize_path(&edge.from);
+        let norm_to = normalize_path(&edge.to);
+
+        let from_idx = match self.index.get(&norm_from) {
             Some(&idx) => idx,
             None => return false,
         };
 
         // Fail-closed check: drop edge if callee `to` symbol cannot be resolved
-        let to_idx = match self.index.get(&edge.to) {
+        let to_idx = match self.index.get(&norm_to) {
             Some(&idx) => idx,
             None => return false,
         };
 
+        // Check if edge already exists, increment call_count if so
+        if let Some(edge_idx) = self.graph.find_edge(from_idx, to_idx) {
+            if let Some(e) = self.graph.edge_weight_mut(edge_idx) {
+                e.call_count += 1;
+                return true;
+            }
+        }
+
         let edge_payload = GraphEdge {
-            from: edge.from,
-            to: edge.to,
+            from: norm_from,
+            to: norm_to,
             relation: edge.relation,
+            call_count: 1,
         };
 
         self.graph.add_edge(from_idx, to_idx, edge_payload);
         true
     }
 
-    /// Populates the graph from multiple parser results and computes initial fan_in / fan_out metrics
+    /// Populates the graph from multiple parser results and computes degree metrics & SCC cycles
     pub fn build_from_parse_results(&mut self, results: &[ParseResult]) {
         self.graph.clear();
         self.index.clear();
@@ -122,14 +158,15 @@ impl CodeGraph {
         self.update_degree_metrics();
     }
 
-    /// Safely removes all symbols and connected edges belonging to a file path without corrupting node indices
+    /// Safely removes all symbols and connected edges belonging to a file path
     pub fn remove_file_symbols(&mut self, file_path: &str) {
+        let norm_path = normalize_path(file_path);
         let to_remove: Vec<NodeIndex> = self
             .graph
             .node_indices()
             .filter(|&idx| {
                 if let Some(weight) = self.graph.node_weight(idx) {
-                    weight.file == file_path
+                    weight.file == norm_path
                 } else {
                     false
                 }
@@ -145,11 +182,12 @@ impl CodeGraph {
 
     /// Incremental graph patch execution for a single modified/created/deleted file
     pub fn apply_incremental_file_patch(&mut self, file_path: &str, code_opt: Option<&str>) -> TopologyDeltaEvent {
+        let norm_path = normalize_path(file_path);
         let change_type = if code_opt.is_some() {
             if self
                 .graph
                 .node_indices()
-                .any(|idx| self.graph.node_weight(idx).map_or(false, |w| w.file == file_path))
+                .any(|idx| self.graph.node_weight(idx).map_or(false, |w| w.file == norm_path))
             {
                 ChangeType::Modified
             } else {
@@ -160,13 +198,13 @@ impl CodeGraph {
         };
 
         // 1. Remove existing symbols for this file
-        self.remove_file_symbols(file_path);
+        self.remove_file_symbols(&norm_path);
 
         let mut affected_node_ids = Vec::new();
 
         // 2. Reparse file and add symbols/edges if code exists
         if let Some(code) = code_opt {
-            let parse_res = parse_file(code, file_path, None);
+            let parse_res = parse_file(code, &norm_path, None);
             for sym in parse_res.symbols {
                 affected_node_ids.push(sym.id.clone());
                 self.add_symbol(sym);
@@ -180,27 +218,75 @@ impl CodeGraph {
         self.update_degree_metrics();
 
         TopologyDeltaEvent {
-            file_path: file_path.to_string(),
+            file_path: norm_path,
             change_type,
             affected_node_ids,
         }
     }
 
-    /// Computes fan_in, fan_out, and basic risk scores for all nodes
+    /// Computes fan_in, fan_out, is_entrypoint, SCC cycle IDs, and DAG levels for all nodes
     pub fn update_degree_metrics(&mut self) {
         let node_indices: Vec<NodeIndex> = self.graph.node_indices().collect();
 
-        for idx in node_indices {
+        // 1. Compute fan_in, fan_out, entrypoint status
+        for &idx in &node_indices {
             let fan_in = self.graph.edges_directed(idx, petgraph::Incoming).count() as u32;
             let fan_out = self.graph.edges_directed(idx, petgraph::Outgoing).count() as u32;
 
             if let Some(weight) = self.graph.node_weight_mut(idx) {
                 weight.fan_in = fan_in;
                 weight.fan_out = fan_out;
-                weight.risk_score = (weight.complexity * fan_in) as f32;
-                // Heuristic placeholder for basic node isolation (fan_in == 0 && fan_out == 0).
-                // Full dead-code detection (TASK-015A §7 / code_find_dead_code) applies pub/test/entrypoint exemptions.
+                // Normalize risk_score to 0.0 - 10.0 scale
+                let raw_risk = (weight.complexity * fan_in) as f32;
+                weight.risk_score = (raw_risk * 0.5).min(10.0);
+
                 weight.is_orphan = fan_in == 0 && fan_out == 0;
+
+                // Entrypoint MUST be an executable routine (Function) that either is main/test or has fan_in == 0 & fan_out > 0
+                weight.is_entrypoint = weight.kind == GraphNodeKind::Function
+                    && (weight.qualified_name == "main"
+                        || weight.qualified_name.ends_with("::main")
+                        || weight.is_test
+                        || (fan_in == 0 && fan_out > 0));
+            }
+        }
+
+        // 2. Compute Tarjan's Strongly Connected Components (SCC) for call cycles
+        let sccs = tarjan_scc(&self.graph);
+        for (scc_idx, scc) in sccs.iter().enumerate() {
+            if scc.len() > 1 {
+                for &node_idx in scc {
+                    if let Some(weight) = self.graph.node_weight_mut(node_idx) {
+                        weight.scc_id = Some(scc_idx);
+                    }
+                }
+            }
+        }
+
+        // 3. Compute DAG levels starting topological rank propagation ONLY from real entrypoints
+        let mut level_map = HashMap::new();
+        for &idx in &node_indices {
+            if let Some(weight) = self.graph.node_weight(idx) {
+                if weight.is_entrypoint {
+                    level_map.insert(idx, 0);
+                }
+            }
+        }
+        for _ in 0..node_indices.len() {
+            for &idx in &node_indices {
+                let max_parent = self
+                    .graph
+                    .edges_directed(idx, petgraph::Incoming)
+                    .filter_map(|e| level_map.get(&e.source()).copied())
+                    .max();
+                if let Some(p_level) = max_parent {
+                    level_map.insert(idx, p_level + 1);
+                }
+            }
+        }
+        for (idx, lvl) in level_map {
+            if let Some(weight) = self.graph.node_weight_mut(idx) {
+                weight.dag_level = lvl;
             }
         }
     }
@@ -268,7 +354,11 @@ impl CodeGraph {
             }
         }
 
-        TopologyExportResponse { nodes, edges }
+        TopologyExportResponse {
+            nodes,
+            edges,
+            threshold_config: ThresholdConfig::default(),
+        }
     }
 }
 

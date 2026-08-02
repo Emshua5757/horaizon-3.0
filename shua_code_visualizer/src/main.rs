@@ -4,8 +4,8 @@ use shua_code_visualizer::broker::ipc_client::IpcClient;
 use shua_code_visualizer::broker::parent_link::{ExecutionMode, ParentLink};
 use shua_code_visualizer::graph::store::CodeGraph;
 use shua_code_visualizer::mcp::schema::{
-    BlastRadiusArgs, FindCallersArgs, GraphEdge, GraphNode, ParseAstArgs, RenderGraphArgs,
-    TopologyDeltaEvent, TopologyExportResponse,
+    BlastRadiusArgs, FindCallersArgs, GraphEdge, GraphNode, ParseAstArgs, ReadFileArgs,
+    RenderGraphArgs, TopologyDeltaEvent, TopologyExportResponse,
 };
 use shua_code_visualizer::parser::parse_file;
 use shua_code_visualizer::watch::hash_cache::HashCache;
@@ -64,6 +64,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         println!("\n=== ParseAstArgs Schema ===");
         let schema = schema_for!(ParseAstArgs);
+        println!("{}", serde_json::to_string_pretty(&schema).unwrap());
+
+        println!("\n=== ReadFileArgs Schema ===");
+        let schema = schema_for!(ReadFileArgs);
         println!("{}", serde_json::to_string_pretty(&schema).unwrap());
 
         println!("\n=== RenderGraphArgs Schema ===");
