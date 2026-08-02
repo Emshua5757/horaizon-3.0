@@ -1,6 +1,6 @@
 use crate::mcp::schema::{
-    ChangeType, GraphEdge, GraphNode, GraphNodeKind, ThresholdConfig, TopologyDeltaEvent,
-    TopologyExportResponse,
+    ChangeType, GraphEdge, GraphNode, GraphNodeKind, SideEffect, ThresholdConfig,
+    TopologyDeltaEvent, TopologyExportResponse,
 };
 use crate::parser::extractor::{ExtractedEdge, ExtractedSymbol, ParseResult};
 use crate::parser::parse_file;
@@ -62,6 +62,15 @@ impl CodeGraph {
             "root".to_string()
         };
 
+        let is_async = sym.kind == GraphNodeKind::Function
+            && (sym.return_type.as_deref().unwrap_or("").contains("Future")
+                || sym.return_type.as_deref().unwrap_or("").contains("impl")
+                || sym.qualified_name.contains("async")
+                || sym.side_effects.contains(&SideEffect::Io));
+
+        let is_blocking = sym.kind == GraphNodeKind::Function
+            && sym.side_effects.contains(&SideEffect::Io);
+
         let node_payload = GraphNode {
             id: norm_id,
             kind: sym.kind,
@@ -86,8 +95,8 @@ impl CodeGraph {
             is_entrypoint: false,
             scc_id: None,
             module_path,
-            is_async: false,
-            is_blocking: false,
+            is_async,
+            is_blocking,
             dag_level: 0,
         };
 

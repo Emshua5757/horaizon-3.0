@@ -222,7 +222,7 @@ impl LanguageExtractor for DartExtractor {
             }
         }
 
-        // Extract Dart call site edges by matching AST call identifiers to enclosing line ranges
+        // Extract Dart call site edges, filtering strictly for Function callers (method-granularity)
         let mut edges = Vec::new();
         let mut edge_set = HashSet::new();
 
@@ -242,7 +242,11 @@ impl LanguageExtractor for DartExtractor {
 
                     if cap_name == "callee" {
                         let line = node.range().start_point.row as u32 + 1;
-                        if let Some(caller_sym) = symbols.iter().find(|s| line >= s.line && line <= s.line + s.loc) {
+                        if let Some(caller_sym) = symbols
+                            .iter()
+                            .filter(|s| s.kind == GraphNodeKind::Function)
+                            .find(|s| line >= s.line && line <= s.line + s.loc)
+                        {
                             if let Ok(callee_text) = node.utf8_text(code.as_bytes()) {
                                 let callee_clean = callee_text.trim().to_string();
                                 if !callee_clean.is_empty()
