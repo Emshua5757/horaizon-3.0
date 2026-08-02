@@ -3,18 +3,25 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/topology_models.dart';
+import '../models/topology_insights.dart';
 import '../presentation/widgets/layout_engine.dart';
-
-enum GraphFilterMode { all, mostCalled, highRisk, deadCode }
 
 final selectedNodeProvider = StateProvider<TopologyNodeModel?>((ref) => null);
 final searchQueryProvider = StateProvider<String>((ref) => '');
 final activeWorkspacePathProvider =
     StateProvider<String>((ref) => 'c:/horaizon-3.0/shua_code_visualizer/src');
-final graphFilterModeProvider =
-    StateProvider<GraphFilterMode>((ref) => GraphFilterMode.all);
+
 final selectedLayoutModeProvider =
     StateProvider<LayoutMode>((ref) => LayoutMode.physics);
+
+// Graphify Filters & Shortest Path Providers
+final activeFiltersProvider =
+    StateProvider<Set<InsightFilter>>((ref) => <InsightFilter>{});
+final filterMatchAllProvider = StateProvider<bool>((ref) => false); // false = OR, true = AND
+final isolationDepthProvider = StateProvider<int>((ref) => 0); // 0 = off, 1 = 1-hop, 2 = 2-hop
+
+final pathStartNodeProvider = StateProvider<TopologyNodeModel?>((ref) => null);
+final pathEndNodeProvider = StateProvider<TopologyNodeModel?>((ref) => null);
 
 final codeTopologyProvider = FutureProvider<TopologyGraphDataModel>((ref) async {
   final targetPath = ref.watch(activeWorkspacePathProvider);
@@ -61,6 +68,5 @@ final codeTopologyProvider = FutureProvider<TopologyGraphDataModel>((ref) async 
     return TopologyGraphDataModel.fromJson(jsonMap);
   } catch (_) {}
 
-  // 4. Default Mock Fallback
   return const TopologyGraphDataModel(nodes: [], edges: []);
 });
