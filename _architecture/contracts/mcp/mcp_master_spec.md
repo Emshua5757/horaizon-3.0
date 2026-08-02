@@ -253,6 +253,21 @@
 }
 ```
 
+#### `code_read_file`
+- **Description**: Fetches raw source code text or line-range snippet for a target file path.
+- **Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "file_path": { "type": "string" },
+    "start_line": { "type": "integer" },
+    "end_line": { "type": "integer" }
+  },
+  "required": ["file_path"]
+}
+```
+
 
 ---
 

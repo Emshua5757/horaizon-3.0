@@ -43,12 +43,13 @@ pub struct ParamDto {
     pub is_optional: bool,
 }
 
-/// Configurable thresholds for god-function detection
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+/// Configurable thresholds for god-function and risk detection
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct ThresholdConfig {
     pub max_params: u32,
     pub max_complexity: u32,
     pub max_loc: u32,
+    pub max_risk_score: f32,
 }
 
 impl Default for ThresholdConfig {
@@ -57,8 +58,17 @@ impl Default for ThresholdConfig {
             max_params: 5,
             max_complexity: 10,
             max_loc: 75,
+            max_risk_score: 7.0,
         }
     }
+}
+
+/// Quantitative risk score breakdown components
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct RiskScoreBreakdown {
+    pub loc_component: f32,
+    pub complexity_component: f32,
+    pub coupling_component: f32,
 }
 
 /// Fully-resolved node payload in the code topology graph
@@ -84,6 +94,13 @@ pub struct GraphNode {
     pub exceeds_param_threshold: bool,
     pub exceeds_complexity_threshold: bool,
     pub exceeds_loc_threshold: bool,
+    // TASK-016B Data Expansions (0.7a - 0.7l)
+    pub is_entrypoint: bool,
+    pub scc_id: Option<usize>,
+    pub module_path: String,
+    pub is_async: bool,
+    pub is_blocking: bool,
+    pub dag_level: usize,
 }
 
 /// Directional edge linking two symbols by qualified name
@@ -92,6 +109,7 @@ pub struct GraphEdge {
     pub from: String,
     pub to: String,
     pub relation: Relation,
+    pub call_count: u32,
 }
 
 /// Response container for module or full-repo topology graph exports
@@ -99,6 +117,7 @@ pub struct GraphEdge {
 pub struct TopologyExportResponse {
     pub nodes: Vec<GraphNode>,
     pub edges: Vec<GraphEdge>,
+    pub threshold_config: ThresholdConfig,
 }
 
 /// Classification of incremental file changes
@@ -126,6 +145,14 @@ pub struct TopologyDeltaEvent {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ParseAstArgs {
     pub file_path: String,
+}
+
+/// Arguments for `code_read_file` (Fetches source code snippet for target file/symbol)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ReadFileArgs {
+    pub file_path: String,
+    pub start_line: Option<u32>,
+    pub end_line: Option<u32>,
 }
 
 /// Arguments for `code_render_graph`
@@ -175,6 +202,12 @@ mod tests {
             exceeds_param_threshold: false,
             exceeds_complexity_threshold: false,
             exceeds_loc_threshold: false,
+            is_entrypoint: true,
+            scc_id: None,
+            module_path: "test".to_string(),
+            is_async: false,
+            is_blocking: false,
+            dag_level: 0,
         };
 
         let json = serde_json::to_string(&node).unwrap();
@@ -188,6 +221,7 @@ mod tests {
         assert_eq!(config.max_params, 5);
         assert_eq!(config.max_complexity, 10);
         assert_eq!(config.max_loc, 75);
+        assert_eq!(config.max_risk_score, 7.0);
     }
 
     #[test]
