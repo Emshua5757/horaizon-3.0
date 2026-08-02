@@ -4,7 +4,7 @@
 
 | Field | Value |
 | :--- | :--- |
-| **Status** | [ ] Deferred — not started |
+| **Status** | [ ] Deferred / Skipped (Future Self-Evolution Milestone) |
 | **Phase** | Phase 2 — Infrastructure |
 | **Type** | AI-executable + Manual validation |
 | **Language** | Docker / Python / n8n (JavaScript Code nodes) |

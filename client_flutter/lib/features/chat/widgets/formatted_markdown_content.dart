@@ -47,7 +47,7 @@ class AgentLoopCard extends StatelessWidget {
                       final body = s.modelContent.trim();
                       return '[Turn ${s.turn} · ${s.stepTypeIcon} ${s.stepTypeLabel.toUpperCase()}]\n'
                           '${body.isNotEmpty ? body : "(No text)"}'
-                          '${toolsStr.isNotEmpty ? "\n" + toolsStr : ""}';
+                          '${toolsStr.isNotEmpty ? "\n$toolsStr" : ""}';
                     }).join('\n\n----------------------------------------\n\n');
 
                     final fullExport = '========================================\n'
@@ -170,7 +170,7 @@ class _TurnStepCardState extends State<_TurnStepCard> {
                           .join('\n\n');
                       final turnExport = '[Turn ${step.turn} · ${step.stepTypeIcon} ${step.stepTypeLabel.toUpperCase()}]\n'
                           '${step.modelContent.trim()}\n'
-                          '${toolsStr.isNotEmpty ? "\n" + toolsStr : ""}';
+                          '${toolsStr.isNotEmpty ? "\n$toolsStr" : ""}';
                       Clipboard.setData(ClipboardData(text: turnExport.trim()));
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -933,16 +933,36 @@ class _MarkdownTableWidget extends StatelessWidget {
       return cleaned.split('|').map((cell) => cell.trim()).toList();
     }
 
-    final headerRow = parseRow(lines[0]);
-    final dataRows = <List<String>>[];
+    final rawHeaderRow = parseRow(lines[0]);
+    final rawDataRows = <List<String>>[];
 
     for (var i = 1; i < lines.length; i++) {
       final line = lines[i].trim();
       if (line.replaceAll(RegExp(r'[\|\:\-\s]'), '').isEmpty) {
         continue;
       }
-      dataRows.add(parseRow(line));
+      rawDataRows.add(parseRow(line));
     }
+
+    int maxCols = rawHeaderRow.length;
+    for (final row in rawDataRows) {
+      if (row.length > maxCols) {
+        maxCols = row.length;
+      }
+    }
+    if (maxCols == 0) return const SizedBox.shrink();
+
+    List<String> padRow(List<String> row) {
+      if (row.length == maxCols) return row;
+      final padded = List<String>.from(row);
+      while (padded.length < maxCols) {
+        padded.add('');
+      }
+      return padded.sublist(0, maxCols);
+    }
+
+    final headerRow = padRow(rawHeaderRow);
+    final dataRows = rawDataRows.map((r) => padRow(r)).toList();
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),

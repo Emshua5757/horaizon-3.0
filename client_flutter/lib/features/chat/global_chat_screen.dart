@@ -488,7 +488,7 @@ class _ChatMessageBubble extends StatelessWidget {
                           final stepsText = message.steps.map((s) {
                             final tools = s.toolCalls.map((tc) => '  • ${tc.toolName}: ${tc.resultSummary}').join('\n');
                             final body = s.modelContent.trim();
-                            return '[Turn ${s.turn} · ${s.stepTypeLabel}]\n${body.isNotEmpty ? body : ""}${tools.isNotEmpty ? "\n" + tools : ""}';
+                            return '[Turn ${s.turn} · ${s.stepTypeLabel}]\n${body.isNotEmpty ? body : ""}${tools.isNotEmpty ? "\n$tools" : ""}';
                           }).where((t) => t.trim().isNotEmpty).join('\n\n');
 
                           final textToCopy = [
@@ -519,7 +519,7 @@ class _ChatMessageBubble extends StatelessWidget {
                           final stepsText = message.steps.map((s) {
                             final tools = s.toolCalls.map((tc) => '  • ${tc.toolName}: ${tc.resultSummary}').join('\n');
                             final body = s.modelContent.trim();
-                            return '[Turn ${s.turn} · ${s.stepTypeLabel}]\n${body.isNotEmpty ? body : ""}${tools.isNotEmpty ? "\n" + tools : ""}';
+                            return '[Turn ${s.turn} · ${s.stepTypeLabel}]\n${body.isNotEmpty ? body : ""}${tools.isNotEmpty ? "\n$tools" : ""}';
                           }).where((t) => t.trim().isNotEmpty).join('\n\n');
 
                           final mainText = [

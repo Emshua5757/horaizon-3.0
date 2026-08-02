@@ -1,16 +1,16 @@
-use std::sync::Arc;
 use anyhow::Result;
 use serde::Serialize;
-use tracing::{error, info, warn};
+use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tokio::time::{timeout, Duration};
+use tracing::{error, info, warn};
 
 use crate::mcp::aggregator::McpAggregator;
 use crate::mcp::executor::McpExecutor;
 use crate::mcp::McpToolCall;
 use crate::ollama::client::{ChatMessage, OllamaClient};
-use crate::registry::process_manager::ProcessManager;
 use crate::ollama::OllamaLifecycle;
+use crate::registry::process_manager::ProcessManager;
 
 pub const MAX_AGENT_ITERATIONS: usize = 5;
 pub const PER_CALL_TIMEOUT_SECS: u64 = 90;
@@ -29,33 +29,33 @@ fn strip_tool_call_artifacts(text: &str) -> String {
     use regex::Regex;
 
     // <tool_call>...</tool_call> XML blocks (DOTALL)
-    static RE_XML: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(r"(?s)<tool_call>.*?</tool_call>").expect("valid regex")
-    });
+    static RE_XML: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"(?s)<tool_call>.*?</tool_call>").expect("valid regex"));
     // ```json {...} ``` fenced blocks containing a "name" key (tool call JSON)
     static RE_JSON_FENCE: Lazy<Regex> = Lazy::new(|| {
         Regex::new(r#"(?s)```(?:json)?\s*\{[^`]*"name"[^`]*\}\s*```"#).expect("valid regex")
     });
     // Bare JSON tool call fragments: {"name":"...","arguments":...}
     static RE_BARE_JSON: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(r#"\{\s*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:\s*\{[^}]*\}\s*\}"#).expect("valid regex")
+        Regex::new(r#"\{\s*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:\s*\{[^}]*\}\s*\}"#)
+            .expect("valid regex")
     });
     // tool_response: ... inline narration sections
     // Note: Rust `regex` crate does not support look-ahead (?=...), so we
     // match through the double-newline delimiter (or end of string) instead.
-    static RE_TOOL_RESP: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(r"(?s)tool_response:\s*\n.*?(?:\n\n|$)").expect("valid regex")
-    });
+    static RE_TOOL_RESP: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"(?s)tool_response:\s*\n.*?(?:\n\n|$)").expect("valid regex"));
     // Collapse 3+ consecutive blank lines into 2
-    static RE_BLANK: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(r"\n{3,}").expect("valid regex")
-    });
+    static RE_BLANK: Lazy<Regex> = Lazy::new(|| Regex::new(r"\n{3,}").expect("valid regex"));
 
     let cleaned = RE_XML.replace_all(text, "");
     let cleaned = RE_JSON_FENCE.replace_all(&cleaned, "");
     let cleaned = RE_BARE_JSON.replace_all(&cleaned, "");
     let cleaned = RE_TOOL_RESP.replace_all(&cleaned, "");
-    RE_BLANK.replace_all(cleaned.trim(), "\n\n").trim().to_string()
+    RE_BLANK
+        .replace_all(cleaned.trim(), "\n\n")
+        .trim()
+        .to_string()
 }
 
 /// Parses inline tool call JSON objects from model content text.
@@ -71,7 +71,8 @@ fn parse_inline_tool_calls(content: &str) -> Vec<McpToolCall> {
     // Strategy: find JSON objects containing "name" and "arguments" keys.
     // We scan for opening braces and try to parse JSON from that position.
     for line in content.lines() {
-        let trimmed = line.trim()
+        let trimmed = line
+            .trim()
             .trim_start_matches("<tool_call>")
             .trim_end_matches("</tool_call>")
             .trim();
@@ -97,7 +98,6 @@ fn parse_inline_tool_calls(content: &str) -> Vec<McpToolCall> {
 
     calls
 }
-
 
 static LOCAL_INFERENCE_SEMAPHORE: Semaphore = Semaphore::const_new(1);
 
@@ -166,22 +166,21 @@ impl McpAgentLoop {
         // Prevents the KV-cache allocation on RPi5 Ollama from ballooning even
         // when inference is offloaded (the broker still serialises the full
         // request body per turn).
-        let (effective_prompt, prompt_truncated) = if max_prompt_chars > 0
-            && prompt.len() > max_prompt_chars
-        {
-            let safe_limit = max_prompt_chars.saturating_sub(TRUNCATION_SUFFIX.len());
-            let mut truncated = prompt[..safe_limit].to_string();
-            truncated.push_str(TRUNCATION_SUFFIX);
-            warn!(
-                subsystem = "agent_loop",
-                original_len = prompt.len(),
-                limit = max_prompt_chars,
-                "Prompt exceeded max_prompt_chars — tail-truncated"
-            );
-            (truncated, true)
-        } else {
-            (prompt.to_string(), false)
-        };
+        let (effective_prompt, prompt_truncated) =
+            if max_prompt_chars > 0 && prompt.len() > max_prompt_chars {
+                let safe_limit = max_prompt_chars.saturating_sub(TRUNCATION_SUFFIX.len());
+                let mut truncated = prompt[..safe_limit].to_string();
+                truncated.push_str(TRUNCATION_SUFFIX);
+                warn!(
+                    subsystem = "agent_loop",
+                    original_len = prompt.len(),
+                    limit = max_prompt_chars,
+                    "Prompt exceeded max_prompt_chars — tail-truncated"
+                );
+                (truncated, true)
+            } else {
+                (prompt.to_string(), false)
+            };
 
         let tool_enforcement_clause = if force_tool_choice {
             " CRITICAL: For this request you MUST call one of the MCP tools listed above \
@@ -312,11 +311,17 @@ impl McpAgentLoop {
 
             let delta_sender_clone = delta_sender.clone();
             let res = match client
-                .chat_with_tools_stream(model, messages.clone(), tools_for_this_turn, keep_alive, move |delta| {
-                    if let Some(ref ds) = delta_sender_clone {
-                        let _ = ds.send(delta.to_string());
-                    }
-                })
+                .chat_with_tools_stream(
+                    model,
+                    messages.clone(),
+                    tools_for_this_turn,
+                    keep_alive,
+                    move |delta| {
+                        if let Some(ref ds) = delta_sender_clone {
+                            let _ = ds.send(delta.to_string());
+                        }
+                    },
+                )
                 .await
             {
                 Ok(r) => r,
@@ -351,7 +356,9 @@ impl McpAgentLoop {
                         "LLM requested MCP tool execution (structured)"
                     );
 
-                    let cleaned_content = crate::ollama::client::strip_think_tags(&strip_tool_call_artifacts(&res.content));
+                    let cleaned_content = crate::ollama::client::strip_think_tags(
+                        &strip_tool_call_artifacts(&res.content),
+                    );
                     messages.push(ChatMessage {
                         role: "assistant".into(),
                         content: cleaned_content,
@@ -379,16 +386,25 @@ impl McpAgentLoop {
                             "Executing local MCP tool on RPi 5"
                         );
 
-                        let tool_res = McpExecutor::execute(&mcp_call, process_manager, ollama_lifecycle).await;
+                        let tool_res =
+                            McpExecutor::execute(&mcp_call, process_manager, ollama_lifecycle)
+                                .await;
                         let result_str = tool_res.result.to_string();
                         step_tool_calls.push(ToolCallStep {
                             tool_name: tool_name.clone(),
                             arguments: tc.function.arguments.clone(),
-                            result_summary: if result_str.len() > 500 { format!("{}…", &result_str[..500]) } else { result_str },
+                            result_summary: if result_str.len() > 500 {
+                                format!("{}…", &result_str[..500])
+                            } else {
+                                result_str
+                            },
                             success: tool_res.success,
                         });
 
-                        messages.push(ChatMessage::tool(format!("Tool '{}' Result:\n{}", tool_name, tool_res.result)));
+                        messages.push(ChatMessage::tool(format!(
+                            "Tool '{}' Result:\n{}",
+                            tool_name, tool_res.result
+                        )));
                     }
 
                     let step = AgentLoopStep {
@@ -420,7 +436,8 @@ impl McpAgentLoop {
                     "Detected inline tool calls in content — parsing and executing"
                 );
 
-                let cleaned_raw_text = crate::ollama::client::strip_think_tags(&strip_tool_call_artifacts(&raw_text));
+                let cleaned_raw_text =
+                    crate::ollama::client::strip_think_tags(&strip_tool_call_artifacts(&raw_text));
                 messages.push(ChatMessage {
                     role: "assistant".into(),
                     content: cleaned_raw_text,
@@ -441,16 +458,24 @@ impl McpAgentLoop {
                         "Executing inline-parsed MCP tool on RPi 5"
                     );
 
-                    let tool_res = McpExecutor::execute(mcp_call, process_manager, ollama_lifecycle).await;
+                    let tool_res =
+                        McpExecutor::execute(mcp_call, process_manager, ollama_lifecycle).await;
                     let result_str = tool_res.result.to_string();
                     step_tool_calls.push(ToolCallStep {
                         tool_name: mcp_call.name.clone(),
                         arguments: mcp_call.arguments.clone(),
-                        result_summary: if result_str.len() > 500 { format!("{}…", &result_str[..500]) } else { result_str },
+                        result_summary: if result_str.len() > 500 {
+                            format!("{}…", &result_str[..500])
+                        } else {
+                            result_str
+                        },
                         success: tool_res.success,
                     });
 
-                    messages.push(ChatMessage::tool(format!("Tool '{}' Result:\n{}", mcp_call.name, tool_res.result)));
+                    messages.push(ChatMessage::tool(format!(
+                        "Tool '{}' Result:\n{}",
+                        mcp_call.name, tool_res.result
+                    )));
                 }
 
                 let step = AgentLoopStep {
@@ -489,7 +514,9 @@ impl McpAgentLoop {
                 }
                 steps.push(step);
 
-                let cleaned_nudge_content = crate::ollama::client::strip_think_tags(&strip_tool_call_artifacts(&res.content));
+                let cleaned_nudge_content = crate::ollama::client::strip_think_tags(
+                    &strip_tool_call_artifacts(&res.content),
+                );
                 messages.push(ChatMessage {
                     role: "assistant".into(),
                     content: cleaned_nudge_content,
@@ -527,7 +554,9 @@ impl McpAgentLoop {
             if let Ok(Ok(direct_res)) = timeout(
                 Duration::from_secs(PER_CALL_TIMEOUT_SECS),
                 client.chat_with_tools(model, messages, None, keep_alive),
-            ).await {
+            )
+            .await
+            {
                 final_reply = strip_tool_call_artifacts(&direct_res.effective_text());
             }
         }
