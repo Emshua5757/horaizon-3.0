@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'models/topology_insights.dart';
 import 'presentation/widgets/code_topology_canvas.dart';
 import 'presentation/widgets/layout_engine.dart';
+import 'presentation/widgets/path_tracer_panel.dart';
 import 'presentation/widgets/symbol_inspector_drawer.dart';
 import 'providers/code_topology_provider.dart';
 
@@ -184,7 +185,7 @@ class CodeTopologyScreen extends ConsumerWidget {
             ),
           ),
 
-          // Main View (Canvas + Inspector Drawer)
+          // Main View (Canvas + Inspector Drawer + Path Tracer Panel)
           Expanded(
             child: topologyAsync.when(
               loading: () => Center(
@@ -201,13 +202,22 @@ class CodeTopologyScreen extends ConsumerWidget {
                 ),
               ),
               error: (err, stack) => Center(child: Text('Error loading topology: $err')),
-              data: (graphData) => Row(
+              data: (graphData) => Stack(
                 children: [
-                  Expanded(
-                    child: CodeTopologyCanvas(graphData: graphData),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: CodeTopologyCanvas(graphData: graphData),
+                      ),
+                      if (selectedNode != null)
+                        SymbolInspectorDrawer(node: selectedNode),
+                    ],
                   ),
-                  if (selectedNode != null)
-                    SymbolInspectorDrawer(node: selectedNode),
+                  Positioned(
+                    top: 12,
+                    left: 12,
+                    child: PathTracerPanel(graphData: graphData),
+                  ),
                 ],
               ),
             ),
