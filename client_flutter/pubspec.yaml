@@ -94,5 +94,6 @@ flutter:
         - asset: assets/fonts/JetBrainsMono-Bold.ttf
           weight: 700
   assets:
+    - assets/
     - assets/fonts/
     - assets/icon/
