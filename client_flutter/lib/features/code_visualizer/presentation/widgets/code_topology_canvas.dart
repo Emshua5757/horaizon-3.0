@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/theme/app_semantic_palette.dart';
 import '../../models/topology_models.dart';
 import '../../providers/code_topology_provider.dart';
 import 'layout_engine.dart';
@@ -153,16 +154,17 @@ class _NodeCard extends StatelessWidget {
     required this.isMatch,
   });
 
-  Color _getComplexityColor(int complexity) {
-    if (complexity < 5) return const Color(0xFF10B981);
-    if (complexity <= 10) return Colors.amber.shade700;
-    return const Color(0xFFF43F5E);
+  Color _getComplexityColor(int complexity, AppSemanticPalette? semantic) {
+    if (complexity < 5) return semantic?.success ?? const Color(0xFF10B981);
+    if (complexity <= 10) return semantic?.warning ?? Colors.amber.shade700;
+    return semantic?.critical ?? const Color(0xFFF43F5E);
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final compColor = _getComplexityColor(node.complexity);
+    final semantic = Theme.of(context).extension<AppSemanticPalette>();
+    final compColor = _getComplexityColor(node.complexity, semantic);
 
     return Container(
       width: 220,

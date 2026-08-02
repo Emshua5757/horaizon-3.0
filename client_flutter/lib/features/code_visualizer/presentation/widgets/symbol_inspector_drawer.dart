@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/theme/app_semantic_palette.dart';
 import '../../models/topology_models.dart';
 import '../../providers/code_topology_provider.dart';
 
@@ -11,6 +12,8 @@ class SymbolInspectorDrawer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
+
+    final semantic = Theme.of(context).extension<AppSemanticPalette>();
 
     return Container(
       width: 340,
@@ -79,14 +82,14 @@ class SymbolInspectorDrawer extends ConsumerWidget {
                       label: 'Complexity',
                       value: '${node.complexity}',
                       color: node.complexity > 10
-                          ? const Color(0xFFF43F5E)
-                          : const Color(0xFF10B981),
+                          ? (semantic?.critical ?? const Color(0xFFF43F5E))
+                          : (semantic?.success ?? const Color(0xFF10B981)),
                     ),
                     const SizedBox(width: 8),
                     _MetricBadge(
                       label: 'Risk Score',
                       value: node.riskScore.toStringAsFixed(1),
-                      color: Colors.amber.shade800,
+                      color: semantic?.warning ?? Colors.amber.shade800,
                     ),
                   ],
                 ),
