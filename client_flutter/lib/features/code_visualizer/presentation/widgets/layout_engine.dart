@@ -75,7 +75,7 @@ class PhysicsSimulation {
     }
   }
 
-  /// Single 60fps physics step with Coulomb repulsion, Hooke spring attraction,
+  /// Single 60fps physics step with O(N) Spatial Hash Grid repulsion, Hooke spring attraction,
   /// center gravity, and thermal energy decay.
   bool step(double dt) {
     if (particles.isEmpty || isSettled) {
@@ -88,31 +88,50 @@ class PhysicsSimulation {
     const gravity = 0.005;
     const damping = 0.85;
     const minEnergyEpsilon = 0.04;
+    const cellSize = 180.0;
 
     final center = Offset(canvasSize.width / 2, canvasSize.height / 2);
-    final ids = particles.keys.toList();
     double totalKineticEnergy = 0.0;
 
-    // 1. Repulsion between node pairs
-    for (var i = 0; i < ids.length; i++) {
-      final a = particles[ids[i]]!;
+    // 1. Build Spatial Hash Grid Buckets for O(N) Repulsion
+    final grid = <int, List<PhysicsParticle>>{};
+    int cellKey(int cx, int cy) => (cx * 73856093) ^ (cy * 19349663);
+
+    for (final p in particles.values) {
+      final cx = (p.position.dx / cellSize).floor();
+      final cy = (p.position.dy / cellSize).floor();
+      grid.putIfAbsent(cellKey(cx, cy), () => []).add(p);
+    }
+
+    // 2. Compute Repulsion against adjacent 3x3 grid cells
+    for (final a in particles.values) {
       if (a.isPinned || pinnedIds.contains(a.node.id)) continue;
 
       var force = Offset.zero;
-      for (var j = 0; j < ids.length; j++) {
-        if (i == j) continue;
-        final b = particles[ids[j]]!;
-        final delta = a.position - b.position;
-        var distSq = delta.distanceSquared;
-        if (distSq < 4) distSq = 4;
-        final dist = sqrt(distSq);
-        force += delta / dist * (repulsion / distSq);
+      final acx = (a.position.dx / cellSize).floor();
+      final acy = (a.position.dy / cellSize).floor();
+
+      for (int dx = -1; dx <= 1; dx++) {
+        for (int dy = -1; dy <= 1; dy++) {
+          final neighbors = grid[cellKey(acx + dx, acy + dy)];
+          if (neighbors == null) continue;
+
+          for (final b in neighbors) {
+            if (identical(a, b)) continue;
+            final delta = a.position - b.position;
+            var distSq = delta.distanceSquared;
+            if (distSq < 4) distSq = 4;
+            if (distSq > cellSize * cellSize) continue;
+            final dist = sqrt(distSq);
+            force += delta / dist * (repulsion / distSq);
+          }
+        }
       }
       force += (center - a.position) * gravity;
       a.velocity = (a.velocity + force * dt * 30.0) * damping;
     }
 
-    // 2. Spring attraction along connected edges (adjusted by callCount)
+    // 3. Spring attraction along connected edges (adjusted by callCount)
     for (final e in edges) {
       final a = particles[e.from];
       final b = particles[e.to];
@@ -132,7 +151,7 @@ class PhysicsSimulation {
       }
     }
 
-    // 3. Integrate position & compute total energy
+    // 4. Integrate position & compute total energy
     for (final p in particles.values) {
       if (!p.isPinned && !pinnedIds.contains(p.node.id)) {
         p.position += p.velocity * (dt * 30.0);
@@ -140,7 +159,7 @@ class PhysicsSimulation {
       }
     }
 
-    // 4. Thermal decay (0% CPU at idle when settled)
+    // 5. Thermal decay (0% CPU at idle when settled)
     temperature = max(0.0, temperature - 0.006);
     isSettled = totalKineticEnergy < minEnergyEpsilon && temperature <= 0.05;
     return !isSettled;
