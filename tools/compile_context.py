@@ -7,7 +7,7 @@ Usage:
   python tools/compile_context.py --all --output context.md
 
   # Compile specific files & directories:
-  python tools/compile_context.py -o prompt.md _architecture/contracts/ _architecture/specs _architecture/tasks
+  python tools/compile_context.py -o task-016B_compiled_context.md _architecture/tasks/active/TASK-016B_flutter_code_topology_live_physics_animation.md client_flutter/lib/features/code_visualizer/ shua_code_visualizer/src/
 """
 
 import sys
@@ -67,13 +67,40 @@ def compile_context(file_paths, output_path, repo_root):
         compiled_parts.append("\n\n<!-- END_FILE: " + rel_path + " -->\n")
         compiled_parts.append("=" * 80 + "\n\n")
 
+    content_str = "".join(compiled_parts)
+
     output_abs = os.path.abspath(output_path)
     os.makedirs(os.path.dirname(output_abs), exist_ok=True)
 
     with open(output_abs, "w", encoding="utf-8") as out_f:
-        out_f.write("".join(compiled_parts))
+        out_f.write(content_str)
 
+    # Context size calculations
+    char_count = len(content_str)
+    word_count = len(content_str.split())
+    # Standard LLM token estimation (~3.8 chars per token for code/markdown)
+    estimated_tokens = int(char_count / 3.8)
+    
+    sonnet_limit = 200000
+    sonnet_pct = (estimated_tokens / sonnet_limit) * 100.0
+
+    print("=" * 80)
     print(f"[OK] Successfully compiled {len(file_paths)} files into: {output_abs}")
+    print("=" * 80)
+    print("CONTEXT CAPACITY REPORT:")
+    print(f"   * Total Characters : {char_count:,}")
+    print(f"   * Total Words      : {word_count:,}")
+    print(f"   * Estimated Tokens : ~{estimated_tokens:,} tokens")
+    print(f"   * Claude Sonnet Max: 200,000 tokens")
+    print(f"   * Capacity Usage   : {sonnet_pct:.2f}% of Sonnet window")
+    print("-" * 80)
+
+    if estimated_tokens <= sonnet_limit:
+        print(f"  [PASS] Claude 3.5 / 3.7 Sonnet CAN easily eat and understand 100% of this context document!")
+        print(f"         It uses only {sonnet_pct:.1f}% of Sonnet's 200k context capacity.")
+    else:
+        print(f"  [WARNING] Context exceeds Sonnet's 200k token limit ({sonnet_pct:.1f}%). Trim unnecessary files.")
+    print("=" * 80)
 
 def main():
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
