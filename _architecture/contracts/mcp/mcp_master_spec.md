@@ -179,6 +179,81 @@
 }
 ```
 
+#### `code_blast_radius`
+- **Description**: Performs BFS caller depth search to calculate downstream/upstream impact for a target symbol.
+- **Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "qualified_name": { "type": "string" },
+    "max_depth": { "type": "integer" }
+  },
+  "required": ["qualified_name"]
+}
+```
+
+#### `code_find_callers`
+- **Description**: Finds all incoming caller nodes for a qualified symbol path.
+- **Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "qualified_name": { "type": "string" }
+  },
+  "required": ["qualified_name"]
+}
+```
+
+#### `code_find_dead_code`
+- **Description**: Identifies non-exported, unreferenced orphan symbols across the codebase.
+- **Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "module_path": { "type": "string" }
+  },
+  "required": []
+}
+```
+
+#### `code_find_god_functions`
+- **Description**: Identifies complex functions exceeding parameters, LOC, or complexity thresholds.
+- **Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "module_path": { "type": "string" },
+    "thresholds": {
+      "type": "object",
+      "properties": {
+        "max_params": { "type": "integer", "default": 5 },
+        "max_complexity": { "type": "integer", "default": 10 },
+        "max_loc": { "type": "integer", "default": 75 }
+      }
+    }
+  },
+  "required": []
+}
+```
+
+#### `code_check_contract_drift`
+- **Description**: Verifies signature alignment across tagged cross-boundary structs (e.g. Rust struct ↔ Dart model).
+- **Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "boundary_tag": { "type": "string" }
+  },
+  "required": ["boundary_tag"]
+}
+```
+
+
 ---
 
 ### Scope 4: `resume_*` (`shua.resume`)

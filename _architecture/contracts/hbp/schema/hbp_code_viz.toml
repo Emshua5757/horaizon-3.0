@@ -1,7 +1,117 @@
 # =============================================================================
 # HBP v2 — shua.code_visualizer Module Schema (Rust)
 # AST Scanner, Topology Export, Delta Watcher
+# Note: Code visualizer tools (code_parse_ast, code_render_graph, code_blast_radius, etc.)
+# use the generic `mcp.tool_call` envelope per mcp_master_spec.md.
 # =============================================================================
+
+[[structs]]
+name        = "ParamDto"
+description = "Single parameter signature representation"
+[[structs.fields]]
+index       = 1
+name        = "name"
+type        = "str"
+[[structs.fields]]
+index       = 2
+name        = "type_name"
+type        = "str"
+[[structs.fields]]
+index       = 3
+name        = "is_optional"
+type        = "bool"
+
+[[structs]]
+name        = "GraphNode"
+description = "Structured node representation for AST code topology"
+[[structs.fields]]
+index       = 1
+name        = "id"
+type        = "str"
+[[structs.fields]]
+index       = 2
+name        = "kind"
+type        = "str"
+[[structs.fields]]
+index       = 3
+name        = "qualified_name"
+type        = "str"
+[[structs.fields]]
+index       = 4
+name        = "file"
+type        = "str"
+[[structs.fields]]
+index       = 5
+name        = "line"
+type        = "u32"
+[[structs.fields]]
+index       = 6
+name        = "params"
+type        = "ParamDto[]"
+[[structs.fields]]
+index       = 7
+name        = "return_type"
+type        = "str"
+[[structs.fields]]
+index       = 8
+name        = "complexity"
+type        = "u32"
+[[structs.fields]]
+index       = 9
+name        = "side_effects"
+type        = "str[]"
+[[structs.fields]]
+index       = 10
+name        = "intent"
+type        = "str"
+[[structs.fields]]
+index       = 11
+name        = "loc"
+type        = "u32"
+[[structs.fields]]
+index       = 12
+name        = "fan_in"
+type        = "u32"
+[[structs.fields]]
+index       = 13
+name        = "fan_out"
+type        = "u32"
+[[structs.fields]]
+index       = 14
+name        = "risk_score"
+type        = "f32"
+[[structs.fields]]
+index       = 15
+name        = "is_orphan"
+type        = "bool"
+[[structs.fields]]
+index       = 16
+name        = "exceeds_param_threshold"
+type        = "bool"
+[[structs.fields]]
+index       = 17
+name        = "exceeds_complexity_threshold"
+type        = "bool"
+[[structs.fields]]
+index       = 18
+name        = "exceeds_loc_threshold"
+type        = "bool"
+
+[[structs]]
+name        = "GraphEdge"
+description = "Dependency call/import edge between symbols"
+[[structs.fields]]
+index       = 1
+name        = "from"
+type        = "str"
+[[structs.fields]]
+index       = 2
+name        = "to"
+type        = "str"
+[[structs.fields]]
+index       = 3
+name        = "relation"
+type        = "str"
 
 [[structs]]
 name        = "TopologyExportResponse"
@@ -9,11 +119,11 @@ description = "Full AST topology graph payload"
 [[structs.fields]]
 index       = 1
 name        = "nodes"
-type        = "str[]"
+type        = "GraphNode[]"
 [[structs.fields]]
 index       = 2
 name        = "edges"
-type        = "str[]"
+type        = "GraphEdge[]"
 
 [[structs]]
 name        = "TopologyDeltaEvent"
@@ -26,28 +136,14 @@ type        = "str"
 index       = 2
 name        = "change_type"
 type        = "str"
+[[structs.fields]]
+index       = 3
+name        = "affected_node_ids"
+type        = "str[]"
 
 # ---------------------------------------------------------------------------
 # Operations
 # ---------------------------------------------------------------------------
-
-[[operations]]
-module          = "shua.code_visualizer"
-name            = "scan"
-type            = "rpc"
-requires_auth   = true
-description     = "Trigger a full repo AST scan"
-request_struct  = ""
-response_struct = "TopologyExportResponse"
-
-[[operations]]
-module          = "shua.code_visualizer"
-name            = "topology.get"
-type            = "rpc"
-requires_auth   = true
-description     = "Return the latest topology export without re-scanning"
-request_struct  = ""
-response_struct = "TopologyExportResponse"
 
 [[operations]]
 module          = "shua.code_visualizer"

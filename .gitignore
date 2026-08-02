@@ -173,6 +173,8 @@ Python/
 *.tmp
 *.bak
 *.orig
+.hash_cache.json
+code_viz_graph_output.json
 scratch/
 tmp/
 
