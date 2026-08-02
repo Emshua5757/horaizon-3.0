@@ -54,6 +54,7 @@ class CodeTopologyScreen extends ConsumerWidget {
     final activeFilters = ref.watch(activeFiltersProvider);
     final matchAll = ref.watch(filterMatchAllProvider);
     final currentLayout = ref.watch(selectedLayoutModeProvider);
+    final isolationDepth = ref.watch(isolationDepthProvider);
     final pathStart = ref.watch(pathStartNodeProvider);
     final pathEnd = ref.watch(pathEndNodeProvider);
 
@@ -116,7 +117,7 @@ class CodeTopologyScreen extends ConsumerWidget {
 
                   // Search Bar
                   SizedBox(
-                    width: 180,
+                    width: 170,
                     height: 36,
                     child: TextField(
                       onChanged: (val) {
@@ -129,6 +130,35 @@ class CodeTopologyScreen extends ConsumerWidget {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  // N-Hop Subgraph Isolation Depth Dropdown
+                  Container(
+                    height: 36,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: cs.outlineVariant),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<int>(
+                        value: isolationDepth,
+                        style: TextStyle(fontSize: 11, color: cs.onSurface),
+                        dropdownColor: cs.surface,
+                        items: const [
+                          DropdownMenuItem(value: 0, child: Text('🌐 Global Graph')),
+                          DropdownMenuItem(value: 1, child: Text('🎯 1-Hop Isolation')),
+                          DropdownMenuItem(value: 2, child: Text('🕸️ 2-Hop Isolation')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) {
+                            ref.read(isolationDepthProvider.notifier).state = val;
+                          }
+                        },
                       ),
                     ),
                   ),
