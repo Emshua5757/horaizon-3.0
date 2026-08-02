@@ -215,8 +215,8 @@ class _CodeTopologyCanvasState extends ConsumerState<CodeTopologyCanvas>
       highlighted = _neighborhoodOf(selected.id);
     }
 
-    final width = max(layout.contentSize.width, 1200.0);
-    final height = max(layout.contentSize.height, 900.0);
+    final width = max(layout.contentSize.width, 1400.0);
+    final height = max(layout.contentSize.height, 1000.0);
 
     return RepaintBoundary(
       child: Container(
@@ -380,9 +380,10 @@ class _TopologyPainter extends CustomPainter {
           highlighted!.contains(e.to);
       final dimmed = highlighted != null && !isHighlighted;
 
+      final relLower = e.relation.toLowerCase();
       final baseColor = isPathEdge
           ? const Color(0xFF00E676) // Glowing green path
-          : (e.relation == 'Imports' ? const Color(0xFF64B5F6) : const Color(0xFFFFAB40));
+          : (relLower == 'imports' ? const Color(0xFF64B5F6) : const Color(0xFFFFAB40));
 
       final opacity = dimmed ? 0.08 : (isPathEdge ? 1.0 : (isHighlighted ? 0.95 : 0.55));
       final strokeWidth = isPathEdge ? 3.2 : (isHighlighted ? 2.4 : 1.2);
