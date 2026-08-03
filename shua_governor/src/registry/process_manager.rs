@@ -249,7 +249,7 @@ impl ProcessManager {
                 // 2. Measure real memory from Linux /proc/<pid>/status VmRSS
                 if measured_ram.is_none() {
                     if let Some(pid) = snapshot.pid {
-                        measured_ram = read_proc_rss_mb(pid);
+                        measured_ram = Self::read_proc_rss_mb(pid);
                     }
                 }
                 snapshot.ram_mb = measured_ram.or(snapshot.ram_mb);
