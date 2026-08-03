@@ -215,6 +215,24 @@ impl ProcessManager {
         Ok(())
     }
 
+fn read_proc_rss_mb(pid: u32) -> Option<f32> {
+    let path = format!("/proc/{pid}/status");
+    if let Ok(content) = std::fs::read_to_string(path) {
+        for line in content.lines() {
+            if line.starts_with("VmRSS:") {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    if let Ok(kb) = parts[1].parse::<f32>() {
+                        return Some(kb / 1024.0);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+impl ProcessManager {
     /// Get a snapshot of all module states with live telemetry for governor.status
     pub async fn status_snapshot(&self) -> Vec<ModuleEntry> {
         let modules = self.modules.read().await;
@@ -222,24 +240,20 @@ impl ProcessManager {
         for entry in modules.values() {
             let mut snapshot = entry.clone();
             if snapshot.is_alive() {
+                let mut measured_ram = None;
+                // 1. Measure real memory from Linux cgroup v2 memory.current
                 if let Ok(bytes) = CgroupManager::current_usage_bytes(&snapshot.cgroup_path) {
                     if bytes > 0 {
-                        snapshot.ram_mb = Some((bytes as f32) / (1024.0 * 1024.0));
+                        measured_ram = Some((bytes as f32) / (1024.0 * 1024.0));
                     }
                 }
-                if snapshot.ram_mb.is_none() || snapshot.ram_mb == Some(0.0) {
-                    snapshot.ram_mb = match snapshot.name.as_str() {
-                        "shua_diary" | "shua.diary" => Some(142.0),
-                        "shua_resume" | "shua.resume" => Some(88.0),
-                        _ => Some(245.0),
-                    };
+                // 2. Measure real memory from Linux /proc/<pid>/status VmRSS
+                if measured_ram.is_none() {
+                    if let Some(pid) = snapshot.pid {
+                        measured_ram = read_proc_rss_mb(pid);
+                    }
                 }
-                if snapshot.cpu_percent.is_none() {
-                    snapshot.cpu_percent = Some(1.2);
-                }
-                if snapshot.uptime_s.is_none() {
-                    snapshot.uptime_s = Some(1224);
-                }
+                snapshot.ram_mb = measured_ram.or(snapshot.ram_mb);
             } else {
                 snapshot.ram_mb = Some(0.0);
                 snapshot.cpu_percent = Some(0.0);
