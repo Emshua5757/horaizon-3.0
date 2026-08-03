@@ -254,47 +254,51 @@ impl ProcessManager {
         Ok(())
     }
 
-    /// Resume a module with SIGCONT
+    /// Resume a module with SIGCONT or start if not spawned
     pub async fn wake(&self, name: &str) -> Result<()> {
-        let mut modules = self.modules.write().await;
-        let key = match Self::find_key(&modules, name) {
-            Some(k) => k,
-            None => {
-                let keys: Vec<String> = modules.keys().cloned().collect();
-                warn!(subsystem = "process_manager", target_name = %name, available_keys = ?keys, "ERR_UNKNOWN_MODULE lookup failed");
-                return Err(anyhow::anyhow!("ERR_UNKNOWN_MODULE: {name} (available: {keys:?})"));
+        let key = {
+            let modules = self.modules.read().await;
+            match Self::find_key(&modules, name) {
+                Some(k) => k,
+                None => {
+                    let keys: Vec<String> = modules.keys().cloned().collect();
+                    warn!(subsystem = "process_manager", target_name = %name, available_keys = ?keys, "ERR_UNKNOWN_MODULE lookup failed");
+                    return Err(anyhow::anyhow!("ERR_UNKNOWN_MODULE: {name} (available: {keys:?})"));
+                }
             }
         };
-        let entry = modules.get_mut(&key).unwrap();
 
-        if let Some(pid) = entry.pid {
-            #[cfg(unix)]
-            {
-                let _ = kill(Pid::from_raw(pid as i32), Signal::SIGCONT);
+        let has_pid = {
+            let modules = self.modules.read().await;
+            modules.get(&key).and_then(|e| e.pid).is_some()
+        };
+
+        if has_pid {
+            let mut modules = self.modules.write().await;
+            if let Some(entry) = modules.get_mut(&key) {
+                if let Some(pid) = entry.pid {
+                    #[cfg(unix)]
+                    {
+                        let _ = kill(Pid::from_raw(pid as i32), Signal::SIGCONT);
+                    }
+                    info!(
+                        subsystem = "process_manager",
+                        module = %key,
+                        pid = pid,
+                        "Module power state changed to Running (SIGCONT)"
+                    );
+                    entry.state = ModuleState::Running;
+                }
             }
-            info!(
-                subsystem = "process_manager",
-                module = %key,
-                pid = pid,
-                "Module power state changed to Running (SIGCONT)"
-            );
+            Ok(())
         } else {
             info!(
                 subsystem = "process_manager",
                 module = %key,
-                "Module power state changed to Running (no PID attached)"
+                "Module has no PID attached — launching process via start()"
             );
+            self.start(&key).await
         }
-
-        entry.state = ModuleState::Running;
-        info!(
-            subsystem = "process_manager",
-            module = %key,
-            state = ?entry.state,
-            ram_mb = ?entry.ram_mb,
-            "Successfully updated module state to Running"
-        );
-        Ok(())
     }
 
     /// Terminate a module process with SIGTERM/SIGKILL to free RAM budget
