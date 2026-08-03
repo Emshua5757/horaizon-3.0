@@ -52,6 +52,7 @@ class OllamaAiService {
     double temperature = 0.3,
     String? systemPrompt,
     String? sessionId,
+    String contextHint = 'governor',
   }) async* {
     final effectiveNode = targetNode == AiOffloadTarget.auto
         ? await probeBestAvailableNode(AiOffloadTarget.rpi5)
@@ -69,12 +70,12 @@ class OllamaAiService {
         final userPrompt = messages.lastWhere((m) => m.role == ChatRole.user, orElse: () => messages.last).content;
         final offloadUrl = effectiveNode == AiOffloadTarget.windowsHost ? 'http://127.0.0.1:11434' : '';
 
-        _log('[HBP v2] Dispatching governor.ai.route to shua_governor (target: ${effectiveNode.shortLabel}, offload: "$offloadUrl", prompt: "$userPrompt")...');
+        _log('[HBP v2] Dispatching governor.ai.route (scope: "$contextHint", target: ${effectiveNode.shortLabel}, offload: "$offloadUrl", prompt: "$userPrompt")...');
 
         final p = Packer();
         p.packMapLength(5);
         p.packString('prompt');              p.packString(userPrompt);
-        p.packString('context_hint');        p.packString('governor');
+        p.packString('context_hint');        p.packString(contextHint);
         p.packString('offload_device_url'); p.packString(offloadUrl);
         p.packString('model');              p.packString(modelName);
         p.packString('session_id');         p.packString(sessionId ?? '');

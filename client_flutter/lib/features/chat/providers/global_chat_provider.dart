@@ -149,7 +149,7 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
     );
   }
 
-  Future<void> sendMessage(String text) async {
+  Future<void> sendMessage(String text, {String contextHint = 'governor'}) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty || state.isGenerating) return;
 
@@ -160,6 +160,7 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
       metadata: {
         'model': state.selectedModel,
         'target': state.offloadTarget.shortLabel,
+        'contextHint': contextHint,
       },
     );
 
@@ -200,6 +201,7 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
       temperature: state.temperature,
       systemPrompt: state.systemPrompt,
       sessionId: _sessionId,
+      contextHint: contextHint,
     );
 
     var finalContent = '';

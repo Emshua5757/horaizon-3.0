@@ -47,7 +47,7 @@ class _CopilotChatDrawerState extends ConsumerState<CopilotChatDrawer> {
     final text = (overrideText ?? _promptController.text).trim();
     if (text.isNotEmpty) {
       _promptController.clear();
-      ref.read(globalChatProvider.notifier).sendMessage(text);
+      ref.read(globalChatProvider.notifier).sendMessage(text, contextHint: widget.contextHint);
       _scrollToBottom();
     }
   }

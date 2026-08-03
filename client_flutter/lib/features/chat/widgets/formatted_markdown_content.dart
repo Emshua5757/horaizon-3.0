@@ -593,14 +593,17 @@ class _ThinkingCardState extends State<_ThinkingCard> {
                 children: [
                   Icon(Icons.psychology_rounded, size: 16, color: cs.primary),
                   const SizedBox(width: 8),
-                  Text(
-                    'THINKING PHASE & AGENT CHAIN-OF-THOUGHT',
-                    style: TextStyle(
-                      color: cs.primary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.8,
-                      fontFamily: 'JetBrainsMono',
+                  Expanded(
+                    child: Text(
+                      'THINKING PHASE & AGENT CHAIN-OF-THOUGHT',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: cs.primary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.8,
+                        fontFamily: 'JetBrainsMono',
+                      ),
                     ),
                   ),
                   const Spacer(),
