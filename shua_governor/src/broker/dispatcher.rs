@@ -427,9 +427,12 @@ impl Dispatcher {
             }
 
             "module.wake" | "governor.module.wake" | "process.wake" | "governor.process.wake" => {
+                info!(subsystem = "dispatcher", op = %frame.op, "Received process.wake request");
                 if let Ok(req) = frame.decode_payload::<ModuleOpRequest>() {
+                    info!(subsystem = "dispatcher", module = %req.module, "Decoded ModuleOpRequest payload for wake");
                     match self.process_manager.wake(&req.module).await {
                         Ok(_) => {
+                            info!(subsystem = "dispatcher", module = %req.module, "Successfully executed wake in ProcessManager");
                             let res =
                                 serde_json::json!({ "status": "woken", "module": req.module });
                             let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
@@ -440,14 +443,18 @@ impl Dispatcher {
                                 payload,
                             ))
                         }
-                        Err(e) => Some(HbpFrame::error_response(
-                            &frame.id,
-                            &frame.mod_,
-                            &frame.op,
-                            &format!("ERR_MODULE_WAKE: {e}"),
-                        )),
+                        Err(e) => {
+                            warn!(subsystem = "dispatcher", module = %req.module, error = %e, "ProcessManager wake failed");
+                            Some(HbpFrame::error_response(
+                                &frame.id,
+                                &frame.mod_,
+                                &frame.op,
+                                &format!("ERR_MODULE_WAKE: {e}"),
+                            ))
+                        }
                     }
                 } else {
+                    warn!(subsystem = "dispatcher", op = %frame.op, "Failed to decode payload for ModuleOpRequest");
                     Some(HbpFrame::error_response(
                         &frame.id,
                         &frame.mod_,

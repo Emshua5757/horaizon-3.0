@@ -173,8 +173,14 @@ impl ProcessManager {
     /// Resume a module with SIGCONT
     pub async fn wake(&self, name: &str) -> Result<()> {
         let mut modules = self.modules.write().await;
-        let key = Self::find_key(&modules, name)
-            .ok_or_else(|| anyhow::anyhow!("ERR_UNKNOWN_MODULE: {name}"))?;
+        let key = match Self::find_key(&modules, name) {
+            Some(k) => k,
+            None => {
+                let keys: Vec<String> = modules.keys().cloned().collect();
+                warn!(subsystem = "process_manager", target_name = %name, available_keys = ?keys, "ERR_UNKNOWN_MODULE lookup failed");
+                return Err(anyhow::anyhow!("ERR_UNKNOWN_MODULE: {name} (available: {keys:?})"));
+            }
+        };
         let entry = modules.get_mut(&key).unwrap();
 
         if let Some(pid) = entry.pid {
@@ -192,7 +198,7 @@ impl ProcessManager {
             info!(
                 subsystem = "process_manager",
                 module = %key,
-                "Module power state changed to Running"
+                "Module power state changed to Running (no PID attached)"
             );
         }
 
@@ -203,6 +209,13 @@ impl ProcessManager {
         if entry.cpu_percent.is_none() || entry.cpu_percent == Some(0.0) {
             entry.cpu_percent = Some(0.8);
         }
+        info!(
+            subsystem = "process_manager",
+            module = %key,
+            state = ?entry.state,
+            ram_mb = ?entry.ram_mb,
+            "Successfully updated module state to Running"
+        );
         Ok(())
     }
 
