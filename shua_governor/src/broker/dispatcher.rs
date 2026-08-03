@@ -41,6 +41,7 @@ pub struct ClientLogEmitRequest {
 /// Module operation payload DTO for `module.wake` and `module.sleep`
 #[derive(serde::Deserialize)]
 pub struct ModuleOpRequest {
+    #[serde(alias = "name")]
     pub module: String,
 }
 

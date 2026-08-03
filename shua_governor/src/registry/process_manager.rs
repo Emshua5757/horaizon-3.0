@@ -124,11 +124,27 @@ impl ProcessManager {
         })
     }
 
+    fn find_key(modules: &std::collections::HashMap<String, ModuleEntry>, name: &str) -> Option<String> {
+        if modules.contains_key(name) {
+            return Some(name.to_string());
+        }
+        let dot_variant = name.replace('_', ".");
+        if modules.contains_key(&dot_variant) {
+            return Some(dot_variant);
+        }
+        let underscore_variant = name.replace('.', "_");
+        if modules.contains_key(&underscore_variant) {
+            return Some(underscore_variant);
+        }
+        None
+    }
+
     /// Freeze a module with SIGSTOP
     pub async fn sleep(&self, name: &str) -> Result<()> {
         let mut modules = self.modules.write().await;
-        let entry = modules.get_mut(name)
+        let key = Self::find_key(&modules, name)
             .ok_or_else(|| anyhow::anyhow!("ERR_UNKNOWN_MODULE: {name}"))?;
+        let entry = modules.get_mut(&key).unwrap();
 
         if let Some(pid) = entry.pid {
             #[cfg(unix)]
@@ -137,14 +153,14 @@ impl ProcessManager {
             }
             info!(
                 subsystem = "process_manager",
-                module = name,
+                module = %key,
                 pid = pid,
                 "Module power state changed to Sleeping (SIGSTOP)"
             );
         } else {
             info!(
                 subsystem = "process_manager",
-                module = name,
+                module = %key,
                 "Module power state changed to Sleeping"
             );
         }
@@ -157,8 +173,9 @@ impl ProcessManager {
     /// Resume a module with SIGCONT
     pub async fn wake(&self, name: &str) -> Result<()> {
         let mut modules = self.modules.write().await;
-        let entry = modules.get_mut(name)
+        let key = Self::find_key(&modules, name)
             .ok_or_else(|| anyhow::anyhow!("ERR_UNKNOWN_MODULE: {name}"))?;
+        let entry = modules.get_mut(&key).unwrap();
 
         if let Some(pid) = entry.pid {
             #[cfg(unix)]
@@ -167,14 +184,14 @@ impl ProcessManager {
             }
             info!(
                 subsystem = "process_manager",
-                module = name,
+                module = %key,
                 pid = pid,
                 "Module power state changed to Running (SIGCONT)"
             );
         } else {
             info!(
                 subsystem = "process_manager",
-                module = name,
+                module = %key,
                 "Module power state changed to Running"
             );
         }
@@ -192,8 +209,9 @@ impl ProcessManager {
     /// Terminate a module process with SIGTERM/SIGKILL to free RAM budget
     pub async fn stop(&self, name: &str) -> Result<()> {
         let mut modules = self.modules.write().await;
-        let entry = modules.get_mut(name)
+        let key = Self::find_key(&modules, name)
             .ok_or_else(|| anyhow::anyhow!("ERR_UNKNOWN_MODULE: {name}"))?;
+        let entry = modules.get_mut(&key).unwrap();
 
         if let Some(pid) = entry.pid {
             #[cfg(unix)]
@@ -202,7 +220,7 @@ impl ProcessManager {
             }
             info!(
                 subsystem = "process_manager",
-                module = name,
+                module = %key,
                 pid = pid,
                 "Terminated module process to release RAM budget (SIGTERM)"
             );
