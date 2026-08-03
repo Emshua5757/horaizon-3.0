@@ -1462,6 +1462,7 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
+ "libc",
  "nix",
  "once_cell",
  "regex",
