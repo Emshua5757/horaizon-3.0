@@ -5,16 +5,53 @@
 
 import type { MessageType, ModuleState, IntentClass } from './hbpEnums';
 
+/** Single parameter signature representation */
+export interface ParamDto {
+  name: string;
+  type_name: string;
+  is_optional: boolean;
+}
+
+/** Structured node representation for AST code topology */
+export interface GraphNode {
+  id: string;
+  kind: string;
+  qualified_name: string;
+  file: string;
+  line: number;
+  params: ParamDto[];
+  return_type: string;
+  complexity: number;
+  side_effects: string[];
+  intent: string;
+  loc: number;
+  fan_in: number;
+  fan_out: number;
+  risk_score: number;
+  is_orphan: boolean;
+  exceeds_param_threshold: boolean;
+  exceeds_complexity_threshold: boolean;
+  exceeds_loc_threshold: boolean;
+}
+
+/** Dependency call/import edge between symbols */
+export interface GraphEdge {
+  from: string;
+  to: string;
+  relation: string;
+}
+
 /** Full AST topology graph payload */
 export interface TopologyExportResponse {
-  nodes: string[];
-  edges: string[];
+  nodes: GraphNode[];
+  edges: GraphEdge[];
 }
 
 /** Incremental code delta push on file change */
 export interface TopologyDeltaEvent {
   file_path: string;
   change_type: string;
+  affected_node_ids: string[];
 }
 
 /** Standardized structured error payload for HBP v2 responses */

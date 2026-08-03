@@ -74,13 +74,13 @@ def run_sync(schema_dir: Path, selected_langs: list[str], dry_run: bool, check: 
 
             if check:
                 if not dest.exists():
-                    print(f"  ✗ MISSING  {rel_path}")
+                    print(f"  [MISSING] {rel_path}")
                     check_failed = True
                 elif dest.read_bytes() != encoded:
-                    print(f"  ✗ DIFFERS  {rel_path}")
+                    print(f"  [DIFFERS] {rel_path}")
                     check_failed = True
                 else:
-                    print(f"  ✓ OK       {rel_path}")
+                    print(f"  [OK]      {rel_path}")
                 continue
 
             if dry_run:
@@ -89,7 +89,7 @@ def run_sync(schema_dir: Path, selected_langs: list[str], dry_run: bool, check: 
 
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(encoded)
-            print(f"  ✓ wrote    {rel_path}  ({len(encoded)} bytes)")
+            print(f"  [OK] wrote {rel_path}  ({len(encoded)} bytes)")
 
     # 2. Markdown API Reference generator
     if not check and not dry_run:
@@ -98,7 +98,7 @@ def run_sync(schema_dir: Path, selected_langs: list[str], dry_run: bool, check: 
         for dest, content in md_files.items():
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(content.encode("utf-8"))
-            print(f"  ✓ wrote    {dest.name}  ({len(content)} bytes)")
+            print(f"  [OK] wrote {dest.name}  ({len(content)} bytes)")
 
     if check and check_failed:
         print("\n[sync_contracts] CHECK FAILED — run `python -m tools.sync_contracts` to regenerate.")

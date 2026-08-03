@@ -1,26 +1,33 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use anyhow::Result;
-use tracing::{info, warn};
+use tokio::sync::{Mutex, RwLock};
+use tracing::{error, info, warn};
 
 #[cfg(unix)]
 use nix::sys::signal::{kill, Signal};
 #[cfg(unix)]
 use nix::unistd::Pid;
 
-use crate::registry::module_entry::{ModuleEntry, ModuleState};
 use crate::registry::cgroup_manager::CgroupManager;
+use crate::registry::module_entry::{ModuleEntry, ModuleState};
 
 pub struct ProcessManager {
-    modules: Arc<RwLock<HashMap<String, ModuleEntry>>>,
+    pub modules: Arc<RwLock<HashMap<String, ModuleEntry>>>,
+    pub ipc_port: u16,
 }
 
 impl ProcessManager {
-    pub fn new() -> Self {
+    pub fn new(ipc_port: u16) -> Self {
         Self {
             modules: Arc::new(RwLock::new(HashMap::new())),
+            ipc_port,
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn with_default_port() -> Self {
+        Self::new(7701)
     }
 
     /// Register a module. Called at startup from config.
@@ -79,10 +86,16 @@ impl ProcessManager {
                 subsystem = "process_manager",
                 module = name,
                 binary = %entry.binary.display(),
-                "Spawning module process"
+                ipc_port = self.ipc_port,
+                "Spawning module process with IPC environment injection"
             );
 
             let mut cmd = tokio::process::Command::new(&entry.binary);
+
+            // Inject Governor IPC environment variables for submodules
+            cmd.env("SHUA_GOVERNOR_PID", std::process::id().to_string());
+            cmd.env("SHUA_GOVERNOR_IPC_PORT", self.ipc_port.to_string());
+
             if name == "ollama" {
                 cmd.arg("serve");
                 cmd.env("OLLAMA_NUM_THREADS", "3");
@@ -95,11 +108,14 @@ impl ProcessManager {
                     "Configured thermal thread budget for Ollama subprocess"
                 );
             }
+
             let child = cmd.spawn()?;
             let pid = child.id().ok_or_else(|| anyhow::anyhow!("Could not get PID"))?;
 
+            let child_arc = Arc::new(Mutex::new(child));
             entry.pid = Some(pid);
             entry.state = ModuleState::Running;
+            entry.child_handle = Some(Arc::clone(&child_arc));
 
             if let Err(e) = CgroupManager::attach_pid(&entry.cgroup_path, pid) {
                 warn!(
@@ -115,11 +131,66 @@ impl ProcessManager {
                 subsystem = "process_manager",
                 module = name,
                 pid = pid,
-                "Module process started successfully"
+                "Module process started successfully — watchdog attached"
             );
 
-            // Disown child handle — module process runs independently
-            std::mem::forget(child);
+            // Spawn background watchdog monitoring child process exit
+            let modules_clone = Arc::clone(&self.modules);
+            let name_string = name.to_string();
+            let ipc_port_val = self.ipc_port;
+
+            tokio::spawn(async move {
+                let mut guard = child_arc.lock().await;
+                let exit_res = guard.wait().await;
+
+                let mut modules = modules_clone.write().await;
+                if let Some(entry) = modules.get_mut(&name_string) {
+                    entry.state = ModuleState::Stopped;
+                    entry.pid = None;
+                    entry.ipc_tx = None;
+                    entry.tools.clear();
+                    entry.restart_count += 1;
+
+                    let exit_msg = match exit_res {
+                        Ok(status) => format!("Exited with status: {status}"),
+                        Err(e) => format!("Wait error: {e}"),
+                    };
+                    entry.last_error = Some(exit_msg.clone());
+
+                    warn!(
+                        subsystem = "process_manager",
+                        module = %name_string,
+                        exit_status = %exit_msg,
+                        restart_count = entry.restart_count,
+                        "Module process exited unexpectedly — state reset to Stopped"
+                    );
+
+                    let auto_restart = entry.auto_start && entry.restart_count <= 3;
+                    if auto_restart {
+                        info!(
+                            subsystem = "process_manager",
+                            module = %name_string,
+                            restart_count = entry.restart_count,
+                            "Auto-restarting module process in 2 seconds"
+                        );
+                        let modules_arc_again = Arc::clone(&modules_clone);
+                        let name_again = name_string.clone();
+                        tokio::spawn(async move {
+                            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                            let pm_dummy = ProcessManager { modules: modules_arc_again, ipc_port: ipc_port_val };
+                            let _ = pm_dummy.start(&name_again).await;
+                        });
+                    } else if entry.restart_count > 3 {
+                        error!(
+                            subsystem = "process_manager",
+                            module = %name_string,
+                            restart_count = entry.restart_count,
+                            "Module exceeded max auto-restart threshold (3) — halting auto-restart"
+                        );
+                    }
+                }
+            });
+
             Ok(())
         })
     }
@@ -316,7 +387,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_process_manager_register_and_snapshot() {
-        let pm = ProcessManager::new();
+        let pm = ProcessManager::new(7701);
         let entry = ModuleEntry::new(
             "shua.resume",
             PathBuf::from("/usr/bin/true"),

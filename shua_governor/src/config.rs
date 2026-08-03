@@ -138,6 +138,7 @@ impl AppConfig {
         let candidates = vec![
             custom_path.map(PathBuf::from),
             Some(PathBuf::from("/etc/horaizon/governor/config.toml")),
+            Some(PathBuf::from("_architecture/contracts/config.toml")),
             Some(PathBuf::from("config.toml")),
             Some(PathBuf::from("shua_governor/config.toml")),
         ];

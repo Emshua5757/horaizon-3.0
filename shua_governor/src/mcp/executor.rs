@@ -205,43 +205,92 @@ impl McpExecutor {
                 }
             }
 
-            name if name.starts_with("code_") => {
-                info!(
-                    subsystem = "mcp_executor",
-                    tool_name = %name,
-                    "Delegating tool call to shua_code_visualizer process space"
-                );
-
-                // 1. Ensure shua.code_visualizer is awake
-                let _ = process_manager.wake("shua.code_visualizer").await;
-
-                // 2. Delegate execution directly to shua_code_visualizer McpHandler
-                let mut graph = shua_code_visualizer::graph::store::CodeGraph::new();
-                let mut handler = shua_code_visualizer::mcp::handler::McpHandler::new(&mut graph, None);
-
-                match handler.handle_tool_call(name, &call.arguments) {
-                    Ok(val) => McpToolResponse {
-                        tool_name: call.name.clone(),
-                        success: true,
-                        result: val,
-                        error: None,
-                    },
-                    Err(e) => McpToolResponse {
-                        tool_name: call.name.clone(),
-                        success: false,
-                        result: serde_json::Value::Null,
-                        error: Some(format!("Error executing '{name}' in shua_code_visualizer: {e}")),
-                    },
-                }
-            }
-
             _ => {
-                warn!(subsystem = "mcp_executor", tool_name = %call.name, "Unknown MCP tool requested");
-                McpToolResponse {
-                    tool_name: call.name.clone(),
-                    success: false,
-                    result: serde_json::Value::Null,
-                    error: Some(format!("Unknown or unregistered MCP tool: '{}'", call.name)),
+                // Dynamic submodule tool routing across ProcessManager entries
+                let modules = process_manager.modules.read().await;
+                let owner = modules.values().find(|e| e.tools.iter().any(|t| t.name == call.name));
+
+                match owner {
+                    None => {
+                        warn!(subsystem = "mcp_executor", tool = %call.name, "Unknown tool — not registered by any module");
+                        McpToolResponse {
+                            tool_name: call.name.clone(),
+                            success: false,
+                            result: serde_json::Value::Null,
+                            error: Some(format!("Unknown or unregistered MCP tool: '{}'", call.name)),
+                        }
+                    }
+                    Some(entry) if entry.ipc_tx.is_none() => {
+                        warn!(subsystem = "mcp_executor", tool = %call.name, module = %entry.name, "Submodule owns tool but is not connected over IPC");
+                        McpToolResponse {
+                            tool_name: call.name.clone(),
+                            success: false,
+                            result: serde_json::Value::Null,
+                            error: Some(format!(
+                                "'{}' owns tool '{}' but is not connected over IPC. Wake it first: governor_wake_module(\"{}\")",
+                                entry.name, call.name, entry.name
+                            )),
+                        }
+                    }
+                    Some(entry) => {
+                        let timeout_secs = entry
+                            .tools
+                            .iter()
+                            .find(|t| t.name == call.name)
+                            .and_then(|t| t.timeout_s)
+                            .unwrap_or(15);
+
+                        let req_id = uuid::Uuid::new_v4().to_string();
+                        let (tx_one, rx_one) = tokio::sync::oneshot::channel::<serde_json::Value>();
+                        entry.pending_calls.lock().await.insert(req_id.clone(), tx_one);
+
+                        let dispatch_frame = serde_json::json!({
+                            "op": "mcp.tool_call",
+                            "id": req_id,
+                            "tool": call.name,
+                            "args": call.arguments,
+                        });
+
+                        let send_res = entry.ipc_tx.as_ref().unwrap().send(dispatch_frame.to_string());
+                        drop(modules); // release read lock before blocking await
+
+                        if send_res.is_err() {
+                            return McpToolResponse {
+                                tool_name: call.name.clone(),
+                                success: false,
+                                result: serde_json::Value::Null,
+                                error: Some("IPC send channel closed by submodule".into()),
+                            };
+                        }
+
+                        match tokio::time::timeout(tokio::time::Duration::from_secs(timeout_secs), rx_one).await {
+                            Ok(Ok(result)) => {
+                                let is_error = result.is_object() && result.get("error").is_some();
+                                McpToolResponse {
+                                    tool_name: call.name.clone(),
+                                    success: !is_error,
+                                    result: if is_error { serde_json::Value::Null } else { result.clone() },
+                                    error: if is_error {
+                                        result.get("error").and_then(|e| e.as_str()).map(|s| s.to_string())
+                                    } else {
+                                        None
+                                    },
+                                }
+                            }
+                            Ok(Err(_)) => McpToolResponse {
+                                tool_name: call.name.clone(),
+                                success: false,
+                                result: serde_json::Value::Null,
+                                error: Some("Submodule IPC channel dropped unexpectedly".into()),
+                            },
+                            Err(_) => McpToolResponse {
+                                tool_name: call.name.clone(),
+                                success: false,
+                                result: serde_json::Value::Null,
+                                error: Some(format!("Tool call timed out after {}s: '{}'", timeout_secs, call.name)),
+                            },
+                        }
+                    }
                 }
             }
         }

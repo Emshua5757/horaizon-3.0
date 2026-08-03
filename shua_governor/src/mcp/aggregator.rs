@@ -1,14 +1,8 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
-
 use super::McpToolSchema;
 
 /// System MCP Tool Registry & Aggregator
 pub struct McpAggregator {
     system_tools: Vec<McpToolSchema>,
-    #[allow(dead_code)] // Reserved for Phase 3 submodule tool manifest registrations (shua.diary, shua.resume)
-    submodule_tools: Arc<RwLock<HashMap<String, Vec<McpToolSchema>>>>,
 }
 
 impl McpAggregator {
@@ -23,6 +17,7 @@ impl McpAggregator {
                     "properties": {},
                     "required": []
                 }),
+                timeout_s: None,
             },
             McpToolSchema {
                 name: "governor_wake_module".into(),
@@ -38,6 +33,7 @@ impl McpAggregator {
                     },
                     "required": ["module_name"]
                 }),
+                timeout_s: None,
             },
             McpToolSchema {
                 name: "governor_sleep_module".into(),
@@ -53,6 +49,7 @@ impl McpAggregator {
                     },
                     "required": ["module_name"]
                 }),
+                timeout_s: None,
             },
             McpToolSchema {
                 name: "governor_load_ollama_model".into(),
@@ -66,6 +63,7 @@ impl McpAggregator {
                     },
                     "required": ["model_name"]
                 }),
+                timeout_s: None,
             },
             McpToolSchema {
                 name: "governor_query_logs".into(),
@@ -79,53 +77,15 @@ impl McpAggregator {
                     },
                     "required": []
                 }),
+                timeout_s: None,
             },
         ];
 
-        Self {
-            system_tools,
-            submodule_tools: Arc::new(RwLock::new(HashMap::new())),
-        }
+        Self { system_tools }
     }
 
     /// Returns list of core system tools
     pub fn get_system_tools(&self) -> Vec<McpToolSchema> {
         self.system_tools.clone()
-    }
-
-    /// Dynamically returns system tools + any submodule tools registered for the target scope
-    pub async fn get_tools_for_scope(&self, scope: &str) -> Vec<McpToolSchema> {
-        let mut tools = self.system_tools.clone();
-        let scope_clean = scope.trim().to_lowercase();
-        let guard = self.submodule_tools.read().await;
-
-        for (module_id, sub_tools) in guard.iter() {
-            let mod_clean = module_id.to_lowercase();
-            if mod_clean == scope_clean
-                || mod_clean.contains(&scope_clean)
-                || scope_clean.contains(&mod_clean)
-                || (scope_clean == "code" && mod_clean.contains("code"))
-                || (scope_clean == "diary" && mod_clean.contains("diary"))
-                || (scope_clean == "resume" && mod_clean.contains("resume"))
-            {
-                tools.extend(sub_tools.clone());
-            }
-        }
-
-        tools
-    }
-
-    /// Registers a submodule's dynamic tool manifest over HBP RPC (mcp.register_manifest)
-    #[allow(dead_code)]
-    pub async fn register_submodule_manifest(&self, module_id: &str, tools: Vec<McpToolSchema>) {
-        let mut guard = self.submodule_tools.write().await;
-        guard.insert(module_id.to_string(), tools);
-    }
-
-    /// Returns all registered submodule tools
-    #[allow(dead_code)]
-    pub async fn get_all_submodule_tools(&self) -> Vec<McpToolSchema> {
-        let guard = self.submodule_tools.read().await;
-        guard.values().flatten().cloned().collect()
     }
 }

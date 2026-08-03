@@ -5,10 +5,6 @@
 
 /** HBP v2 operation key constants */
 export const HbpOps = {
-  /** Trigger a full repo AST scan */
-  shuaCodeVisualizerScan: 'shua.code_visualizer.scan',
-  /** Return the latest topology export without re-scanning */
-  shuaCodeVisualizerTopologyGet: 'shua.code_visualizer.topology.get',
   /** Start the file-watcher daemon */
   shuaCodeVisualizerWatchStart: 'shua.code_visualizer.watch.start',
   /** Stop the file-watcher daemon */

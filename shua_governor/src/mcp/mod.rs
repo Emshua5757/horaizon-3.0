@@ -11,6 +11,8 @@ pub struct McpToolSchema {
     pub description: String,
     pub scope: String,
     pub input_schema: serde_json::Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout_s: Option<u64>,
 }
 
 /// Invocation request for an MCP tool selected by an LLM model

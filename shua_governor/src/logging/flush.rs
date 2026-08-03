@@ -78,6 +78,19 @@ fn ensure_schema(conn: &Connection) -> rusqlite::Result<()> {
         CREATE INDEX IF NOT EXISTS idx_activity_trace_id  ON activity_log(trace_id);
 
         UPDATE activity_log SET ts = ts * 1000 WHERE ts < 10000000000;
+
+        CREATE TABLE IF NOT EXISTS scope_memory (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope      TEXT    NOT NULL,
+            key        TEXT    NOT NULL,
+            value      TEXT    NOT NULL,
+            source     TEXT    NOT NULL DEFAULT 'agent_synthesized',
+            session_id TEXT,
+            created_at INTEGER NOT NULL,
+            UNIQUE(scope, key) ON CONFLICT REPLACE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_scope_memory_scope ON scope_memory(scope);
     ",
     )
 }

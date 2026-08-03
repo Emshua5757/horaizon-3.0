@@ -5,16 +5,53 @@
 package hbp
 
 
+// Single parameter signature representation
+type ParamDto struct {
+	Name string `msgpack:"name"`
+	TypeName string `msgpack:"type_name"`
+	IsOptional bool `msgpack:"is_optional"`
+}
+
+// Structured node representation for AST code topology
+type GraphNode struct {
+	Id string `msgpack:"id"`
+	Kind string `msgpack:"kind"`
+	QualifiedName string `msgpack:"qualified_name"`
+	File string `msgpack:"file"`
+	Line uint32 `msgpack:"line"`
+	Params []ParamDto `msgpack:"params"`
+	ReturnType string `msgpack:"return_type"`
+	Complexity uint32 `msgpack:"complexity"`
+	SideEffects []string `msgpack:"side_effects"`
+	Intent string `msgpack:"intent"`
+	Loc uint32 `msgpack:"loc"`
+	FanIn uint32 `msgpack:"fan_in"`
+	FanOut uint32 `msgpack:"fan_out"`
+	RiskScore float32 `msgpack:"risk_score"`
+	IsOrphan bool `msgpack:"is_orphan"`
+	ExceedsParamThreshold bool `msgpack:"exceeds_param_threshold"`
+	ExceedsComplexityThreshold bool `msgpack:"exceeds_complexity_threshold"`
+	ExceedsLocThreshold bool `msgpack:"exceeds_loc_threshold"`
+}
+
+// Dependency call/import edge between symbols
+type GraphEdge struct {
+	From string `msgpack:"from"`
+	To string `msgpack:"to"`
+	Relation string `msgpack:"relation"`
+}
+
 // Full AST topology graph payload
 type TopologyExportResponse struct {
-	Nodes []string `msgpack:"nodes"`
-	Edges []string `msgpack:"edges"`
+	Nodes []GraphNode `msgpack:"nodes"`
+	Edges []GraphEdge `msgpack:"edges"`
 }
 
 // Incremental code delta push on file change
 type TopologyDeltaEvent struct {
 	FilePath string `msgpack:"file_path"`
 	ChangeType string `msgpack:"change_type"`
+	AffectedNodeIds []string `msgpack:"affected_node_ids"`
 }
 
 // Standardized structured error payload for HBP v2 responses

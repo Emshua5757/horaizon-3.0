@@ -110,7 +110,7 @@ async fn main() -> anyhow::Result<()> {
     start_log_ipc_listener(log_tx.clone()).await;
 
     // 7. Initialize ProcessManager & Register Sub-Modules dynamically from config.toml
-    let process_manager = Arc::new(ProcessManager::new());
+    let process_manager = Arc::new(ProcessManager::new(7701));
     for entry in &app_config.modules.entries {
         process_manager
             .register(ModuleEntry::new(
@@ -197,10 +197,21 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // 12. Initialize & Spawn Dedicated Submodule JSON IPC Listener (Port 7701)
+    let ipc_server = broker::ipc_server::IpcServer::new(Arc::clone(&process_manager));
+    let ipc_addr_str = "0.0.0.0:7701";
+    let ipc_addr: SocketAddr = ipc_addr_str.parse()?;
+    tokio::spawn(async move {
+        if let Err(e) = ipc_server.run(ipc_addr).await {
+            tracing::error!(error = %e, "JSON IPC WebSocket Listener error");
+        }
+    });
+
     info!(
         module = "shua.governor",
         port = app_config.governor.port,
-        "HBP v2 WebSocket broker listening on port {}", app_config.governor.port
+        ipc_port = 7701,
+        "HBP v2 WebSocket broker (port {}) & JSON IPC listener (port 7701) active", app_config.governor.port
     );
 
     tokio::signal::ctrl_c().await?;

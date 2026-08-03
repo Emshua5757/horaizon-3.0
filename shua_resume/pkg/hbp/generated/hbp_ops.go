@@ -7,10 +7,6 @@ package hbp
 
 // HBP v2 operation key constants.
 const (
-	// Trigger a full repo AST scan
-	ShuaCodeVisualizerScan = "shua.code_visualizer.scan"
-	// Return the latest topology export without re-scanning
-	ShuaCodeVisualizerTopologyGet = "shua.code_visualizer.topology.get"
 	// Start the file-watcher daemon
 	ShuaCodeVisualizerWatchStart = "shua.code_visualizer.watch.start"
 	// Stop the file-watcher daemon

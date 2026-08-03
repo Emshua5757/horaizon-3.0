@@ -28,18 +28,69 @@ impl IpcClient {
                         println!("HBP v2 IPC connection established with parent governor.");
                         let (mut write, mut read) = ws_stream.split();
 
-                        // 1. Send registration frame
+                        // 1. Send registration manifest frame
                         let reg_frame = serde_json::json!({
                             "op": "governor.mcp.register",
+                            "module_id": "shua.code_visualizer",
+                            "version": "0.3.1",
                             "scope": "code",
                             "tools": [
-                                "code_parse_ast",
-                                "code_render_graph",
-                                "code_blast_radius",
-                                "code_find_callers",
-                                "code_find_dead_code",
-                                "code_find_god_functions",
-                                "code_check_contract_drift"
+                                {
+                                    "name": "code_parse_ast",
+                                    "description": "Parses a single source file and returns AST symbol and edge extraction payload.",
+                                    "scope": "code",
+                                    "timeout_s": 60,
+                                    "input_schema": { "type": "object", "properties": { "file_path": { "type": "string" } }, "required": ["file_path"] }
+                                },
+                                {
+                                    "name": "code_read_file",
+                                    "description": "Fetches raw source text or a line-range snippet for a target file path.",
+                                    "scope": "code",
+                                    "timeout_s": 10,
+                                    "input_schema": { "type": "object", "properties": { "file_path": { "type": "string" }, "start_line": { "type": "integer" }, "end_line": { "type": "integer" } }, "required": ["file_path"] }
+                                },
+                                {
+                                    "name": "code_render_graph",
+                                    "description": "Renders a filtered topology graph export payload by module path and max call depth.",
+                                    "scope": "code",
+                                    "timeout_s": 15,
+                                    "input_schema": { "type": "object", "properties": { "module_path": { "type": "string" }, "max_depth": { "type": "integer" } }, "required": [] }
+                                },
+                                {
+                                    "name": "code_blast_radius",
+                                    "description": "Performs BFS caller-depth search for a target qualified symbol name. Returns all callers up to max_depth.",
+                                    "scope": "code",
+                                    "timeout_s": 20,
+                                    "input_schema": { "type": "object", "properties": { "qualified_name": { "type": "string" }, "max_depth": { "type": "integer" } }, "required": ["qualified_name"] }
+                                },
+                                {
+                                    "name": "code_find_callers",
+                                    "description": "Returns all direct caller symbols of a given qualified function name.",
+                                    "scope": "code",
+                                    "timeout_s": 10,
+                                    "input_schema": { "type": "object", "properties": { "qualified_name": { "type": "string" } }, "required": ["qualified_name"] }
+                                },
+                                {
+                                    "name": "code_find_dead_code",
+                                    "description": "Scans the code graph and returns all private, non-test, non-entrypoint symbols with zero fan-in (unreferenced dead code).",
+                                    "scope": "code",
+                                    "timeout_s": 30,
+                                    "input_schema": { "type": "object", "properties": {}, "required": [] }
+                                },
+                                {
+                                    "name": "code_find_god_functions",
+                                    "description": "Returns functions exceeding configurable thresholds for lines-of-code, cyclomatic complexity, or parameter count.",
+                                    "scope": "code",
+                                    "timeout_s": 15,
+                                    "input_schema": { "type": "object", "properties": {}, "required": [] }
+                                },
+                                {
+                                    "name": "code_check_contract_drift",
+                                    "description": "Verifies AST symbol signatures against HBP contract schemas and reports any drift.",
+                                    "scope": "code",
+                                    "timeout_s": 20,
+                                    "input_schema": { "type": "object", "properties": {}, "required": [] }
+                                }
                             ]
                         });
 
