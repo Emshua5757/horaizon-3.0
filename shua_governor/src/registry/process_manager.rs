@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use anyhow::Result;
 use tokio::sync::{Mutex, RwLock};
@@ -82,15 +83,27 @@ impl ProcessManager {
                 return Ok(());
             }
 
+            let sanitized = name.replace('.', "_");
+            let candidate_binaries = vec![
+                entry.binary.clone(),
+                PathBuf::from(format!("/home/shua/horaizon-3.0/target/release/{sanitized}")),
+                PathBuf::from(format!("/home/shua/horaizon-3.0/{sanitized}/target/release/{sanitized}")),
+                PathBuf::from(format!("../target/release/{sanitized}")),
+                PathBuf::from(format!("../{sanitized}/target/release/{sanitized}")),
+                PathBuf::from(format!("./target/release/{sanitized}")),
+            ];
+
+            let effective_binary = candidate_binaries.into_iter().find(|p| p.exists()).unwrap_or_else(|| entry.binary.clone());
+
             info!(
                 subsystem = "process_manager",
                 module = name,
-                binary = %entry.binary.display(),
+                binary = %effective_binary.display(),
                 ipc_port = self.ipc_port,
                 "Spawning module process with IPC environment injection"
             );
 
-            let mut cmd = tokio::process::Command::new(&entry.binary);
+            let mut cmd = tokio::process::Command::new(&effective_binary);
 
             // Inject Governor IPC environment variables for submodules
             cmd.env("SHUA_GOVERNOR_PID", std::process::id().to_string());
