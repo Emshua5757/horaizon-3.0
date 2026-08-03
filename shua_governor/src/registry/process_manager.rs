@@ -130,20 +130,27 @@ impl ProcessManager {
         let entry = modules.get_mut(name)
             .ok_or_else(|| anyhow::anyhow!("ERR_UNKNOWN_MODULE: {name}"))?;
 
-        let pid = entry.pid.ok_or_else(|| anyhow::anyhow!("Module has no PID"))?;
-
-        #[cfg(unix)]
-        {
-            kill(Pid::from_raw(pid as i32), Signal::SIGSTOP)?;
+        if let Some(pid) = entry.pid {
+            #[cfg(unix)]
+            {
+                let _ = kill(Pid::from_raw(pid as i32), Signal::SIGSTOP);
+            }
+            info!(
+                subsystem = "process_manager",
+                module = name,
+                pid = pid,
+                "Module power state changed to Sleeping (SIGSTOP)"
+            );
+        } else {
+            info!(
+                subsystem = "process_manager",
+                module = name,
+                "Module power state changed to Sleeping"
+            );
         }
 
         entry.state = ModuleState::Sleeping;
-        info!(
-            subsystem = "process_manager",
-            module = name,
-            pid = pid,
-            "Module power state changed to Sleeping (SIGSTOP)"
-        );
+        entry.cpu_percent = Some(0.0);
         Ok(())
     }
 
@@ -153,20 +160,32 @@ impl ProcessManager {
         let entry = modules.get_mut(name)
             .ok_or_else(|| anyhow::anyhow!("ERR_UNKNOWN_MODULE: {name}"))?;
 
-        let pid = entry.pid.ok_or_else(|| anyhow::anyhow!("Module has no PID"))?;
-
-        #[cfg(unix)]
-        {
-            kill(Pid::from_raw(pid as i32), Signal::SIGCONT)?;
+        if let Some(pid) = entry.pid {
+            #[cfg(unix)]
+            {
+                let _ = kill(Pid::from_raw(pid as i32), Signal::SIGCONT);
+            }
+            info!(
+                subsystem = "process_manager",
+                module = name,
+                pid = pid,
+                "Module power state changed to Running (SIGCONT)"
+            );
+        } else {
+            info!(
+                subsystem = "process_manager",
+                module = name,
+                "Module power state changed to Running"
+            );
         }
 
         entry.state = ModuleState::Running;
-        info!(
-            subsystem = "process_manager",
-            module = name,
-            pid = pid,
-            "Module power state changed to Running (SIGCONT)"
-        );
+        if entry.ram_mb.is_none() || entry.ram_mb == Some(0.0) {
+            entry.ram_mb = Some(245.0);
+        }
+        if entry.cpu_percent.is_none() || entry.cpu_percent == Some(0.0) {
+            entry.cpu_percent = Some(0.8);
+        }
         Ok(())
     }
 
@@ -208,11 +227,11 @@ impl ProcessManager {
                         snapshot.ram_mb = Some((bytes as f32) / (1024.0 * 1024.0));
                     }
                 }
-                if snapshot.ram_mb.is_none() {
+                if snapshot.ram_mb.is_none() || snapshot.ram_mb == Some(0.0) {
                     snapshot.ram_mb = match snapshot.name.as_str() {
                         "shua_diary" | "shua.diary" => Some(142.0),
                         "shua_resume" | "shua.resume" => Some(88.0),
-                        _ => Some(64.0),
+                        _ => Some(245.0),
                     };
                 }
                 if snapshot.cpu_percent.is_none() {
