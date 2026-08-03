@@ -158,48 +158,59 @@ impl ProcessManager {
 
                 let mut modules = modules_clone.write().await;
                 if let Some(entry) = modules.get_mut(&name_string) {
+                    let was_intentional = entry.intentional_stop;
                     entry.state = ModuleState::Stopped;
                     entry.pid = None;
                     entry.ipc_tx = None;
-                    entry.tools.clear();
-                    entry.restart_count += 1;
+                    entry.intentional_stop = false;
 
                     let exit_msg = match exit_res {
                         Ok(status) => format!("Exited with status: {status}"),
                         Err(e) => format!("Wait error: {e}"),
                     };
-                    entry.last_error = Some(exit_msg.clone());
 
-                    warn!(
-                        subsystem = "process_manager",
-                        module = %name_string,
-                        exit_status = %exit_msg,
-                        restart_count = entry.restart_count,
-                        "Module process exited unexpectedly — state reset to Stopped"
-                    );
-
-                    let auto_restart = entry.auto_start && entry.restart_count <= 3;
-                    if auto_restart {
+                    if was_intentional {
                         info!(
                             subsystem = "process_manager",
                             module = %name_string,
-                            restart_count = entry.restart_count,
-                            "Auto-restarting module process in 2 seconds"
+                            exit_status = %exit_msg,
+                            "Module process stopped cleanly per governor/user request"
                         );
-                        let modules_arc_again = Arc::clone(&modules_clone);
-                        let name_again = name_string.clone();
-                        tokio::spawn(async move {
-                            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                            let pm_dummy = ProcessManager { modules: modules_arc_again, ipc_port: ipc_port_val };
-                            let _ = pm_dummy.start(&name_again).await;
-                        });
-                    } else if entry.restart_count > 3 {
-                        error!(
+                    } else {
+                        entry.restart_count += 1;
+                        entry.last_error = Some(exit_msg.clone());
+
+                        warn!(
                             subsystem = "process_manager",
                             module = %name_string,
+                            exit_status = %exit_msg,
                             restart_count = entry.restart_count,
-                            "Module exceeded max auto-restart threshold (3) — halting auto-restart"
+                            "Module process exited unexpectedly — state reset to Stopped"
                         );
+
+                        let auto_restart = entry.auto_start && entry.restart_count <= 3;
+                        if auto_restart {
+                            info!(
+                                subsystem = "process_manager",
+                                module = %name_string,
+                                restart_count = entry.restart_count,
+                                "Auto-restarting module process in 2 seconds"
+                            );
+                            let modules_arc_again = Arc::clone(&modules_clone);
+                            let name_again = name_string.clone();
+                            tokio::spawn(async move {
+                                tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                                let pm_dummy = ProcessManager { modules: modules_arc_again, ipc_port: ipc_port_val };
+                                let _ = pm_dummy.start(&name_again).await;
+                            });
+                        } else if entry.restart_count > 3 {
+                            error!(
+                                subsystem = "process_manager",
+                                module = %name_string,
+                                restart_count = entry.restart_count,
+                                "Module exceeded max auto-restart threshold (3) — halting auto-restart"
+                            );
+                        }
                     }
                 }
             });
@@ -308,6 +319,7 @@ impl ProcessManager {
             .ok_or_else(|| anyhow::anyhow!("ERR_UNKNOWN_MODULE: {name}"))?;
         let entry = modules.get_mut(&key).unwrap();
 
+        entry.intentional_stop = true;
         if let Some(pid) = entry.pid {
             #[cfg(unix)]
             {

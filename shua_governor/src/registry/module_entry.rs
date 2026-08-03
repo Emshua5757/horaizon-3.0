@@ -47,6 +47,9 @@ pub struct ModuleEntry {
     pub health_ok: bool,
     /// Number of auto-restarts following crashes
     pub restart_count: u32,
+    /// Flag indicating whether the last stop signal was intentionally issued
+    #[serde(skip)]
+    pub intentional_stop: bool,
     /// Most recent error or crash message
     pub last_error: Option<String>,
 
@@ -169,6 +172,7 @@ impl ModuleEntry {
             uptime_s: None,
             health_ok: true,
             restart_count: 0,
+            intentional_stop: false,
             last_error: None,
             child_handle: None,
             ipc_tx: None,
