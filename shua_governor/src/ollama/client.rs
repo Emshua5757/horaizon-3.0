@@ -198,12 +198,7 @@ pub fn strip_think_tags(text: &str) -> String {
 
     static RE_THINK: Lazy<Regex> =
         Lazy::new(|| Regex::new(r"(?s)<think>.*?</think>").expect("valid regex"));
-    static RE_THINKING_PROC: Lazy<Regex> =
-        Lazy::new(|| Regex::new(r"(?s)^Thinking Process:.*?(?:\n\n|\r\n\r\n)").expect("valid regex"));
-
-    let cleaned = RE_THINK.replace_all(text, "");
-    let cleaned = RE_THINKING_PROC.replace_all(&cleaned, "");
-    cleaned.trim().to_string()
+    RE_THINK.replace_all(text, "").trim().to_string()
 }
 
 impl ChatMessageResponse {

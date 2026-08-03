@@ -84,8 +84,23 @@ impl ModuleEntry {
 
         // Pre-populate tools manifest from contract JSON file if available on disk
         let sanitized = name.replace('.', "_");
-        let manifest_path = format!("_architecture/contracts/mcp/{sanitized}_mcp.json");
-        let (tools, module_scope, manifest_version) = if let Ok(content) = std::fs::read_to_string(&manifest_path) {
+        let candidate_paths = [
+            format!("_architecture/contracts/mcp/{sanitized}_mcp.json"),
+            format!("../_architecture/contracts/mcp/{sanitized}_mcp.json"),
+            format!("/home/shua/horaizon-3.0/_architecture/contracts/mcp/{sanitized}_mcp.json"),
+            format!("/etc/horaizon/_architecture/contracts/mcp/{sanitized}_mcp.json"),
+            format!("/var/lib/horaizon/_architecture/contracts/mcp/{sanitized}_mcp.json"),
+        ];
+
+        let mut found_content = None;
+        for path in &candidate_paths {
+            if let Ok(content) = std::fs::read_to_string(path) {
+                found_content = Some(content);
+                break;
+            }
+        }
+
+        let (tools, module_scope, manifest_version) = if let Some(content) = found_content {
             if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
                 let parsed_tools: Vec<McpToolSchema> = val.get("tools")
                     .and_then(|t| serde_json::from_value(t.clone()).ok())
