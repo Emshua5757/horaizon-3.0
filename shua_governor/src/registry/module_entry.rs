@@ -84,23 +84,35 @@ impl ModuleEntry {
 
         // Pre-populate tools manifest from contract JSON file if available on disk
         let sanitized = name.replace('.', "_");
-        let candidate_paths = [
-            format!("_architecture/contracts/mcp/{sanitized}_mcp.json"),
-            format!("../_architecture/contracts/mcp/{sanitized}_mcp.json"),
-            format!("/home/shua/horaizon-3.0/_architecture/contracts/mcp/{sanitized}_mcp.json"),
-            format!("/etc/horaizon/_architecture/contracts/mcp/{sanitized}_mcp.json"),
-            format!("/var/lib/horaizon/_architecture/contracts/mcp/{sanitized}_mcp.json"),
+        let manifest_filename = format!("{sanitized}_mcp.json");
+
+        let mut candidate_paths: Vec<PathBuf> = vec![
+            PathBuf::from(format!("_architecture/contracts/mcp/{manifest_filename}")),
+            PathBuf::from(format!("../_architecture/contracts/mcp/{manifest_filename}")),
+            PathBuf::from(format!("/home/shua/horaizon-3.0/_architecture/contracts/mcp/{manifest_filename}")),
+            PathBuf::from(format!("/etc/horaizon/_architecture/contracts/mcp/{manifest_filename}")),
+            PathBuf::from(format!("/var/lib/horaizon/_architecture/contracts/mcp/{manifest_filename}")),
         ];
 
+        if let Ok(cwd) = std::env::current_dir() {
+            candidate_paths.push(cwd.join("_architecture/contracts/mcp").join(&manifest_filename));
+            if let Some(parent) = cwd.parent() {
+                candidate_paths.push(parent.join("_architecture/contracts/mcp").join(&manifest_filename));
+            }
+        }
+
         let mut found_content = None;
+        let mut searched_paths = Vec::new();
+
         for path in &candidate_paths {
+            searched_paths.push(path.display().to_string());
             if let Ok(content) = std::fs::read_to_string(path) {
-                found_content = Some(content);
+                found_content = Some((content, path.clone()));
                 break;
             }
         }
 
-        let (tools, module_scope, manifest_version) = if let Some(content) = found_content {
+        let (tools, module_scope, manifest_version) = if let Some((content, matched_path)) = found_content {
             if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
                 let parsed_tools: Vec<McpToolSchema> = val.get("tools")
                     .and_then(|t| serde_json::from_value(t.clone()).ok())
@@ -112,6 +124,7 @@ impl ModuleEntry {
                     module = %name,
                     tools_count = parsed_tools.len(),
                     scope = %scope,
+                    manifest_path = %matched_path.display(),
                     "Pre-populated MCP tools from contract manifest JSON"
                 );
                 (
@@ -120,9 +133,21 @@ impl ModuleEntry {
                     Some(version),
                 )
             } else {
+                tracing::warn!(
+                    subsystem = "module_entry",
+                    module = %name,
+                    manifest_path = %matched_path.display(),
+                    "Failed to parse contract manifest JSON file"
+                );
                 (Vec::new(), None, None)
             }
         } else {
+            tracing::warn!(
+                subsystem = "module_entry",
+                module = %name,
+                searched = ?searched_paths,
+                "Could not find MCP contract manifest JSON on disk — tools initialized empty"
+            );
             (Vec::new(), None, None)
         };
 
