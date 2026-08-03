@@ -81,6 +81,29 @@ impl ModuleEntry {
             "/sys/fs/cgroup/horaizon/{}",
             name.replace('.', "_")
         ));
+
+        // Pre-populate tools manifest from contract JSON file if available on disk
+        let sanitized = name.replace('.', "_");
+        let manifest_path = format!("_architecture/contracts/mcp/{sanitized}_mcp.json");
+        let (tools, module_scope, manifest_version) = if let Ok(content) = std::fs::read_to_string(&manifest_path) {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
+                let parsed_tools: Vec<McpToolSchema> = val.get("tools")
+                    .and_then(|t| serde_json::from_value(t.clone()).ok())
+                    .unwrap_or_default();
+                let scope = val["scope"].as_str().unwrap_or("").to_string();
+                let version = val["version"].as_str().unwrap_or("0.1.0").to_string();
+                (
+                    parsed_tools,
+                    if scope.is_empty() { None } else { Some(scope) },
+                    Some(version),
+                )
+            } else {
+                (Vec::new(), None, None)
+            }
+        } else {
+            (Vec::new(), None, None)
+        };
+
         Self {
             name: name.to_string(),
             binary,
@@ -97,9 +120,9 @@ impl ModuleEntry {
             last_error: None,
             child_handle: None,
             ipc_tx: None,
-            tools: Vec::new(),
-            module_scope: None,
-            manifest_version: None,
+            tools,
+            module_scope,
+            manifest_version,
             pending_calls: Arc::new(Mutex::new(HashMap::new())),
         }
     }

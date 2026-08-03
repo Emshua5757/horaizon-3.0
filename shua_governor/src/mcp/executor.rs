@@ -221,15 +221,90 @@ impl McpExecutor {
                         }
                     }
                     Some(entry) if entry.ipc_tx.is_none() => {
-                        warn!(subsystem = "mcp_executor", tool = %call.name, module = %entry.name, "Submodule owns tool but is not connected over IPC");
-                        McpToolResponse {
-                            tool_name: call.name.clone(),
-                            success: false,
-                            result: serde_json::Value::Null,
-                            error: Some(format!(
-                                "'{}' owns tool '{}' but is not connected over IPC. Wake it first: governor_wake_module(\"{}\")",
-                                entry.name, call.name, entry.name
-                            )),
+                        info!(
+                            subsystem = "mcp_executor",
+                            tool = %call.name,
+                            module = %entry.name,
+                            "Submodule owns tool but is not connected over IPC — auto-waking submodule..."
+                        );
+                        let mod_name = entry.name.clone();
+                        drop(modules); // drop read lock before calling async wake
+
+                        let _ = process_manager.wake(&mod_name).await;
+
+                        // Wait up to 3 seconds for IPC connection handshake
+                        let start = std::time::Instant::now();
+                        let mut connected_tx = None;
+                        while start.elapsed().as_secs() < 3 {
+                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                            let mods = process_manager.modules.read().await;
+                            if let Some(e) = mods.get(&mod_name) {
+                                if let Some(ref tx) = e.ipc_tx {
+                                    connected_tx = Some(tx.clone());
+                                    break;
+                                }
+                            }
+                        }
+
+                        if let Some(tx) = connected_tx {
+                            let timeout_secs = 15;
+                            let req_id = uuid::Uuid::new_v4().to_string();
+                            let (tx_one, rx_one) = tokio::sync::oneshot::channel::<serde_json::Value>();
+
+                            {
+                                let mods = process_manager.modules.read().await;
+                                if let Some(e) = mods.get(&mod_name) {
+                                    e.pending_calls.lock().await.insert(req_id.clone(), tx_one);
+                                }
+                            }
+
+                            let dispatch_frame = serde_json::json!({
+                                "op": "mcp.tool_call",
+                                "id": req_id,
+                                "tool": call.name,
+                                "args": call.arguments,
+                            });
+
+                            if tx.send(dispatch_frame.to_string()).is_ok() {
+                                match tokio::time::timeout(tokio::time::Duration::from_secs(timeout_secs), rx_one).await {
+                                    Ok(Ok(result)) => {
+                                        let is_error = result.is_object() && result.get("error").is_some();
+                                        McpToolResponse {
+                                            tool_name: call.name.clone(),
+                                            success: !is_error,
+                                            result: if is_error { serde_json::Value::Null } else { result.clone() },
+                                            error: if is_error {
+                                                result.get("error").and_then(|e| e.as_str()).map(|s| s.to_string())
+                                            } else {
+                                                None
+                                            },
+                                        }
+                                    }
+                                    _ => McpToolResponse {
+                                        tool_name: call.name.clone(),
+                                        success: false,
+                                        result: serde_json::Value::Null,
+                                        error: Some(format!("Tool call failed after auto-wake: '{}'", call.name)),
+                                    },
+                                }
+                            } else {
+                                McpToolResponse {
+                                    tool_name: call.name.clone(),
+                                    success: false,
+                                    result: serde_json::Value::Null,
+                                    error: Some(format!("Failed to send IPC frame after waking '{}'", mod_name)),
+                                }
+                            }
+                        } else {
+                            McpToolResponse {
+                                tool_name: call.name.clone(),
+                                success: false,
+                                result: serde_json::Value::Null,
+                                error: Some(format!(
+                                    "'{}' owns tool '{}' but failed to connect over IPC within 3s after auto-wake.",
+                                    mod_name, call.name
+                                )),
+                            }
                         }
                     }
                     Some(entry) => {
