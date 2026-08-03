@@ -345,7 +345,7 @@ impl McpAgentLoop {
                 .chat_with_tools_stream(
                     model,
                     messages.clone(),
-                    tools_for_this_turn,
+                    tools_for_this_turn.clone(),
                     keep_alive,
                     move |delta| {
                         if let Some(ref ds) = delta_sender_clone {
@@ -356,6 +356,46 @@ impl McpAgentLoop {
                 .await
             {
                 Ok(r) => r,
+                Err(e) if tools_for_this_turn.is_some() => {
+                    warn!(
+                        subsystem = "agent_loop",
+                        model = model,
+                        error = %e,
+                        "Model rejected native tools array (HTTP 400) — falling back to text prompt tool context"
+                    );
+                    let delta_sender_fallback = delta_sender.clone();
+                    match client
+                        .chat_with_tools_stream(
+                            model,
+                            messages.clone(),
+                            None,
+                            keep_alive,
+                            move |delta| {
+                                if let Some(ref ds) = delta_sender_fallback {
+                                    let _ = ds.send(delta.to_string());
+                                }
+                            },
+                        )
+                        .await
+                    {
+                        Ok(r) => r,
+                        Err(e2) => {
+                            let err_msg = format!("{}", e2);
+                            error!(
+                                subsystem = "agent_loop",
+                                prompt = %effective_prompt,
+                                target_url = %client.base_url(),
+                                model = model,
+                                error = %err_msg,
+                                turn = iterations,
+                                "LLM chat call failed in agent loop"
+                            );
+                            last_error = Some(err_msg);
+                            exit_reason = "llm_error";
+                            break;
+                        }
+                    }
+                }
                 Err(e) => {
                     let err_msg = format!("{}", e);
                     error!(
