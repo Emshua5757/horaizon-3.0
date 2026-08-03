@@ -215,24 +215,23 @@ impl ProcessManager {
         Ok(())
     }
 
-fn read_proc_rss_mb(pid: u32) -> Option<f32> {
-    let path = format!("/proc/{pid}/status");
-    if let Ok(content) = std::fs::read_to_string(path) {
-        for line in content.lines() {
-            if line.starts_with("VmRSS:") {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    if let Ok(kb) = parts[1].parse::<f32>() {
-                        return Some(kb / 1024.0);
+    fn read_proc_rss_mb(pid: u32) -> Option<f32> {
+        let path = format!("/proc/{pid}/status");
+        if let Ok(content) = std::fs::read_to_string(path) {
+            for line in content.lines() {
+                if line.starts_with("VmRSS:") {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        if let Ok(kb) = parts[1].parse::<f32>() {
+                            return Some(kb / 1024.0);
+                        }
                     }
                 }
             }
         }
+        None
     }
-    None
-}
 
-impl ProcessManager {
     /// Get a snapshot of all module states with live telemetry for governor.status
     pub async fn status_snapshot(&self) -> Vec<ModuleEntry> {
         let modules = self.modules.read().await;
