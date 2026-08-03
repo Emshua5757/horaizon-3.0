@@ -70,7 +70,7 @@ class OllamaAiService {
         final userPrompt = messages.lastWhere((m) => m.role == ChatRole.user, orElse: () => messages.last).content;
         final offloadUrl = effectiveNode == AiOffloadTarget.windowsHost ? 'http://127.0.0.1:11434' : '';
 
-        _log('[HBP v2] Dispatching governor.ai.route (scope: "$contextHint", target: ${effectiveNode.shortLabel}, offload: "$offloadUrl", prompt: "$userPrompt")...');
+        _log('[HBP v2] Dispatching governor.ai.route (scope: "$contextHint", target: ${effectiveNode.shortLabel}, offload: "$offloadUrl", prompt: "$userPrompt")');
 
         final p = Packer();
         p.packMapLength(5);
@@ -135,8 +135,7 @@ class OllamaAiService {
             if (reply.isEmpty) {
               _log('[HBP v2] WARNING: decoded reply is EMPTY — payloadMap keys=${payloadMap.keys.toList()}', LogLevel.warn);
             } else {
-              final replyPreview = reply.length > 80 ? '${reply.substring(0, 80)}...' : reply;
-              _log('[HBP v2] shua_governor agent loop finished ($iterations turns, tools: $toolsCalled, steps: ${steps.length}): $replyPreview');
+              _log('[HBP v2] shua_governor agent loop finished ($iterations turns, tools: $toolsCalled, steps: ${steps.length}): $reply');
             }
 
             chunkController.add(OllamaStreamChunk(content: reply, done: true, routedNode: effectiveNode, steps: steps));

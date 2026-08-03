@@ -322,7 +322,8 @@ impl McpAgentLoop {
                 force_tool_choice = force_tool_choice,
                 prompt_truncated = prompt_truncated,
                 full_messages = %serde_json::to_string(&messages).unwrap_or_default(),
-                "Executing N-turn agent loop iteration — full prompt fed to Ollama logged above"
+                tools_schema = %serde_json::to_string(&tools_json).unwrap_or_default(),
+                "⚡ FEEDING FULL PROMPT & MCP TOOLS TO OLLAMA"
             );
 
             // If a tool requirement was already satisfied in a previous turn, remind model not to re-trigger tools

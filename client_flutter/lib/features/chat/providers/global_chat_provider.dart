@@ -266,10 +266,7 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
         );
 
         if (chunk.done) {
-          // ── Telemetry: log full reply preview + stats ──────────────
-          final replyPreview = finalContent.length > 120
-              ? '${finalContent.substring(0, 120)}…'
-              : finalContent;
+          // ── Telemetry: log full reply + stats ──────────────
           final tokStr = chunk.evalTokensPerSec?.toStringAsFixed(1) ?? 'N/A';
           final durationStr = chunk.totalDurationMs != null
               ? '${chunk.totalDurationMs}ms'
@@ -277,7 +274,7 @@ class GlobalChatNotifier extends StateNotifier<GlobalChatState> {
           _logger?.log(
             subsystem: 'AI_CHAT',
             level: LogLevel.info,
-            message: 'JOSH reply ($tokStr tok/s, $durationStr, $chunkCount chunks): $replyPreview',
+            message: 'JOSH reply ($tokStr tok/s, $durationStr, $chunkCount chunks): $finalContent',
             metadata: {
               'model': state.selectedModel,
               'target': targetNode.shortLabel,
