@@ -14,17 +14,23 @@ fn normalize_path(path: &str) -> String {
     path.replace('\\', "/")
 }
 
-/// Checks if string matches module path target respecting boundary delimiters (`/`, `::`, `.`)
+/// Checks if string matches module path target respecting boundary delimiters (`/`, `::`, `.`) and dot/underscore variants
 fn is_module_match(file: &str, qualified_name: &str, target: &str) -> bool {
+    let target_clean = target.trim();
+    if target_clean.is_empty() {
+        return true;
+    }
+    let target_underscore = target_clean.replace('.', "_");
+    let target_dot = target_clean.replace('_', ".");
+
     let check = |s: &str| {
-        if s == target {
+        if s == target_clean || s == target_underscore || s == target_dot {
             return true;
         }
-        if let Some(remainder) = s.strip_prefix(target) {
-            remainder.starts_with('/') || remainder.starts_with("::") || remainder.starts_with('.')
-        } else {
-            false
+        if s.contains(&target_clean) || s.contains(&target_underscore) || s.contains(&target_dot) {
+            return true;
         }
+        false
     };
     check(file) || check(qualified_name)
 }
