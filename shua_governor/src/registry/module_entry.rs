@@ -107,6 +107,13 @@ impl ModuleEntry {
                     .unwrap_or_default();
                 let scope = val["scope"].as_str().unwrap_or("").to_string();
                 let version = val["version"].as_str().unwrap_or("0.1.0").to_string();
+                tracing::info!(
+                    subsystem = "module_entry",
+                    module = %name,
+                    tools_count = parsed_tools.len(),
+                    scope = %scope,
+                    "Pre-populated MCP tools from contract manifest JSON"
+                );
                 (
                     parsed_tools,
                     if scope.is_empty() { None } else { Some(scope) },
