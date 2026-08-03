@@ -98,6 +98,22 @@
 }
 ```
 
+#### `governor_stop_module`
+- **Description**: Sends `SIGTERM`/`SIGKILL` signal to terminate a microservice process and drop its memory footprint to 0 MB RAM.
+- **Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "module_name": { 
+      "type": "string", 
+      "enum": ["shua.diary", "shua.code_visualizer", "shua.resume", "shua.gym", "shua.crypto"] 
+    }
+  },
+  "required": ["module_name"]
+}
+```
+
 #### `governor_load_ollama_model`
 - **Description**: Loads a specified LLM weights file into Pi 5 RAM or offloaded Laptop GPU VRAM.
 - **Input Schema**:

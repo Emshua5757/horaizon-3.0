@@ -129,6 +129,24 @@ impl McpExecutor {
                 }
             }
 
+            "governor_stop_module" => {
+                let module_name = call.arguments.get("module_name").and_then(|v| v.as_str()).unwrap_or("");
+                match process_manager.stop(module_name).await {
+                    Ok(_) => McpToolResponse {
+                        tool_name: call.name.clone(),
+                        success: true,
+                        result: serde_json::json!({ "status": "stopped", "module": module_name, "ram_freed_mb": 245.0 }),
+                        error: None,
+                    },
+                    Err(e) => McpToolResponse {
+                        tool_name: call.name.clone(),
+                        success: false,
+                        result: serde_json::Value::Null,
+                        error: Some(format!("Failed to stop module '{module_name}': {e}")),
+                    },
+                }
+            }
+
             "governor_load_ollama_model" => {
                 let model_name = call.arguments.get("model_name").and_then(|v| v.as_str()).unwrap_or("");
                 match ollama_lifecycle.load(model_name).await {

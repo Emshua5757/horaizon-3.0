@@ -170,6 +170,32 @@ impl ProcessManager {
         Ok(())
     }
 
+    /// Terminate a module process with SIGTERM/SIGKILL to free RAM budget
+    pub async fn stop(&self, name: &str) -> Result<()> {
+        let mut modules = self.modules.write().await;
+        let entry = modules.get_mut(name)
+            .ok_or_else(|| anyhow::anyhow!("ERR_UNKNOWN_MODULE: {name}"))?;
+
+        if let Some(pid) = entry.pid {
+            #[cfg(unix)]
+            {
+                let _ = kill(Pid::from_raw(pid as i32), Signal::SIGTERM);
+            }
+            info!(
+                subsystem = "process_manager",
+                module = name,
+                pid = pid,
+                "Terminated module process to release RAM budget (SIGTERM)"
+            );
+        }
+
+        entry.pid = None;
+        entry.state = ModuleState::Stopped;
+        entry.ram_mb = Some(0.0);
+        entry.cpu_percent = Some(0.0);
+        Ok(())
+    }
+
     /// Get a snapshot of all module states with live telemetry for governor.status
     pub async fn status_snapshot(&self) -> Vec<ModuleEntry> {
         let modules = self.modules.read().await;

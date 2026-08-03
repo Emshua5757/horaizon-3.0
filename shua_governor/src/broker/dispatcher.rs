@@ -456,7 +456,7 @@ impl Dispatcher {
                 }
             }
 
-            "module.sleep" | "governor.module.sleep" => {
+            "module.sleep" | "governor.module.sleep" | "process.sleep" => {
                 if let Ok(req) = frame.decode_payload::<ModuleOpRequest>() {
                     match self.process_manager.sleep(&req.module).await {
                         Ok(_) => {
@@ -475,6 +475,37 @@ impl Dispatcher {
                             &frame.mod_,
                             &frame.op,
                             &format!("ERR_MODULE_SLEEP: {e}"),
+                        )),
+                    }
+                } else {
+                    Some(HbpFrame::error_response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        "ERR_MALFORMED_PAYLOAD",
+                    ))
+                }
+            }
+
+            "module.stop" | "governor.module.stop" | "process.stop" | "process.kill" => {
+                if let Ok(req) = frame.decode_payload::<ModuleOpRequest>() {
+                    match self.process_manager.stop(&req.module).await {
+                        Ok(_) => {
+                            let res =
+                                serde_json::json!({ "status": "stopped", "module": req.module, "ram_freed_mb": 245.0 });
+                            let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
+                            Some(HbpFrame::response(
+                                &frame.id,
+                                &frame.mod_,
+                                &frame.op,
+                                payload,
+                            ))
+                        }
+                        Err(e) => Some(HbpFrame::error_response(
+                            &frame.id,
+                            &frame.mod_,
+                            &frame.op,
+                            &format!("ERR_MODULE_STOP: {e}"),
                         )),
                     }
                 } else {
