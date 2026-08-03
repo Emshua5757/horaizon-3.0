@@ -180,7 +180,40 @@ impl ModuleEntry {
     }
 
     #[allow(dead_code)]
+    pub fn is_running(&self) -> bool {
+        matches!(self.state, ModuleState::Running | ModuleState::IpcConnected)
+    }
+
+    #[allow(dead_code)]
     pub fn is_alive(&self) -> bool {
         matches!(self.state, ModuleState::Running | ModuleState::IpcConnected | ModuleState::Sleeping)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_prepopulate_shua_code_visualizer_mcp_manifest() {
+        let entry = ModuleEntry::new(
+            "shua.code_visualizer",
+            PathBuf::from("/usr/local/bin/shua_code_visualizer"),
+            false,
+            Some(128),
+        );
+
+        println!("Loaded module scope: {:?}", entry.module_scope);
+        println!("Loaded manifest version: {:?}", entry.manifest_version);
+        println!("Loaded tools count: {}", entry.tools.len());
+        for tool in &entry.tools {
+            println!("  - Tool: {} (scope: {})", tool.name, tool.scope);
+        }
+
+        assert_eq!(entry.tools.len(), 8, "Expected 8 code_* MCP tools from manifest");
+        assert_eq!(entry.module_scope.as_deref(), Some("code"));
+        assert!(entry.tools.iter().any(|t| t.name == "code_parse_ast"));
+        assert!(entry.tools.iter().any(|t| t.name == "code_read_file"));
+        assert!(entry.tools.iter().any(|t| t.name == "code_render_graph"));
     }
 }
