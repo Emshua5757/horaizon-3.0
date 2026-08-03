@@ -23,6 +23,14 @@ final isolationDepthProvider = StateProvider<int>((ref) => 0); // 0 = off, 1 = 1
 final pathStartNodeProvider = StateProvider<TopologyNodeModel?>((ref) => null);
 final pathEndNodeProvider = StateProvider<TopologyNodeModel?>((ref) => null);
 
+// Dynamic Physics Tuning Providers (Calm, stable defaults)
+final physicsRepulsionProvider = StateProvider<double>((ref) => 12000.0);
+final physicsSpringProvider = StateProvider<double>((ref) => 0.05);
+final physicsModuleAttractorProvider = StateProvider<double>((ref) => 0.035);
+final physicsGravityProvider = StateProvider<double>((ref) => 0.003);
+final physicsMaxVelocityProvider = StateProvider<double>((ref) => 32.0);
+final physicsDampingProvider = StateProvider<double>((ref) => 0.80);
+
 /// Provider constructing the active TopologyDataSource (Standalone vs Managed)
 final topologyDataSourceProvider = Provider<TopologyDataSource>((ref) {
   final targetPath = ref.watch(activeWorkspacePathProvider);

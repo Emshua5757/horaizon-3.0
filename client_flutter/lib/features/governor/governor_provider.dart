@@ -302,12 +302,15 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
     final current = state.valueOrNull ?? GovernorStatus.mock();
     final logger = ref.read(governorLoggerProvider);
     final updated = current.modules.map((m) {
-      if (m.name == name) {
+      final isMatch = m.name == name ||
+          m.name.replaceAll('.', '_') == name.replaceAll('.', '_') ||
+          (m.name.contains('code') && name.contains('code'));
+      if (isMatch) {
         return ModuleStatus(
           name: m.name,
           state: ModuleState.running,
-          ramMb: m.ramMb > 0 ? m.ramMb : 128.0,
-          cpuPercent: 1.5,
+          ramMb: m.ramMb > 0 ? m.ramMb : 245.0,
+          cpuPercent: 0.8,
           healthOk: true,
         );
       }
@@ -340,7 +343,10 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
     final current = state.valueOrNull ?? GovernorStatus.mock();
     final logger = ref.read(governorLoggerProvider);
     final updated = current.modules.map((m) {
-      if (m.name == name) {
+      final isMatch = m.name == name ||
+          m.name.replaceAll('.', '_') == name.replaceAll('.', '_') ||
+          (m.name.contains('code') && name.contains('code'));
+      if (isMatch) {
         return ModuleStatus(
           name: m.name,
           state: ModuleState.sleeping,
@@ -371,6 +377,47 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
       }
     } catch (e) {
       logger.log(subsystem: 'GOVERNOR', level: LogLevel.error, message: 'Sleep process RPC error: $e');
+    }
+  }
+
+  Future<void> stopModule(String name) async {
+    final current = state.valueOrNull ?? GovernorStatus.mock();
+    final logger = ref.read(governorLoggerProvider);
+    final updated = current.modules.map((m) {
+      final isMatch = m.name == name ||
+          m.name.replaceAll('.', '_') == name.replaceAll('.', '_') ||
+          (m.name.contains('code') && name.contains('code'));
+      if (isMatch) {
+        return ModuleStatus(
+          name: m.name,
+          state: ModuleState.stopped,
+          ramMb: 0.0,
+          cpuPercent: 0.0,
+          healthOk: false,
+        );
+      }
+      return m;
+    }).toList();
+
+    state = AsyncData(current.copyWith(modules: updated));
+
+    logger.log(
+      subsystem: 'GOVERNOR',
+      level: LogLevel.info,
+      message: 'Governor terminating microservice to release RAM: $name',
+    );
+
+    try {
+      final client = ref.read(hbpClientProvider).valueOrNull;
+      if (client != null && client.currentState == HbpConnectionState.connected) {
+        final p = Packer();
+        p.packMapLength(1);
+        p.packString('name');
+        p.packString(name);
+        await client.send(HbpFrame.request('shua.governor', 'process.stop', p.takeBytes()));
+      }
+    } catch (e) {
+      logger.log(subsystem: 'GOVERNOR', level: LogLevel.error, message: 'Stop process RPC error: $e');
     }
   }
 }
