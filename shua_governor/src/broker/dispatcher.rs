@@ -428,7 +428,7 @@ impl Dispatcher {
 
             "module.wake" | "governor.module.wake" | "process.wake" | "governor.process.wake" => {
                 info!(subsystem = "dispatcher", op = %frame.op, "Received process.wake request");
-                match frame.decode_module_op_request() {
+                match frame.decode_payload::<ModuleOpRequest>() {
                     Ok(req) => {
                         info!(subsystem = "dispatcher", module = %req.module, "Decoded ModuleOpRequest payload for wake");
                         match self.process_manager.wake(&req.module).await {
@@ -469,7 +469,7 @@ impl Dispatcher {
 
             "module.sleep" | "governor.module.sleep" | "process.sleep" => {
                 info!(subsystem = "dispatcher", op = %frame.op, "Received process.sleep request");
-                match frame.decode_module_op_request() {
+                match frame.decode_payload::<ModuleOpRequest>() {
                     Ok(req) => {
                         match self.process_manager.sleep(&req.module).await {
                             Ok(_) => {
@@ -505,7 +505,7 @@ impl Dispatcher {
 
             "module.stop" | "governor.module.stop" | "process.stop" | "process.kill" => {
                 info!(subsystem = "dispatcher", op = %frame.op, "Received process.stop request");
-                match frame.decode_module_op_request() {
+                match frame.decode_payload::<ModuleOpRequest>() {
                     Ok(req) => {
                         match self.process_manager.stop(&req.module).await {
                             Ok(_) => {

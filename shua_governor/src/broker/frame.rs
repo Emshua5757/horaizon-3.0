@@ -171,42 +171,9 @@ impl HbpFrame {
         rmp_serde::from_slice(bytes).map_err(|e| anyhow::anyhow!("Decode error: {e}"))
     }
 
-    /// Decode the payload field as a typed struct (supports MessagePack & JSON)
+    /// Decode the payload field as a typed struct (MessagePack)
     pub fn decode_payload<T: for<'de> serde::Deserialize<'de>>(&self) -> Result<T> {
-        if self.p.is_empty() {
-            return Err(anyhow::anyhow!("Payload is empty"));
-        }
-        if let Ok(val) = rmp_serde::from_slice(&self.p) {
-            return Ok(val);
-        }
-        if let Ok(val) = serde_json::from_slice(&self.p) {
-            return Ok(val);
-        }
-        Err(anyhow::anyhow!("Failed to decode payload (len={})", self.p.len()))
-    }
-
-    /// Flexible decoder for ModuleOpRequest accepting Maps, JSON, MsgPack, or raw strings
-    pub fn decode_module_op_request(&self) -> Result<super::dispatcher::ModuleOpRequest> {
-        if let Ok(req) = self.decode_payload::<super::dispatcher::ModuleOpRequest>() {
-            return Ok(req);
-        }
-        if let Ok(name) = rmp_serde::from_slice::<String>(&self.p) {
-            return Ok(super::dispatcher::ModuleOpRequest { module: name });
-        }
-        if let Ok(name) = serde_json::from_slice::<String>(&self.p) {
-            return Ok(super::dispatcher::ModuleOpRequest { module: name });
-        }
-        if let Ok(map) = rmp_serde::from_slice::<serde_json::Value>(&self.p) {
-            if let Some(m) = map.get("module").or_else(|| map.get("name")).and_then(|v| v.as_str()) {
-                return Ok(super::dispatcher::ModuleOpRequest { module: m.to_string() });
-            }
-        }
-        if let Ok(map) = serde_json::from_slice::<serde_json::Value>(&self.p) {
-            if let Some(m) = map.get("module").or_else(|| map.get("name")).and_then(|v| v.as_str()) {
-                return Ok(super::dispatcher::ModuleOpRequest { module: m.to_string() });
-            }
-        }
-        Err(anyhow::anyhow!("Could not decode payload as ModuleOpRequest (bytes: {:?})", self.p))
+        rmp_serde::from_slice(&self.p).map_err(|e| anyhow::anyhow!("Payload decode error: {e}"))
     }
 
     /// Encode a typed struct into the payload field bytes

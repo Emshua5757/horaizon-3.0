@@ -340,10 +340,8 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
       final client = ref.read(hbpClientProvider).valueOrNull;
       if (client != null && client.currentState == HbpConnectionState.connected) {
         final p = Packer();
-        p.packMapLength(2);
+        p.packMapLength(1);
         p.packString('module');
-        p.packString(name);
-        p.packString('name');
         p.packString(name);
         await client.send(HbpFrame.request('shua.governor', 'process.wake', p.takeBytes()));
       }
@@ -383,10 +381,8 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
       final client = ref.read(hbpClientProvider).valueOrNull;
       if (client != null && client.currentState == HbpConnectionState.connected) {
         final p = Packer();
-        p.packMapLength(2);
+        p.packMapLength(1);
         p.packString('module');
-        p.packString(name);
-        p.packString('name');
         p.packString(name);
         await client.send(HbpFrame.request('shua.governor', 'process.sleep', p.takeBytes()));
       }
@@ -426,10 +422,8 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
       final client = ref.read(hbpClientProvider).valueOrNull;
       if (client != null && client.currentState == HbpConnectionState.connected) {
         final p = Packer();
-        p.packMapLength(2);
+        p.packMapLength(1);
         p.packString('module');
-        p.packString(name);
-        p.packString('name');
         p.packString(name);
         await client.send(HbpFrame.request('shua.governor', 'process.stop', p.takeBytes()));
       }
