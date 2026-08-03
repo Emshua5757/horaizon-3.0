@@ -217,7 +217,7 @@ impl McpAgentLoop {
         // Subsequent turns receive None to avoid re-serialising the full schema
         // on every loop iteration, which wastes Pi 5 RAM and serialisation CPU.
         let aggregator = McpAggregator::new();
-        let mcp_schemas = aggregator.get_system_tools();
+        let mcp_schemas = aggregator.get_tools_for_scope(scope).await;
         let tools_json: Vec<serde_json::Value> = mcp_schemas
             .into_iter()
             .map(|t| {

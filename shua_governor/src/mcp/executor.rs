@@ -205,6 +205,36 @@ impl McpExecutor {
                 }
             }
 
+            name if name.starts_with("code_") => {
+                info!(
+                    subsystem = "mcp_executor",
+                    tool_name = %name,
+                    "Delegating tool call to shua_code_visualizer process space"
+                );
+
+                // 1. Ensure shua.code_visualizer is awake
+                let _ = process_manager.wake("shua.code_visualizer").await;
+
+                // 2. Delegate execution directly to shua_code_visualizer McpHandler
+                let mut graph = shua_code_visualizer::graph::store::CodeGraph::new();
+                let mut handler = shua_code_visualizer::mcp::handler::McpHandler::new(&mut graph, None);
+
+                match handler.handle_tool_call(name, &call.arguments) {
+                    Ok(val) => McpToolResponse {
+                        tool_name: call.name.clone(),
+                        success: true,
+                        result: val,
+                        error: None,
+                    },
+                    Err(e) => McpToolResponse {
+                        tool_name: call.name.clone(),
+                        success: false,
+                        result: serde_json::Value::Null,
+                        error: Some(format!("Error executing '{name}' in shua_code_visualizer: {e}")),
+                    },
+                }
+            }
+
             _ => {
                 warn!(subsystem = "mcp_executor", tool_name = %call.name, "Unknown MCP tool requested");
                 McpToolResponse {
