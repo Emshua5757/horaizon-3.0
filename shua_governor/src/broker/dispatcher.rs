@@ -428,101 +428,114 @@ impl Dispatcher {
 
             "module.wake" | "governor.module.wake" | "process.wake" | "governor.process.wake" => {
                 info!(subsystem = "dispatcher", op = %frame.op, "Received process.wake request");
-                if let Ok(req) = frame.decode_payload::<ModuleOpRequest>() {
-                    info!(subsystem = "dispatcher", module = %req.module, "Decoded ModuleOpRequest payload for wake");
-                    match self.process_manager.wake(&req.module).await {
-                        Ok(_) => {
-                            info!(subsystem = "dispatcher", module = %req.module, "Successfully executed wake in ProcessManager");
-                            let res =
-                                serde_json::json!({ "status": "woken", "module": req.module });
-                            let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
-                            Some(HbpFrame::response(
-                                &frame.id,
-                                &frame.mod_,
-                                &frame.op,
-                                payload,
-                            ))
-                        }
-                        Err(e) => {
-                            warn!(subsystem = "dispatcher", module = %req.module, error = %e, "ProcessManager wake failed");
-                            Some(HbpFrame::error_response(
-                                &frame.id,
-                                &frame.mod_,
-                                &frame.op,
-                                &format!("ERR_MODULE_WAKE: {e}"),
-                            ))
+                match frame.decode_module_op_request() {
+                    Ok(req) => {
+                        info!(subsystem = "dispatcher", module = %req.module, "Decoded ModuleOpRequest payload for wake");
+                        match self.process_manager.wake(&req.module).await {
+                            Ok(_) => {
+                                info!(subsystem = "dispatcher", module = %req.module, "Successfully executed wake in ProcessManager");
+                                let res =
+                                    serde_json::json!({ "status": "woken", "module": req.module });
+                                let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
+                                Some(HbpFrame::response(
+                                    &frame.id,
+                                    &frame.mod_,
+                                    &frame.op,
+                                    payload,
+                                ))
+                            }
+                            Err(e) => {
+                                warn!(subsystem = "dispatcher", module = %req.module, error = %e, "ProcessManager wake failed");
+                                Some(HbpFrame::error_response(
+                                    &frame.id,
+                                    &frame.mod_,
+                                    &frame.op,
+                                    &format!("ERR_MODULE_WAKE: {e}"),
+                                ))
+                            }
                         }
                     }
-                } else {
-                    warn!(subsystem = "dispatcher", op = %frame.op, "Failed to decode payload for ModuleOpRequest");
-                    Some(HbpFrame::error_response(
-                        &frame.id,
-                        &frame.mod_,
-                        &frame.op,
-                        "ERR_MALFORMED_PAYLOAD",
-                    ))
+                    Err(e) => {
+                        warn!(subsystem = "dispatcher", op = %frame.op, error = %e, "Failed to decode payload for ModuleOpRequest");
+                        Some(HbpFrame::error_response(
+                            &frame.id,
+                            &frame.mod_,
+                            &frame.op,
+                            "ERR_MALFORMED_PAYLOAD",
+                        ))
+                    }
                 }
             }
 
             "module.sleep" | "governor.module.sleep" | "process.sleep" => {
-                if let Ok(req) = frame.decode_payload::<ModuleOpRequest>() {
-                    match self.process_manager.sleep(&req.module).await {
-                        Ok(_) => {
-                            let res =
-                                serde_json::json!({ "status": "sleeping", "module": req.module });
-                            let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
-                            Some(HbpFrame::response(
+                info!(subsystem = "dispatcher", op = %frame.op, "Received process.sleep request");
+                match frame.decode_module_op_request() {
+                    Ok(req) => {
+                        match self.process_manager.sleep(&req.module).await {
+                            Ok(_) => {
+                                let res =
+                                    serde_json::json!({ "status": "sleeping", "module": req.module });
+                                let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
+                                Some(HbpFrame::response(
+                                    &frame.id,
+                                    &frame.mod_,
+                                    &frame.op,
+                                    payload,
+                                ))
+                            }
+                            Err(e) => Some(HbpFrame::error_response(
                                 &frame.id,
                                 &frame.mod_,
                                 &frame.op,
-                                payload,
-                            ))
+                                &format!("ERR_MODULE_SLEEP: {e}"),
+                            )),
                         }
-                        Err(e) => Some(HbpFrame::error_response(
+                    }
+                    Err(e) => {
+                        warn!(subsystem = "dispatcher", op = %frame.op, error = %e, "Failed to decode payload for ModuleOpRequest");
+                        Some(HbpFrame::error_response(
                             &frame.id,
                             &frame.mod_,
                             &frame.op,
-                            &format!("ERR_MODULE_SLEEP: {e}"),
-                        )),
+                            "ERR_MALFORMED_PAYLOAD",
+                        ))
                     }
-                } else {
-                    Some(HbpFrame::error_response(
-                        &frame.id,
-                        &frame.mod_,
-                        &frame.op,
-                        "ERR_MALFORMED_PAYLOAD",
-                    ))
                 }
             }
 
             "module.stop" | "governor.module.stop" | "process.stop" | "process.kill" => {
-                if let Ok(req) = frame.decode_payload::<ModuleOpRequest>() {
-                    match self.process_manager.stop(&req.module).await {
-                        Ok(_) => {
-                            let res =
-                                serde_json::json!({ "status": "stopped", "module": req.module, "ram_freed_mb": 245.0 });
-                            let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
-                            Some(HbpFrame::response(
+                info!(subsystem = "dispatcher", op = %frame.op, "Received process.stop request");
+                match frame.decode_module_op_request() {
+                    Ok(req) => {
+                        match self.process_manager.stop(&req.module).await {
+                            Ok(_) => {
+                                let res =
+                                    serde_json::json!({ "status": "stopped", "module": req.module, "ram_freed_mb": 245.0 });
+                                let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
+                                Some(HbpFrame::response(
+                                    &frame.id,
+                                    &frame.mod_,
+                                    &frame.op,
+                                    payload,
+                                ))
+                            }
+                            Err(e) => Some(HbpFrame::error_response(
                                 &frame.id,
                                 &frame.mod_,
                                 &frame.op,
-                                payload,
-                            ))
+                                &format!("ERR_MODULE_STOP: {e}"),
+                            )),
                         }
-                        Err(e) => Some(HbpFrame::error_response(
+                    }
+                    Err(e) => {
+                        warn!(subsystem = "dispatcher", op = %frame.op, error = %e, "Failed to decode payload for ModuleOpRequest");
+                        Some(HbpFrame::error_response(
                             &frame.id,
                             &frame.mod_,
                             &frame.op,
-                            &format!("ERR_MODULE_STOP: {e}"),
-                        )),
+                            "ERR_MALFORMED_PAYLOAD",
+                        ))
                     }
-                } else {
-                    Some(HbpFrame::error_response(
-                        &frame.id,
-                        &frame.mod_,
-                        &frame.op,
-                        "ERR_MALFORMED_PAYLOAD",
-                    ))
                 }
             }
 
