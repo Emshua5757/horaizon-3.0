@@ -192,7 +192,7 @@ class _CopilotChatDrawerState extends ConsumerState<CopilotChatDrawer> {
                           child: Text('Target: RPi 5'),
                         ),
                         DropdownMenuItem(
-                          value: AiOffloadTarget.laptopGpu,
+                          value: AiOffloadTarget.windowsHost,
                           child: Text('Target: Windows Host'),
                         ),
                       ],
