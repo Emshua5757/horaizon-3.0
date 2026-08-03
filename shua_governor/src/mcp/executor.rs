@@ -206,9 +206,17 @@ impl McpExecutor {
             }
 
             _ => {
+                let resolved_name = match call.name.as_str() {
+                    "code_ast_symbols" | "code_ast_symbol" | "code_ast" => "code_parse_ast",
+                    "code_read_files" | "read_file" => "code_read_file",
+                    "code_find_deadcode" => "code_find_dead_code",
+                    "code_find_god_function" => "code_find_god_functions",
+                    other => other,
+                };
+
                 // Dynamic submodule tool routing across ProcessManager entries
                 let modules = process_manager.modules.read().await;
-                let owner = modules.values().find(|e| e.tools.iter().any(|t| t.name == call.name));
+                let owner = modules.values().find(|e| e.tools.iter().any(|t| t.name == resolved_name));
 
                 match owner {
                     None => {
@@ -261,7 +269,7 @@ impl McpExecutor {
                             let dispatch_frame = serde_json::json!({
                                 "op": "mcp.tool_call",
                                 "id": req_id,
-                                "tool": call.name,
+                                "tool": resolved_name,
                                 "args": call.arguments,
                             });
 

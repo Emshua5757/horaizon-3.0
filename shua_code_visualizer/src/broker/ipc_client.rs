@@ -44,7 +44,7 @@ impl IpcClient {
                                 },
                                 {
                                     "name": "code_read_file",
-                                    "description": "Fetches raw source text or a line-range snippet for a target file path.",
+                                    "description": "Reads source code text for a file path. Specify start_line (1-indexed, inclusive) and end_line (1-indexed, inclusive) to fetch a specific line range, or omit start_line and end_line to read the whole file.",
                                     "scope": "code",
                                     "timeout_s": 10,
                                     "input_schema": { "type": "object", "properties": { "file_path": { "type": "string" }, "start_line": { "type": "integer" }, "end_line": { "type": "integer" } }, "required": ["file_path"] }
