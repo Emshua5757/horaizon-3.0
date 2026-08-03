@@ -192,6 +192,7 @@ pub struct ChatMessageResponse {
     pub tool_calls: Option<Vec<ToolCall>>,
 }
 
+/// Utility function to strip <think>...</think> reasoning tags from LLM responses
 pub fn strip_think_tags(text: &str) -> String {
     use once_cell::sync::Lazy;
     use regex::Regex;
