@@ -135,9 +135,9 @@ class MicroserviceCard extends ConsumerWidget {
           (m.name.contains('code') && name.contains('code')),
       orElse: () => ModuleStatus(
         name: name,
-        state: ModuleState.running,
-        ramMb: 245.0,
-        cpuPercent: 0.8,
+        state: ModuleState.stopped,
+        ramMb: 0.0,
+        cpuPercent: 0.0,
         healthOk: true,
       ),
     );

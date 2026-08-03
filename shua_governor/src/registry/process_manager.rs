@@ -203,12 +203,6 @@ impl ProcessManager {
         }
 
         entry.state = ModuleState::Running;
-        if entry.ram_mb.is_none() || entry.ram_mb == Some(0.0) {
-            entry.ram_mb = Some(245.0);
-        }
-        if entry.cpu_percent.is_none() || entry.cpu_percent == Some(0.0) {
-            entry.cpu_percent = Some(0.8);
-        }
         info!(
             subsystem = "process_manager",
             module = %key,

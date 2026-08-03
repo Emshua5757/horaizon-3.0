@@ -57,7 +57,7 @@ class MicroservicesSection extends StatelessWidget {
             children: [
               Expanded(
                 child: MicroserviceCard(
-                  name: 'shua_code_visualizer',
+                  name: 'shua.code_visualizer',
                   title: 'shua_code_viz',
                   icon: Icons.code_rounded,
                   accentColor: warningColor,
@@ -71,7 +71,7 @@ class MicroservicesSection extends StatelessWidget {
               const SizedBox(width: 16),
               Expanded(
                 child: MicroserviceCard(
-                  name: 'shua_diary',
+                  name: 'shua.diary',
                   title: 'shua_diary',
                   icon: Icons.book_rounded,
                   accentColor: successColor,
@@ -84,7 +84,7 @@ class MicroservicesSection extends StatelessWidget {
               const SizedBox(width: 16),
               Expanded(
                 child: MicroserviceCard(
-                  name: 'shua_resume',
+                  name: 'shua.resume',
                   title: 'shua_resume',
                   icon: Icons.description_rounded,
                   accentColor: successColor,
@@ -100,7 +100,7 @@ class MicroservicesSection extends StatelessWidget {
           Column(
             children: [
               MicroserviceCard(
-                name: 'shua_code_visualizer',
+                name: 'shua.code_visualizer',
                 title: 'shua_code_viz',
                 icon: Icons.code_rounded,
                 accentColor: warningColor,
@@ -112,7 +112,7 @@ class MicroservicesSection extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               MicroserviceCard(
-                name: 'shua_diary',
+                name: 'shua.diary',
                 title: 'shua_diary',
                 icon: Icons.book_rounded,
                 accentColor: successColor,
@@ -123,7 +123,7 @@ class MicroservicesSection extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               MicroserviceCard(
-                name: 'shua_resume',
+                name: 'shua.resume',
                 title: 'shua_resume',
                 icon: Icons.description_rounded,
                 accentColor: successColor,

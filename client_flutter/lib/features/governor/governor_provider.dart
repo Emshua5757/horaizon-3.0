@@ -320,8 +320,8 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
         return ModuleStatus(
           name: m.name,
           state: ModuleState.running,
-          ramMb: m.ramMb > 0 ? m.ramMb : 245.0,
-          cpuPercent: 0.8,
+          ramMb: m.ramMb,
+          cpuPercent: m.cpuPercent,
           healthOk: true,
         );
       }
