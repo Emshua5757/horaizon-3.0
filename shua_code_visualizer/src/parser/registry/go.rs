@@ -98,7 +98,7 @@ impl LanguageExtractor for GoExtractor {
                             name = text.to_string();
                         }
                     }
-                    let last_segment = name.split('.').last().unwrap_or("");
+                    let last_segment = name.rsplit('.').next().unwrap_or("");
                     if let Some(first_char) = last_segment.chars().next() {
                         is_public = first_char.is_uppercase();
                     }

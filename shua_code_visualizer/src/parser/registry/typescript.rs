@@ -82,7 +82,9 @@ impl LanguageExtractor for TypeScriptExtractor {
             let mut intent = None;
             let mut code_snippet = String::new();
             let mut is_public = false;
-            let mut is_test = file_path.contains(".test.") || file_path.contains(".spec.") || file_path.contains("/__tests__/");
+            let mut is_test = file_path.contains(".test.")
+                || file_path.contains(".spec.")
+                || file_path.contains("/__tests__/");
 
             for cap in mat.captures {
                 let cap_name = query.capture_names()[cap.index as usize];
@@ -96,8 +98,11 @@ impl LanguageExtractor for TypeScriptExtractor {
                             name = text.to_string();
                         }
                     }
-                    let last_segment = name.split('.').last().unwrap_or("");
-                    if last_segment == "it" || last_segment == "test" || last_segment.starts_with("test") {
+                    let last_segment = name.rsplit('.').next().unwrap_or("");
+                    if last_segment == "it"
+                        || last_segment == "test"
+                        || last_segment.starts_with("test")
+                    {
                         is_test = true;
                     }
                 } else {
@@ -115,7 +120,8 @@ impl LanguageExtractor for TypeScriptExtractor {
 
                     if let Ok(text) = node.utf8_text(code.as_bytes()) {
                         code_snippet = text.to_string();
-                        is_public = text.trim().starts_with("export") || text.trim().starts_with("public");
+                        is_public =
+                            text.trim().starts_with("export") || text.trim().starts_with("public");
                     }
 
                     if kind == GraphNodeKind::Function {
@@ -124,9 +130,12 @@ impl LanguageExtractor for TypeScriptExtractor {
                         if let Some(parameters) = node.child_by_field_name("parameters") {
                             let mut p_cursor = parameters.walk();
                             for p_child in parameters.children(&mut p_cursor) {
-                                if p_child.kind() == "required_parameter" || p_child.kind() == "optional_parameter" {
+                                if p_child.kind() == "required_parameter"
+                                    || p_child.kind() == "optional_parameter"
+                                {
                                     if let Ok(p_text) = p_child.utf8_text(code.as_bytes()) {
-                                        let is_optional = p_child.kind() == "optional_parameter" || p_text.contains('?');
+                                        let is_optional = p_child.kind() == "optional_parameter"
+                                            || p_text.contains('?');
                                         let parts: Vec<&str> = p_text.split(':').collect();
                                         let p_name = parts[0].trim_matches('?').trim().to_string();
                                         let p_type = if parts.len() > 1 {
@@ -147,7 +156,8 @@ impl LanguageExtractor for TypeScriptExtractor {
 
                         if let Some(ret_type_node) = node.child_by_field_name("return_type") {
                             if let Ok(ret_text) = ret_type_node.utf8_text(code.as_bytes()) {
-                                return_type = Some(ret_text.trim_start_matches(':').trim().to_string());
+                                return_type =
+                                    Some(ret_text.trim_start_matches(':').trim().to_string());
                             }
                         }
                     }
@@ -238,14 +248,19 @@ impl LanguageExtractor for TypeScriptExtractor {
                             let mut caller_qualified = String::new();
                             let mut parent = node.parent();
                             while let Some(p) = parent {
-                                if p.kind() == "function_declaration" || p.kind() == "method_definition" {
+                                if p.kind() == "function_declaration"
+                                    || p.kind() == "method_definition"
+                                {
                                     caller_qualified = resolve_typescript_qualified_name(p, code);
                                     break;
                                 }
                                 parent = p.parent();
                             }
 
-                            if !caller_qualified.is_empty() && !callee_text.is_empty() && caller_qualified != callee_text {
+                            if !caller_qualified.is_empty()
+                                && !callee_text.is_empty()
+                                && caller_qualified != callee_text
+                            {
                                 let edge = ExtractedEdge {
                                     from: caller_qualified,
                                     to: callee_text.to_string(),

@@ -304,23 +304,36 @@ class MicroserviceCard extends ConsumerWidget {
                 ],
 
                 if (onLaunch != null) ...[
-                  // Dedicated Launch Screen Button
+                  // Dedicated Launch Screen Button (Disabled unless backend module is running/awake)
                   Expanded(
-                    child: FilledButton.icon(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: cs.primaryContainer,
-                        foregroundColor: cs.onPrimaryContainer,
-                        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 6),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(effects?.buttonRadius ?? 8),
+                    child: Tooltip(
+                      message: isRunning
+                          ? 'Launch microservice screen'
+                          : 'Wake microservice backend before opening screen',
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: isRunning ? cs.primaryContainer : cs.surfaceContainerHighest.withValues(alpha: 0.5),
+                          foregroundColor: isRunning ? cs.onPrimaryContainer : cs.onSurfaceVariant.withValues(alpha: 0.4),
+                          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 6),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(effects?.buttonRadius ?? 8),
+                          ),
                         ),
-                      ),
-                      onPressed: onLaunch,
-                      icon: const Icon(Icons.open_in_new_rounded, size: 13),
-                      label: const Text(
-                        'Open Screen',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                        overflow: TextOverflow.ellipsis,
+                        onPressed: isRunning ? onLaunch : null,
+                        icon: Icon(
+                          Icons.open_in_new_rounded,
+                          size: 13,
+                          color: isRunning ? cs.onPrimaryContainer : cs.onSurfaceVariant.withValues(alpha: 0.4),
+                        ),
+                        label: Text(
+                          'Open Screen',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isRunning ? cs.onPrimaryContainer : cs.onSurfaceVariant.withValues(alpha: 0.4),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                   ),

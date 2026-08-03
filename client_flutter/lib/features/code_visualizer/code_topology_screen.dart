@@ -4,7 +4,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../shared/widgets/copilot_chat_drawer.dart';
-import '../governor/governor_provider.dart';
 import 'models/topology_insights.dart';
 import 'models/topology_models.dart';
 import 'presentation/widgets/code_topology_canvas.dart';
@@ -254,14 +253,6 @@ class CodeTopologyScreen extends ConsumerWidget {
 
     final graphData = topologyAsync.valueOrNull;
 
-    final governorAsync = ref.watch(governorStatusProvider);
-    final governorStatus = governorAsync.valueOrNull;
-    final codeModule = governorStatus?.modules.firstWhere(
-      (m) => m.name.contains('code'),
-      orElse: () => const ModuleStatus(name: 'shua_code_visualizer', state: ModuleState.running, ramMb: 245.0, cpuPercent: 0.8),
-    );
-    final isBackendFrozen = codeModule?.state == ModuleState.sleeping || codeModule?.state == ModuleState.stopped;
-
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -270,36 +261,6 @@ class CodeTopologyScreen extends ConsumerWidget {
         ),
         child: Column(
           children: [
-            if (isBackendFrozen)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
-                child: Row(
-                  children: [
-                    const Icon(Icons.warning_amber_rounded, color: Color(0xFFF59E0B), size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Microservice Backend is ${codeModule?.state == ModuleState.stopped ? "Stopped (0 MB RAM)" : "Frozen (SIGSTOP)"}. Live AST analysis is paused.',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFF59E0B)),
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFF59E0B),
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      ),
-                      onPressed: () {
-                        ref.read(governorStatusProvider.notifier).wakeModule('shua_code_visualizer');
-                      },
-                      icon: const Icon(Icons.play_arrow_rounded, size: 16),
-                      label: const Text('▷ Wake Microservice', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                    ),
-                  ],
-                ),
-              ),
             // Clean 2-Tier Header Toolbar
             Container(
               width: double.infinity,

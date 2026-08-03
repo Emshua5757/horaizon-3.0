@@ -314,9 +314,8 @@ class _SidebarTelemetryCard extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Flexible(
+                      Expanded(
                         child: Text(
                           'SYSTEM TELEMETRY',
                           style: TextStyle(
@@ -325,10 +324,11 @@ class _SidebarTelemetryCard extends ConsumerWidget {
                             fontWeight: FontWeight.bold,
                             letterSpacing: 0.8,
                           ),
-                          overflow: TextOverflow.clip,
+                          overflow: TextOverflow.ellipsis,
                           maxLines: 1,
                         ),
                       ),
+                      const SizedBox(width: 4),
                       Text(
                         'Operational',
                         style: TextStyle(color: successColor, fontSize: 9, fontWeight: FontWeight.bold),

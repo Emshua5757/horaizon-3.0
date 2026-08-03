@@ -8,9 +8,10 @@ pub struct OllamaClient {
     base_url: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum KeepAlive {
     /// Keep model loaded indefinitely (-1)
+    #[default]
     Forever,
     /// Unload model immediately after inference (0)
     Immediate,
@@ -25,12 +26,6 @@ impl KeepAlive {
             KeepAlive::Immediate => 0,
             KeepAlive::Seconds(s) => *s,
         }
-    }
-}
-
-impl Default for KeepAlive {
-    fn default() -> Self {
-        KeepAlive::Forever
     }
 }
 
@@ -201,9 +196,8 @@ pub fn strip_think_tags(text: &str) -> String {
     use once_cell::sync::Lazy;
     use regex::Regex;
 
-    static RE_THINK: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(r"(?s)<think>.*?</think>").expect("valid regex")
-    });
+    static RE_THINK: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"(?s)<think>.*?</think>").expect("valid regex"));
     RE_THINK.replace_all(text, "").trim().to_string()
 }
 
@@ -211,7 +205,11 @@ impl ChatMessageResponse {
     pub fn effective_text(&self) -> String {
         let raw = if !self.content.trim().is_empty() {
             self.content.as_str()
-        } else if let Some(r) = self.reasoning_content.as_deref().filter(|s| !s.trim().is_empty()) {
+        } else if let Some(r) = self
+            .reasoning_content
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+        {
             r
         } else if let Some(t) = self.thinking.as_deref().filter(|s| !s.trim().is_empty()) {
             t
@@ -306,8 +304,15 @@ impl OllamaClient {
 
     /// Send a chat prompt and return the response string
     #[allow(dead_code)]
-    pub async fn chat(&self, model: &str, messages: Vec<ChatMessage>, keep_alive: KeepAlive) -> Result<String> {
-        let resp = self.chat_with_tools(model, messages, None, keep_alive).await?;
+    pub async fn chat(
+        &self,
+        model: &str,
+        messages: Vec<ChatMessage>,
+        keep_alive: KeepAlive,
+    ) -> Result<String> {
+        let resp = self
+            .chat_with_tools(model, messages, None, keep_alive)
+            .await?;
         Ok(resp.content)
     }
 
@@ -391,7 +396,11 @@ impl OllamaClient {
 
                 if let Ok(resp) = serde_json::from_str::<ChatResponse>(trimmed) {
                     // Stream thinking / reasoning tokens live wrapped in <think> tags
-                    let think_delta = resp.message.thinking.as_deref().or(resp.message.reasoning_content.as_deref());
+                    let think_delta = resp
+                        .message
+                        .thinking
+                        .as_deref()
+                        .or(resp.message.reasoning_content.as_deref());
                     if let Some(t_delta) = think_delta {
                         if !t_delta.is_empty() {
                             if !in_thinking_stream {

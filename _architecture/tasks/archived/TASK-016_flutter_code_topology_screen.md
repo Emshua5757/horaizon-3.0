@@ -2,7 +2,7 @@
 
 | Field | Value |
 | :--- | :--- |
-| **Status** | [ ] Planned |
+| **Status** | [x] Completed |
 | **Phase** | Phase 2 |
 | **Type** | AI-executable |
 | **Language** | Dart / Flutter |
@@ -36,8 +36,8 @@ The Code Topology screen renders an interactive, zoomable node-graph visualizer 
 
 ## Acceptance Criteria
 
-- [ ] Navigating to `/code/topology` loads hypergraph data from `shua_code_visualizer` via `hbpClientProvider`
-- [ ] Pan and zoom gestures smoothly transform the graph canvas on Windows and Android
-- [ ] Tapping a node highlights connected caller edges and opens symbol details side drawer
-- [ ] Real-time `TopologyDeltaEvent` triggers animated node graph refresh
-- [ ] `flutter analyze` — 0 errors
+- [x] Navigating to `/code/topology` loads hypergraph data from `shua_code_visualizer` via `hbpClientProvider`
+- [x] Pan and zoom gestures smoothly transform the graph canvas on Windows and Android
+- [x] Tapping a node highlights connected caller edges and opens symbol details side drawer
+- [x] Real-time `TopologyDeltaEvent` triggers animated node graph refresh
+- [x] `flutter analyze` — 0 errors

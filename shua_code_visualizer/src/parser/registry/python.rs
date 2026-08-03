@@ -88,7 +88,7 @@ impl LanguageExtractor for PythonExtractor {
                             name = text.to_string();
                         }
                     }
-                    let last_segment = name.split('.').last().unwrap_or("");
+                    let last_segment = name.rsplit('.').next().unwrap_or("");
                     is_public = !last_segment.starts_with('_');
                     if last_segment.starts_with("test_") {
                         is_test = true;

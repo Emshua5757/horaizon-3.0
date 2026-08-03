@@ -300,6 +300,17 @@ class GovernorStatusNotifier extends AsyncNotifier<GovernorStatus> {
 
   Future<void> wakeModule(String name) async {
     final current = state.valueOrNull ?? GovernorStatus.mock();
+    final targetModule = current.modules.firstWhere(
+      (m) =>
+          m.name == name ||
+          m.name.replaceAll('.', '_') == name.replaceAll('.', '_') ||
+          (m.name.contains('code') && name.contains('code')),
+      orElse: () => ModuleStatus(name: name, state: ModuleState.stopped, ramMb: 0.0, cpuPercent: 0.0),
+    );
+    if (targetModule.state == ModuleState.running) {
+      return; // Already running — prevent duplicate log spam & redundant RPCs
+    }
+
     final logger = ref.read(governorLoggerProvider);
     final updated = current.modules.map((m) {
       final isMatch = m.name == name ||

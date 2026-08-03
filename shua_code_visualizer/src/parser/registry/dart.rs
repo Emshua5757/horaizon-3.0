@@ -107,7 +107,7 @@ impl LanguageExtractor for DartExtractor {
                             name = text.to_string();
                         }
                     }
-                    is_public = !name.split('.').last().unwrap_or("").starts_with('_');
+                    is_public = !name.rsplit('.').next().unwrap_or("").starts_with('_');
                     if name == "main" {
                         is_test = false;
                     }
@@ -252,7 +252,7 @@ impl LanguageExtractor for DartExtractor {
                                 if !callee_clean.is_empty()
                                     && caller_sym.qualified_name != callee_clean
                                     && !caller_sym.qualified_name.ends_with(&format!(".{}", callee_clean))
-                                    && callee_clean.chars().next().map_or(false, |c| c.is_alphabetic() || c == '_')
+                                    && callee_clean.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_')
                                     && !["if", "else", "for", "while", "return", "var", "final", "const", "super", "this", "true", "false", "null", "dynamic", "void", "int", "double", "String", "bool", "List", "Map", "Set"].contains(&callee_clean.as_str())
                                 {
                                     let edge = ExtractedEdge {

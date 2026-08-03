@@ -20,8 +20,7 @@ fn is_module_match(file: &str, qualified_name: &str, target: &str) -> bool {
         if s == target {
             return true;
         }
-        if s.starts_with(target) {
-            let remainder = &s[target.len()..];
+        if let Some(remainder) = s.strip_prefix(target) {
             remainder.starts_with('/') || remainder.starts_with("::") || remainder.starts_with('.')
         } else {
             false
@@ -57,7 +56,11 @@ impl CodeGraph {
         let norm_file = normalize_path(&sym.file);
 
         let module_path = if norm_file.contains('/') {
-            norm_file.rsplit_once('/').map(|(dir, _)| dir).unwrap_or("root").to_string()
+            norm_file
+                .rsplit_once('/')
+                .map(|(dir, _)| dir)
+                .unwrap_or("root")
+                .to_string()
         } else {
             "root".to_string()
         };
@@ -68,8 +71,8 @@ impl CodeGraph {
                 || sym.qualified_name.contains("async")
                 || sym.side_effects.contains(&SideEffect::Io));
 
-        let is_blocking = sym.kind == GraphNodeKind::Function
-            && sym.side_effects.contains(&SideEffect::Io);
+        let is_blocking =
+            sym.kind == GraphNodeKind::Function && sym.side_effects.contains(&SideEffect::Io);
 
         let node_payload = GraphNode {
             id: norm_id,
@@ -119,8 +122,12 @@ impl CodeGraph {
 
         let from_idx = match self.index.get(&norm_from).copied().or_else(|| {
             self.graph.node_indices().find(|&idx| {
-                self.graph.node_weight(idx).map_or(false, |w| {
-                    let short = w.qualified_name.rsplit_once('.').map(|(_, s)| s).unwrap_or(&w.qualified_name);
+                self.graph.node_weight(idx).is_some_and(|w| {
+                    let short = w
+                        .qualified_name
+                        .rsplit_once('.')
+                        .map(|(_, s)| s)
+                        .unwrap_or(&w.qualified_name);
                     short == norm_from
                         || w.qualified_name.ends_with(&format!(".{}", norm_from))
                         || w.qualified_name.ends_with(&format!("::{}", norm_from))
@@ -133,8 +140,12 @@ impl CodeGraph {
 
         let to_idx = match self.index.get(&norm_to).copied().or_else(|| {
             self.graph.node_indices().find(|&idx| {
-                self.graph.node_weight(idx).map_or(false, |w| {
-                    let short = w.qualified_name.rsplit_once('.').map(|(_, s)| s).unwrap_or(&w.qualified_name);
+                self.graph.node_weight(idx).is_some_and(|w| {
+                    let short = w
+                        .qualified_name
+                        .rsplit_once('.')
+                        .map(|(_, s)| s)
+                        .unwrap_or(&w.qualified_name);
                     short == norm_to
                         || w.qualified_name.ends_with(&format!(".{}", norm_to))
                         || w.qualified_name.ends_with(&format!("::{}", norm_to))
@@ -158,8 +169,16 @@ impl CodeGraph {
             }
         }
 
-        let from_qname = self.graph.node_weight(from_idx).map(|w| w.qualified_name.clone()).unwrap_or(norm_from);
-        let to_qname = self.graph.node_weight(to_idx).map(|w| w.qualified_name.clone()).unwrap_or(norm_to);
+        let from_qname = self
+            .graph
+            .node_weight(from_idx)
+            .map(|w| w.qualified_name.clone())
+            .unwrap_or(norm_from);
+        let to_qname = self
+            .graph
+            .node_weight(to_idx)
+            .map(|w| w.qualified_name.clone())
+            .unwrap_or(norm_to);
 
         let edge_payload = GraphEdge {
             from: from_qname,
@@ -215,14 +234,18 @@ impl CodeGraph {
     }
 
     /// Incremental graph patch execution for a single modified/created/deleted file
-    pub fn apply_incremental_file_patch(&mut self, file_path: &str, code_opt: Option<&str>) -> TopologyDeltaEvent {
+    pub fn apply_incremental_file_patch(
+        &mut self,
+        file_path: &str,
+        code_opt: Option<&str>,
+    ) -> TopologyDeltaEvent {
         let norm_path = normalize_path(file_path);
         let change_type = if code_opt.is_some() {
-            if self
-                .graph
-                .node_indices()
-                .any(|idx| self.graph.node_weight(idx).map_or(false, |w| w.file == norm_path))
-            {
+            if self.graph.node_indices().any(|idx| {
+                self.graph
+                    .node_weight(idx)
+                    .is_some_and(|w| w.file == norm_path)
+            }) {
                 ChangeType::Modified
             } else {
                 ChangeType::Added
@@ -326,7 +349,11 @@ impl CodeGraph {
     }
 
     /// Renders a module/depth subgraph export payload using BFS bounded by max_depth hops
-    pub fn render_subgraph(&self, module_path: Option<&str>, max_depth: Option<usize>) -> TopologyExportResponse {
+    pub fn render_subgraph(
+        &self,
+        module_path: Option<&str>,
+        max_depth: Option<usize>,
+    ) -> TopologyExportResponse {
         let depth_limit = max_depth.unwrap_or(2);
         let mut included_nodes = HashSet::new();
 
@@ -357,10 +384,16 @@ impl CodeGraph {
             while let Some((curr, curr_depth)) = queue.pop() {
                 if curr_depth < depth_limit {
                     let mut neighbors = Vec::new();
-                    for edge_ref in self.graph.edges_directed(curr, petgraph::Direction::Outgoing) {
+                    for edge_ref in self
+                        .graph
+                        .edges_directed(curr, petgraph::Direction::Outgoing)
+                    {
                         neighbors.push(edge_ref.target());
                     }
-                    for edge_ref in self.graph.edges_directed(curr, petgraph::Direction::Incoming) {
+                    for edge_ref in self
+                        .graph
+                        .edges_directed(curr, petgraph::Direction::Incoming)
+                    {
                         neighbors.push(edge_ref.source());
                     }
 
@@ -383,7 +416,9 @@ impl CodeGraph {
 
         let mut edges = Vec::new();
         for edge_ref in self.graph.edge_references() {
-            if included_nodes.contains(&edge_ref.source()) && included_nodes.contains(&edge_ref.target()) {
+            if included_nodes.contains(&edge_ref.source())
+                && included_nodes.contains(&edge_ref.target())
+            {
                 edges.push(edge_ref.weight().clone());
             }
         }
@@ -430,7 +465,10 @@ mod tests {
         };
 
         let added = graph.add_edge(dangling_edge);
-        assert!(!added, "Dangling edge to unresolved symbol must be safely dropped (fail closed)");
+        assert!(
+            !added,
+            "Dangling edge to unresolved symbol must be safely dropped (fail closed)"
+        );
         assert_eq!(graph.graph.edge_count(), 0);
     }
 
@@ -493,8 +531,14 @@ mod tests {
         graph.remove_file_symbols("src/a.rs");
 
         assert_eq!(graph.graph.node_count(), 1);
-        let remaining = graph.index.get("fn3").expect("fn3 in src/b.rs must survive");
-        assert_eq!(graph.graph.node_weight(*remaining).unwrap().qualified_name, "fn3");
+        let remaining = graph
+            .index
+            .get("fn3")
+            .expect("fn3 in src/b.rs must survive");
+        assert_eq!(
+            graph.graph.node_weight(*remaining).unwrap().qualified_name,
+            "fn3"
+        );
     }
 
     #[test]
@@ -550,11 +594,28 @@ mod tests {
 
         graph.update_degree_metrics();
 
-        let node_a = graph.graph.node_weights().find(|w| w.qualified_name == "fn_a").unwrap();
-        let node_b = graph.graph.node_weights().find(|w| w.qualified_name == "fn_b").unwrap();
+        let node_a = graph
+            .graph
+            .node_weights()
+            .find(|w| w.qualified_name == "fn_a")
+            .unwrap();
+        let node_b = graph
+            .graph
+            .node_weights()
+            .find(|w| w.qualified_name == "fn_b")
+            .unwrap();
 
-        assert!(node_a.scc_id.is_some(), "Mutual recursion fn_a must have non-null scc_id");
-        assert!(node_b.scc_id.is_some(), "Mutual recursion fn_b must have non-null scc_id");
-        assert_eq!(node_a.scc_id, node_b.scc_id, "Both functions in mutual recursion loop must share the same scc_id");
+        assert!(
+            node_a.scc_id.is_some(),
+            "Mutual recursion fn_a must have non-null scc_id"
+        );
+        assert!(
+            node_b.scc_id.is_some(),
+            "Mutual recursion fn_b must have non-null scc_id"
+        );
+        assert_eq!(
+            node_a.scc_id, node_b.scc_id,
+            "Both functions in mutual recursion loop must share the same scc_id"
+        );
     }
 }
