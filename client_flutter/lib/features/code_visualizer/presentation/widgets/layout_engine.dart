@@ -36,27 +36,55 @@ class PhysicsSimulation {
   final List<TopologyEdgeModel> edges;
   final Size canvasSize;
 
+  double repulsion;
+  double springStrength;
+  double moduleAttractorStrength;
+  double centerGravity;
+  double maxVelocity;
+  double damping;
+
   double temperature = 1.0;
   bool isSettled = false;
   final Set<String> pinnedIds = {};
+  final Map<String, Offset> moduleAttractors = {};
 
   PhysicsSimulation({
     required List<TopologyNodeModel> nodes,
     required this.edges,
-    this.canvasSize = const Size(1800, 1400),
+    this.canvasSize = const Size(2400, 1800),
+    this.repulsion = 12000.0,
+    this.springStrength = 0.05,
+    this.moduleAttractorStrength = 0.035,
+    this.centerGravity = 0.003,
+    this.maxVelocity = 32.0,
+    this.damping = 0.80,
   }) : particles = {} {
     final rnd = Random(42);
     final center = Offset(canvasSize.width / 2, canvasSize.height / 2);
 
-    // Initial seeding: Group by module or dagLevel radially for zero initial overlap jank
+    // Group modules into distinct galaxy constellation sectors around center
+    final modules = <String, List<TopologyNodeModel>>{};
+    for (final n in nodes) {
+      modules.putIfAbsent(n.modulePath, () => []).add(n);
+    }
+
+    final modKeys = modules.keys.toList()..sort();
+    for (int i = 0; i < modKeys.length; i++) {
+      final modAngle = (i / max(1, modKeys.length)) * 2 * pi;
+      final modRadius = 520.0 + (i % 3) * 180.0;
+      moduleAttractors[modKeys[i]] = center + Offset(cos(modAngle) * modRadius, sin(modAngle) * modRadius);
+    }
+
+    // Seed particles around their module attractor centers
     for (int i = 0; i < nodes.length; i++) {
       final n = nodes[i];
-      final angle = (i / max(1, nodes.length)) * 2 * pi;
-      final radius = 180.0 + (n.dagLevel * 90.0) + rnd.nextDouble() * 100.0;
+      final modCenter = moduleAttractors[n.modulePath] ?? center;
+      final offsetAngle = rnd.nextDouble() * 2 * pi;
+      final offsetRadius = rnd.nextDouble() * 90.0;
 
       particles[n.id] = PhysicsParticle(
         node: n,
-        position: center + Offset(cos(angle) * radius, sin(angle) * radius),
+        position: modCenter + Offset(cos(offsetAngle) * offsetRadius, sin(offsetAngle) * offsetRadius),
       );
     }
   }
@@ -75,20 +103,15 @@ class PhysicsSimulation {
     }
   }
 
-  /// Single 60fps physics step with O(N) Spatial Hash Grid repulsion, Hooke spring attraction,
-  /// center gravity, and thermal energy decay.
+  /// Single 60fps physics step with configurable Max Velocity & Friction Damping
   bool step(double dt) {
     if (particles.isEmpty || isSettled) {
       return false;
     }
 
-    const repulsion = 18000.0;
-    const springLength = 140.0;
-    const springStrength = 0.03;
-    const gravity = 0.005;
-    const damping = 0.85;
-    const minEnergyEpsilon = 0.04;
-    const cellSize = 180.0;
+    const springLength = 65.0;
+    const minEnergyEpsilon = 0.03;
+    const cellSize = 220.0;
 
     final center = Offset(canvasSize.width / 2, canvasSize.height / 2);
     double totalKineticEnergy = 0.0;
@@ -103,7 +126,7 @@ class PhysicsSimulation {
       grid.putIfAbsent(cellKey(cx, cy), () => []).add(p);
     }
 
-    // 2. Compute Repulsion against adjacent 3x3 grid cells
+    // 2. Compute Repulsion against adjacent 3x3 grid cells + Module Attractor Pull
     for (final a in particles.values) {
       if (a.isPinned || pinnedIds.contains(a.node.id)) continue;
 
@@ -120,34 +143,56 @@ class PhysicsSimulation {
             if (identical(a, b)) continue;
             final delta = a.position - b.position;
             var distSq = delta.distanceSquared;
-            if (distSq < 4) distSq = 4;
+            if (distSq < 16) distSq = 16;
             if (distSq > cellSize * cellSize) continue;
             final dist = sqrt(distSq);
-            force += delta / dist * (repulsion / distSq);
+
+            // Bounded force clamp prevents infinity explosions
+            final repMag = min(repulsion / distSq, 600.0);
+            force += delta / dist * repMag;
           }
         }
       }
-      force += (center - a.position) * gravity;
+
+      // Strong pull toward module galaxy constellation center
+      final modCenter = moduleAttractors[a.node.modulePath] ?? center;
+      force += (modCenter - a.position) * moduleAttractorStrength;
+      force += (center - a.position) * centerGravity;
+
       a.velocity = (a.velocity + force * dt * 30.0) * damping;
+
+      // Dynamic Velocity Clamping
+      final speed = a.velocity.distance;
+      if (speed > maxVelocity) {
+        a.velocity = (a.velocity / speed) * maxVelocity;
+      }
     }
 
-    // 3. Spring attraction along connected edges (adjusted by callCount)
+    // 3. Pure O(1) Hooke spring attraction pulling connected call/import nodes into tight clusters
     for (final e in edges) {
       final a = particles[e.from];
       final b = particles[e.to];
-      if (a == null || b == null) continue;
+      if (a == null || b == null || identical(a, b)) continue;
 
       final delta = b.position - a.position;
       final dist = max(delta.distance, 1.0);
       final displacement = dist - springLength;
-      final mult = max(1.0, e.callCount * 0.8);
-      final f = delta / dist * displacement * springStrength * mult;
+      final mult = max(1.0, e.callCount * 1.0);
+      final f = delta / dist * min(displacement * springStrength * mult, 250.0);
 
       if (!a.isPinned && !pinnedIds.contains(a.node.id)) {
         a.velocity += f;
+        final speedA = a.velocity.distance;
+        if (speedA > maxVelocity) {
+          a.velocity = (a.velocity / speedA) * maxVelocity;
+        }
       }
       if (!b.isPinned && !pinnedIds.contains(b.node.id)) {
         b.velocity -= f;
+        final speedB = b.velocity.distance;
+        if (speedB > maxVelocity) {
+          b.velocity = (b.velocity / speedB) * maxVelocity;
+        }
       }
     }
 
@@ -159,8 +204,8 @@ class PhysicsSimulation {
       }
     }
 
-    // 5. Thermal decay (0% CPU at idle when settled)
-    temperature = max(0.0, temperature - 0.006);
+    // 5. Thermal decay
+    temperature = max(0.0, temperature - 0.008);
     isSettled = totalKineticEnergy < minEnergyEpsilon && temperature <= 0.05;
     return !isSettled;
   }
@@ -179,7 +224,7 @@ class PhysicsSimulation {
       maxX = max(maxX, p.position.dx);
       maxY = max(maxY, p.position.dy);
     }
-    const margin = 140.0;
+    const margin = 160.0;
     final positions = {
       for (final e in particles.entries)
         e.key: e.value.position - Offset(minX - margin, minY - margin),
@@ -188,8 +233,8 @@ class PhysicsSimulation {
     return GraphLayout(
       positions: positions,
       contentSize: Size(
-        max(1400.0, (maxX - minX) + margin * 2),
-        max(1000.0, (maxY - minY) + margin * 2),
+        max(1800.0, (maxX - minX) + margin * 2),
+        max(1400.0, (maxY - minY) + margin * 2),
       ),
     );
   }
@@ -201,7 +246,7 @@ class GraphLayoutEngine {
   static GraphLayout compute({
     required TopologyGraphDataModel data,
     required LayoutMode mode,
-    Size canvasSize = const Size(1800, 1400),
+    Size canvasSize = const Size(2400, 1800),
   }) {
     if (data.nodes.isEmpty) {
       return GraphLayout(positions: const {}, contentSize: canvasSize);
@@ -209,9 +254,6 @@ class GraphLayoutEngine {
     switch (mode) {
       case LayoutMode.physics:
         final sim = PhysicsSimulation(nodes: data.nodes, edges: data.edges, canvasSize: canvasSize);
-        for (int i = 0; i < 220; i++) {
-          sim.step(0.016);
-        }
         return sim.toLayout();
       case LayoutMode.fileGrouped:
         return _fileGroupedLayout(data);
