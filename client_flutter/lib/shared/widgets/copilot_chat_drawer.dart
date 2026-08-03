@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/ai/ollama_ai_service.dart';
 import '../../features/chat/models/chat_message.dart';
 import '../../features/chat/providers/global_chat_provider.dart';
 import '../../features/chat/widgets/formatted_markdown_content.dart';
@@ -127,68 +126,76 @@ class _CopilotChatDrawerState extends ConsumerState<CopilotChatDrawer> {
             ),
           ),
 
-          // Model & Target Host Selector Controls Bar
+          // Model & Target Selector Control Bar
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            color: cs.surfaceContainer,
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerHigh.withValues(alpha: 0.6),
+              border: Border(bottom: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.5))),
+            ),
             child: Row(
               children: [
-                // Model Dropdown
+                // Model Dropdown Selector
+                Icon(Icons.psychology_rounded, size: 14, color: cs.primary),
+                const SizedBox(width: 6),
                 Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: chatState.availableModels.contains(chatState.selectedModel)
-                            ? chatState.selectedModel
-                            : (chatState.availableModels.isNotEmpty ? chatState.availableModels.first : 'qwen3.5:4b'),
-                        isExpanded: true,
-                        icon: const Icon(Icons.arrow_drop_down_rounded, size: 18),
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: cs.onSurface),
-                        items: chatState.availableModels.map((m) {
-                          return DropdownMenuItem<String>(
-                            value: m,
-                            child: Text(m, overflow: TextOverflow.ellipsis),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            ref.read(globalChatProvider.notifier).setSelectedModel(val);
-                          }
-                        },
-                      ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: chatState.availableModels.contains(chatState.selectedModel)
+                          ? chatState.selectedModel
+                          : chatState.availableModels.firstOrNull ?? 'qwen3.5:4b',
+                      isDense: true,
+                      isExpanded: true,
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: cs.onSurface),
+                      onChanged: (newModel) {
+                        if (newModel != null) {
+                          ref.read(globalChatProvider.notifier).selectModel(newModel);
+                        }
+                      },
+                      items: chatState.availableModels.map((m) {
+                        return DropdownMenuItem<String>(
+                          value: m,
+                          child: Text(m, overflow: TextOverflow.ellipsis),
+                        );
+                      }).toList(),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
 
-                // Host Target Dropdown (RPi 5 vs Laptop)
+                // Target Selector (Auto, RPi 5, Windows Host)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  height: 26,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
                   decoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
+                    color: cs.surface,
                     borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: cs.outlineVariant),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<AiOffloadTarget>(
                       value: chatState.offloadTarget,
-                      icon: const Icon(Icons.dns_rounded, size: 14),
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: cs.primary),
-                      items: AiOffloadTarget.values.map((t) {
-                        return DropdownMenuItem<AiOffloadTarget>(
-                          value: t,
-                          child: Text(t.displayName, style: const TextStyle(fontSize: 11)),
-                        );
-                      }).toList(),
+                      isDense: true,
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: cs.primary),
                       onChanged: (target) {
                         if (target != null) {
                           ref.read(globalChatProvider.notifier).setOffloadTarget(target);
                         }
                       },
+                      items: const [
+                        DropdownMenuItem(
+                          value: AiOffloadTarget.auto,
+                          child: Text('Target: Auto'),
+                        ),
+                        DropdownMenuItem(
+                          value: AiOffloadTarget.pi5,
+                          child: Text('Target: RPi 5'),
+                        ),
+                        DropdownMenuItem(
+                          value: AiOffloadTarget.laptop,
+                          child: Text('Target: Windows Host'),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -196,20 +203,20 @@ class _CopilotChatDrawerState extends ConsumerState<CopilotChatDrawer> {
             ),
           ),
 
-          // Multi-Line Wrapping Quick Action Chips
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            color: cs.surfaceContainerLow,
+          // Multi-line Wrap Quick Action Chips Container (no clipping or single-line hiding)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             child: Wrap(
               spacing: 6,
-              runSpacing: 6,
+              runSpacing: 4,
               children: defaultChips.map((chipLabel) {
                 return ActionChip(
-                  label: Text(chipLabel, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                  label: Text(
+                    chipLabel,
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
                   visualDensity: VisualDensity.compact,
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                   onPressed: () {
                     if (widget.onChipSelected != null) {
                       widget.onChipSelected!(chipLabel);

@@ -135,7 +135,7 @@ impl McpExecutor {
                     Ok(_) => McpToolResponse {
                         tool_name: call.name.clone(),
                         success: true,
-                        result: serde_json::json!({ "status": "stopped", "module": module_name, "ram_freed_mb": 245.0 }),
+                        result: serde_json::json!({ "status": "stopped", "module": module_name }),
                         error: None,
                     },
                     Err(e) => McpToolResponse {
@@ -202,92 +202,6 @@ impl McpExecutor {
                         result: serde_json::Value::Null,
                         error: Some(format!("Failed to query logs from db: {e}")),
                     },
-                }
-            }
-
-            "code_viz_get_god_functions" => {
-                let limit = call.arguments.get("limit").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
-                let god_funcs = serde_json::json!([
-                    {
-                        "function": "McpExecutor::execute",
-                        "file": "shua_governor/src/mcp/executor.rs",
-                        "loc": 240,
-                        "complexity": 24,
-                        "parameters": 3,
-                        "reason": "Large match statement dispatching all system & submodule MCP tools."
-                    },
-                    {
-                        "function": "HbpDispatcher::handle_frame",
-                        "file": "shua_governor/src/broker/dispatcher.rs",
-                        "loc": 310,
-                        "complexity": 18,
-                        "parameters": 2,
-                        "reason": "Central RPC frame router and validation pipeline."
-                    },
-                    {
-                        "function": "GlobalChatNotifier::sendMessage",
-                        "file": "client_flutter/lib/features/chat/providers/global_chat_provider.dart",
-                        "loc": 140,
-                        "complexity": 14,
-                        "parameters": 1,
-                        "reason": "Coordinates streaming chunks, UI state, logger metadata, and session history."
-                    }
-                ]);
-                let sliced = god_funcs.as_array().map(|arr| arr.iter().take(limit).cloned().collect::<Vec<_>>()).unwrap_or_default();
-                McpToolResponse {
-                    tool_name: call.name.clone(),
-                    success: true,
-                    result: serde_json::json!({
-                        "total_god_functions": sliced.len(),
-                        "god_functions": sliced
-                    }),
-                    error: None,
-                }
-            }
-
-            "code_viz_scan_topology" => {
-                McpToolResponse {
-                    tool_name: call.name.clone(),
-                    success: true,
-                    result: serde_json::json!({
-                        "monorepo": "horAIzon 3.0",
-                        "active_nodes": ["shua_governor", "client_flutter", "shua.code_visualizer", "shua.diary", "shua.resume"],
-                        "total_modules": 5,
-                        "ast_parser": "Tree-sitter v0.20",
-                        "dependencies": [
-                            { "from": "client_flutter", "to": "shua_governor", "protocol": "HBP v2 (WebSocket / MsgPack)" },
-                            { "from": "shua_governor", "to": "shua.code_visualizer", "protocol": "HBP v2 Subprocess IPC" }
-                        ]
-                    }),
-                    error: None,
-                }
-            }
-
-            "code_viz_find_symbol" => {
-                let query = call.arguments.get("query").and_then(|v| v.as_str()).unwrap_or("");
-                McpToolResponse {
-                    tool_name: call.name.clone(),
-                    success: true,
-                    result: serde_json::json!({
-                        "query": query,
-                        "matches": [
-                            { "symbol": query, "kind": "struct/class", "file": "shua_governor/src/broker/frame.rs", "line": 56 },
-                            { "symbol": query, "kind": "handler", "file": "shua_governor/src/broker/dispatcher.rs", "line": 430 }
-                        ]
-                    }),
-                    error: None,
-                }
-            }
-
-            "code_viz_get_dead_code" => {
-                McpToolResponse {
-                    tool_name: call.name.clone(),
-                    success: true,
-                    result: serde_json::json!({
-                        "unused_functions_count": 0,
-                        "dead_code_status": "Clean (Zero dead code warnings)"
-                    }),
-                    error: None,
                 }
             }
 

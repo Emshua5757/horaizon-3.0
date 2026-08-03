@@ -80,50 +80,6 @@ impl McpAggregator {
                     "required": []
                 }),
             },
-            McpToolSchema {
-                name: "code_viz_get_god_functions".into(),
-                description: "Identifies and returns the top God Functions / methods across the monorepo sorted by highest cyclomatic complexity, lines of code, and fan-out.".into(),
-                scope: "code".into(),
-                input_schema: serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "limit": { "type": "integer" }
-                    },
-                    "required": []
-                }),
-            },
-            McpToolSchema {
-                name: "code_viz_scan_topology".into(),
-                description: "Scans codebase AST structure and returns module dependency graph nodes, imports, and cross-submodule call relationships.".into(),
-                scope: "code".into(),
-                input_schema: serde_json::json!({
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }),
-            },
-            McpToolSchema {
-                name: "code_viz_find_symbol".into(),
-                description: "Searches for codebase symbol definitions (struct, class, fn, enum, trait) by symbol name.".into(),
-                scope: "code".into(),
-                input_schema: serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "query": { "type": "string" }
-                    },
-                    "required": ["query"]
-                }),
-            },
-            McpToolSchema {
-                name: "code_viz_get_dead_code".into(),
-                description: "Analyzes AST call-graphs to detect unused, hanging, or unreferenced functions across submodules.".into(),
-                scope: "code".into(),
-                input_schema: serde_json::json!({
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                }),
-            },
         ];
 
         Self {
