@@ -113,33 +113,38 @@ impl ModuleEntry {
         }
 
         let (tools, module_scope, manifest_version) = if let Some((content, matched_path)) = found_content {
-            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
-                let parsed_tools: Vec<McpToolSchema> = val.get("tools")
-                    .and_then(|t| serde_json::from_value(t.clone()).ok())
-                    .unwrap_or_default();
-                let scope = val["scope"].as_str().unwrap_or("").to_string();
-                let version = val["version"].as_str().unwrap_or("0.1.0").to_string();
-                tracing::info!(
-                    subsystem = "module_entry",
-                    module = %name,
-                    tools_count = parsed_tools.len(),
-                    scope = %scope,
-                    manifest_path = %matched_path.display(),
-                    "Pre-populated MCP tools from contract manifest JSON"
-                );
-                (
-                    parsed_tools,
-                    if scope.is_empty() { None } else { Some(scope) },
-                    Some(version),
-                )
-            } else {
-                tracing::warn!(
-                    subsystem = "module_entry",
-                    module = %name,
-                    manifest_path = %matched_path.display(),
-                    "Failed to parse contract manifest JSON file"
-                );
-                (Vec::new(), None, None)
+            let clean_content = content.trim_start_matches('\u{feff}');
+            match serde_json::from_str::<serde_json::Value>(clean_content) {
+                Ok(val) => {
+                    let parsed_tools: Vec<McpToolSchema> = val.get("tools")
+                        .and_then(|t| serde_json::from_value(t.clone()).ok())
+                        .unwrap_or_default();
+                    let scope = val["scope"].as_str().unwrap_or("").to_string();
+                    let version = val["version"].as_str().unwrap_or("0.1.0").to_string();
+                    tracing::info!(
+                        subsystem = "module_entry",
+                        module = %name,
+                        tools_count = parsed_tools.len(),
+                        scope = %scope,
+                        manifest_path = %matched_path.display(),
+                        "Pre-populated MCP tools from contract manifest JSON"
+                    );
+                    (
+                        parsed_tools,
+                        if scope.is_empty() { None } else { Some(scope) },
+                        Some(version),
+                    )
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        subsystem = "module_entry",
+                        module = %name,
+                        manifest_path = %matched_path.display(),
+                        error = %e,
+                        "Failed to parse contract manifest JSON file"
+                    );
+                    (Vec::new(), None, None)
+                }
             }
         } else {
             tracing::warn!(
