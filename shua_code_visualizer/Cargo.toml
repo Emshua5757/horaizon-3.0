@@ -32,5 +32,8 @@ futures-util = "0.3"
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.48", features = ["Win32_Foundation", "Win32_System_Threading"] }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 pretty_assertions = "1.4"
