@@ -10,6 +10,7 @@
 - **Minimal & Purposeful Git Commits**:
   - **Backend / `shua_governor` Changes**: Commit and push immediately when modifying `shua_governor` or backend Rust logic so Raspberry Pi 5 can instantly pull (`git pull`) and compile the latest binary via `gov`.
   - **Client / Flutter / Docs Changes**: Batch minor edits. Do NOT create frequent micro-commits for minor Dart UI or documentation tweaks; commit only at key task milestones or when explicitly requested by the user.
+- **Strict HBP v2 MessagePack DTO Enforcement**: Never create ad-hoc protocols, multi-format fallback parsers, or alternative text DSLs. All RPC operations, frames, and DTO payloads across `shua_governor` and submodules MUST strictly enforce the canonical MessagePack map schema (`rmp_serde` / `msgpack_dart`) defined in `_architecture/contracts/hbp/`. Multi-format trial-and-error parsing is strictly forbidden.
 - **MCP Compliance & AI-Enabled Architecture**: All AI tool operations, schemas, and resource streams across submodules MUST comply with `_architecture/contracts/mcp/mcp_master_spec.md`. Expose standardized MCP tools and resources instead of ad-hoc string bytecodes or custom text DSLs, ensuring the entire horAIzon 3.0 monorepo is fully AI-agent enabled.
 
 
