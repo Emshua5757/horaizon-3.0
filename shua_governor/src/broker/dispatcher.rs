@@ -372,6 +372,31 @@ impl Dispatcher {
                 ))
             }
 
+            "governor.scopes" => {
+                let modules = self.process_manager.modules.read().await;
+                let mut scopes_list = vec![serde_json::json!({
+                    "id": "governor",
+                    "label": "System",
+                    "tools_count": 5,
+                    "module": "shua.governor",
+                    "connected": true,
+                })];
+
+                for entry in modules.values() {
+                    let scope_id = entry.module_scope.as_deref().unwrap_or("unknown");
+                    scopes_list.push(serde_json::json!({
+                        "id": scope_id,
+                        "label": entry.name,
+                        "tools_count": entry.tools.len(),
+                        "module": entry.name,
+                        "connected": entry.ipc_tx.is_some(),
+                    }));
+                }
+
+                let payload = HbpFrame::encode_payload(&serde_json::json!({ "scopes": scopes_list })).unwrap_or_default();
+                Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+            }
+
             "config.get" | "governor.config.get" => {
                 let cfg = self.config.read().await;
                 let dto = GovernorConfigDto {

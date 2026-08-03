@@ -191,21 +191,54 @@ impl McpAgentLoop {
             ""
         };
 
+        // ── Collect system tools + registered submodule tools from ProcessManager ────
+        let aggregator = McpAggregator::new();
+        let mut all_tools = aggregator.get_system_tools();
+        {
+            let modules = process_manager.modules.read().await;
+            for entry in modules.values() {
+                all_tools.extend(entry.tools.clone());
+            }
+        }
+
+        // Apply ScopeFilter using request scope label
+        use crate::mcp::scope_filter::ScopeFilter;
+        let mcp_schemas = ScopeFilter::filter_tools(all_tools, scope);
+
+        // Load scope-isolated persistent memory entries
+        use crate::ai_router::scope_memory::ScopeMemoryStore;
+        let scope_memories = ScopeMemoryStore::load(scope);
+        let memory_block = if scope_memories.is_empty() {
+            String::new()
+        } else {
+            let lines = scope_memories
+                .iter()
+                .map(|m| format!("- [{}] {}", m.key, m.value))
+                .collect::<Vec<_>>()
+                .join("\n");
+            format!("\n\nPERSISTENT CONTEXT FOR '{}' SCOPE:\n{}", scope, lines)
+        };
+
+        // Build dynamic system prompt tool enumeration
+        let tool_descriptions = if mcp_schemas.is_empty() {
+            "No active MCP tools available for this scope.".to_string()
+        } else {
+            mcp_schemas
+                .iter()
+                .enumerate()
+                .map(|(idx, t)| format!("{}. `{}`: {}", idx + 1, t.name, t.description))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+
         let system_prompt = format!(
             "You are JOSH, the horAIzon 3.0 Central AI Assistant running on Raspberry Pi 5. \
-            You have access to Model Context Protocol (MCP) system control tools (scope: '{}'). \
-            Available MCP Tools: \
-            1. `governor_get_metrics`: Fetches live Pi 5 CPU %, RAM, temperature, NVMe status, uptime, and module states. \
-            2. `governor_query_logs`: Queries recent system logs, errors, telemetry metrics, and events from activity.db database. \
-            3. `governor_wake_module`: Resumes a sleeping microservice (shua.diary, shua.resume, etc.). \
-            4. `governor_sleep_module`: Pauses a running microservice to free RAM/CPU. \
-            5. `governor_load_ollama_model`: Loads a specified LLM model into RAM/VRAM. \
-            INSTRUCTIONS: \
-            - When asked for system health, NVMe status, hardware metrics, or uptime, call `governor_get_metrics`. \
-            - When presenting system health or telemetry summaries, ALWAYS format metrics (RAM, CPU, Temperature, NVMe Status, Module Allocation) in clean Markdown tables (e.g. `| Metric | Value | Status |`). \
-            - When asked for system logs, errors, activity.db, or `governor_query_logs`, call `governor_query_logs`. \
-            - When asked what MCP tools are available, list the horAIzon 3.0 system tools above.{}",
-            scope, tool_enforcement_clause
+            You have access to Model Context Protocol (MCP) system control tools (scope: '{}'). \n\
+            Available MCP Tools:\n{}\n\
+            INSTRUCTIONS:\n\
+            - When presenting metrics, logs, hardware, or topology data, ALWAYS format in clean Markdown tables.\n\
+            - When asked what MCP tools are available, list the active MCP tools above.{}{}",
+            scope, tool_descriptions, memory_block, tool_enforcement_clause
         );
 
         // ── Build initial messages: system + sliding window context + user ────
@@ -214,10 +247,6 @@ impl McpAgentLoop {
         messages.push(ChatMessage::user(effective_prompt.clone()));
 
         // ── Build tools JSON once — only sent on the first turn ───────────────
-        // Subsequent turns receive None to avoid re-serialising the full schema
-        // on every loop iteration, which wastes Pi 5 RAM and serialisation CPU.
-        let aggregator = McpAggregator::new();
-        let mcp_schemas = aggregator.get_tools_for_scope(scope).await;
         let tools_json: Vec<serde_json::Value> = mcp_schemas
             .into_iter()
             .map(|t| {

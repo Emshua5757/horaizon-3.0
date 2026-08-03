@@ -1,9 +1,9 @@
-# Master MCP Specification Matrix — horAIzon 3.0
+﻿# Master MCP Specification Matrix — horAIzon 3.0
 
 | Field | Value |
 | :--- | :--- |
-| **Contract Version** | 3.1.0 |
-| **Protocol** | Model Context Protocol (MessagePack over HBP v2 WS / JSON-RPC 2.0 over Stdio) |
+| **Contract Version** | 3.2.0 |
+| **Protocol** | Model Context Protocol (MessagePack over HBP v2 WS port 7700 / JSON IPC WS port 7701 / JSON-RPC 2.0 Stdio) |
 | **Spec Directory** | `_architecture/contracts/mcp/` |
 | **Canonical Modules** | `shua.governor`, `shua.diary`, `shua.code_visualizer`, `shua.resume`, `shua.gym`, `shua.crypto` |
 
@@ -11,23 +11,28 @@
 
 ## 1. Architectural Principles & Transport Framing
 
-1. **Zero Double-Serialization Framing**:
-   - **Over HBP v2 WebSocket (`ws://host:7700/hbp`)**: MCP tool calls between `shua_governor` and submodules are serialized directly as MessagePack maps (NOT JSON string bytes inside MessagePack) within `HbpFrame.p`, with `mod: "shua.<submodule>"` and `op: "mcp.tool_call"`.
-   - **Over Stdio / Local CLI**: Uses standard JSON-RPC 2.0 UTF-8 text line streams for local Ollama and Claude CLI tools.
-2. **Canonical Module Naming**:
+1. **Dual-Port WebSocket Architecture**:
+   - **HBP v2 Core Broker (`ws://host:7700/hbp`)**: High-performance MessagePack binary framing for telemetry, UI state streams (`stream.chunk`, `stream.step`), and client RPCs.
+   - **Submodule JSON IPC Listener (`ws://127.0.0.1:7701/ipc`)**: Dedicated JSON text WebSocket listener on loopback port 7701. Managed submodules connect, authenticate via OS PID (`SO_PEERCRED`), and register tool manifests over this channel.
+   - **Stdio / Local CLI**: Standard JSON-RPC 2.0 UTF-8 text line streams for local Ollama and Claude CLI tools.
+
+2. **Canonical Module Naming & Dynamic Registration**:
    - Module namespaces MUST use dotted notation: `shua.governor`, `shua.diary`, `shua.code_visualizer`, `shua.resume`, `shua.gym`, `shua.crypto`.
-   - MCP tool prefixes use short domain identifiers: `governor_*`, `diary_*`, `code_*`, `resume_*`, `gym_*`, `crypto_*`.
+   - Submodules self-register tool manifests dynamically via `governor.mcp.register` carrying `module_id`, `version`, `scope`, and array of `McpToolSchema` objects (including optional per-tool `timeout_s`).
+   - `ProcessManager` acts as the single source of truth for process lifecycle and registered MCP tools.
+
 3. **Dynamic Extensible Scope Filtering**:
-   - Submodules register their tool manifests dynamically via `governor.mcp.register` specifying a `scope` tag.
-   - Initial scopes: `governor`, `diary`, `code`, `resume`, `gym`, `crypto`.
-4. **Model Lifecycle & Scope Switching Latency**:
-   - Switching scopes (e.g. `diary` → `code`) evicts the active Ollama model (`keep_alive: 0`) to preserve Pi 5 RAM budget (8GB RAM ceiling).
-   - Scope switches carry a documented 1.5s–3.5s model reload latency hit. The client UI displays an "AI Model Loading..." indicator during transitions.
-5. **Local Inference Optimization & Constrained Loop Engineering**:
-   - **Static Byte-Identical Prompt Headers**: System prompt headers for each context scope (`scope: diary`, `scope: code`, etc.) MUST remain byte-identical across tool loop iterations to enable Ollama KV-cache reuse, dropping prompt evaluation times from ~1.2s to ~150ms on Pi 5 ARM.
-   - **Grammar & Schema-Constrained Sampling**: Ollama chat calls MUST pass `format: <json_schema>` parameters derived from MCP tool schemas. Parameter generation is constrained at sampling level, preventing malformed enum values before tool execution.
-   - **Deterministic Output Caching (`activity.db`)**: Tool loop responses are cached in SQLite with primary key `SHA256(model + static_prompt + input_payload)`. Duplicate queries return pre-computed tool call results with zero LLM inference overhead.
-   - **Telemetry Circuit Breaker (`TAG_AI_INFERENCE`)**: Emits structured `tracing` logs (`info!`, `warn!`, `error!`) tagged with `subsystem: "ai_router"` and `trace_id`. If a tool loop hits `maxIterations` 3 consecutive times, the governor flags pipeline status as `degraded` and halts auto-retries.
+   - `ScopeFilter::filter_tools(tools, scope)` filters system + registered submodule tools based on request context scope.
+   - Standard scopes: `governor`, `diary`, `code`, `resume`, `gym`, `crypto`, `all`.
+   - Discovery operation `governor.scopes` returns live connected scopes and tool counts to client UIs.
+
+4. **Scope-Isolated Persistent Memory (`scope_memory`)**:
+   - Persistent facts and domain knowledge are isolated per context scope in SQLite (`activity.db`, table `scope_memory`).
+   - The AI Agent Loop queries `ScopeMemoryStore::load(scope)` and injects a `PERSISTENT CONTEXT FOR '<scope>'` block into system prompts, ensuring cross-domain memory isolation (e.g. code topology facts do not pollute diary sessions).
+
+5. **Model Lifecycle & Memory Constraints**:
+   - Switching scopes evicts active Ollama models when necessary (`keep_alive: 0`) to enforce the 8GB Pi 5 RAM ceiling.
+   - Per-tool call execution timeout (`timeout_s`, default 15s) prevents long-running tool queries from hanging inference loops.
 
 ---
 
@@ -56,7 +61,7 @@
 ### Scope 1: `governor_*` (`shua.governor`)
 
 #### `governor_get_metrics`
-- **Description**: Fetches real-time Pi 5 CPU %, RAM allocation, disk usage, and active process count.
+- **Description**: Fetches real-time Pi 5 CPU %, RAM allocation, system temperature, NVMe status, uptime, and active module states.
 - **Input Schema**:
 ```json
 {
@@ -99,7 +104,7 @@
 ```
 
 #### `governor_stop_module`
-- **Description**: Sends `SIGTERM`/`SIGKILL` signal to terminate a microservice process and drop its memory footprint to 0 MB RAM.
+- **Description**: Sends `SIGTERM`/`SIGKILL` signal to terminate a microservice process and release RAM budget.
 - **Input Schema**:
 ```json
 {
@@ -115,162 +120,54 @@
 ```
 
 #### `governor_load_ollama_model`
-- **Description**: Loads a specified LLM weights file into Pi 5 RAM or offloaded Laptop GPU VRAM.
+- **Description**: Loads a specified LLM model into Pi 5 RAM or offloaded GPU VRAM.
 - **Input Schema**:
 ```json
 {
   "type": "object",
   "properties": {
-    "model_name": { "type": "string", "example": "llama3.1:8b" },
+    "model_name": { "type": "string" },
     "target_device": { "type": "string", "enum": ["pi5_ram", "laptop_gpu"] }
   },
   "required": ["model_name"]
 }
 ```
 
----
-
-### Scope 2: `diary_*` (`shua.diary`)
-
-#### `diary_create_block`
-- **Description**: Inserts a new native Flutter block widget into an entry.
+#### `governor_query_logs`
+- **Description**: Queries recent system logs, telemetry metrics, and events from `activity.db`.
 - **Input Schema**:
 ```json
 {
   "type": "object",
   "properties": {
-    "entry_id": { "type": "string", "format": "uuid" },
-    "block_type": { "type": "string" },
-    "content": { "type": "string" },
-    "after_block_id": { "type": "string", "format": "uuid" }
+    "subsystem": { "type": "string" },
+    "limit": { "type": "integer" }
   },
-  "required": ["entry_id", "block_type", "content"]
-}
-```
-
-#### `diary_update_block`
-- **Description**: Edits block content with optimistic concurrency version checking.
-- **Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "block_id": { "type": "string", "format": "uuid" },
-    "content": { "type": "string" },
-    "version": { "type": "integer", "minimum": 1 }
-  },
-  "required": ["block_id", "content", "version"]
+  "required": []
 }
 ```
 
 ---
 
-### Scope 3: `code_*` (`shua.code_visualizer`)
+### Scope 2: `code_*` (`shua.code_visualizer`)
 
 #### `code_parse_ast`
-- **Description**: Parses source code file using Tree-sitter and returns symbol definitions and imports.
+- **Description**: Parses single source file and returns AST symbol and edge extraction payload.
+- **Timeout**: 60s
 - **Input Schema**:
 ```json
 {
   "type": "object",
   "properties": {
-    "file_path": { "type": "string" },
-    "language": { "type": "string", "enum": ["rust", "dart", "typescript", "go", "python"] }
+    "file_path": { "type": "string" }
   },
-  "required": ["file_path", "language"]
-}
-```
-
-#### `code_render_graph`
-- **Description**: Constructs dependency hypergraph dataset for a module.
-- **Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "module_path": { "type": "string" },
-    "depth": { "type": "integer", "default": 2 }
-  },
-  "required": ["module_path"]
-}
-```
-
-#### `code_blast_radius`
-- **Description**: Performs BFS caller depth search to calculate downstream/upstream impact for a target symbol.
-- **Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "qualified_name": { "type": "string" },
-    "max_depth": { "type": "integer" }
-  },
-  "required": ["qualified_name"]
-}
-```
-
-#### `code_find_callers`
-- **Description**: Finds all incoming caller nodes for a qualified symbol path.
-- **Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "qualified_name": { "type": "string" }
-  },
-  "required": ["qualified_name"]
-}
-```
-
-#### `code_find_dead_code`
-- **Description**: Identifies non-exported, unreferenced orphan symbols across the codebase.
-- **Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "module_path": { "type": "string" }
-  },
-  "required": []
-}
-```
-
-#### `code_find_god_functions`
-- **Description**: Identifies complex functions exceeding parameters, LOC, or complexity thresholds.
-- **Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "module_path": { "type": "string" },
-    "thresholds": {
-      "type": "object",
-      "properties": {
-        "max_params": { "type": "integer", "default": 5 },
-        "max_complexity": { "type": "integer", "default": 10 },
-        "max_loc": { "type": "integer", "default": 75 }
-      }
-    }
-  },
-  "required": []
-}
-```
-
-#### `code_check_contract_drift`
-- **Description**: Verifies signature alignment across tagged cross-boundary structs (e.g. Rust struct ↔ Dart model).
-- **Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "boundary_tag": { "type": "string" }
-  },
-  "required": ["boundary_tag"]
+  "required": ["file_path"]
 }
 ```
 
 #### `code_read_file`
-- **Description**: Fetches raw source code text or line-range snippet for a target file path.
+- **Description**: Fetches raw source code text or line-range snippet for target file.
+- **Timeout**: 10s
 - **Input Schema**:
 ```json
 {
@@ -284,45 +181,119 @@
 }
 ```
 
-
----
-
-### Scope 4: `resume_*` (`shua.resume`)
-
-#### `resume_tailor_jaccard`
-- **Description**: Calculates keyword overlap similarity against a target job description.
+#### `code_render_graph`
+- **Description**: Renders filtered topology graph export by module path and max call depth.
+- **Timeout**: 15s
 - **Input Schema**:
 ```json
 {
   "type": "object",
   "properties": {
-    "target_job_description": { "type": "string" }
+    "module_path": { "type": "string" },
+    "max_depth": { "type": "integer" }
   },
-  "required": ["target_job_description"]
+  "required": []
 }
 ```
 
-#### `resume_compile_pdf`
-- **Description**: Compiles Typst source template into PDF binary bytes.
+#### `code_blast_radius`
+- **Description**: Performs BFS caller-depth search for target qualified symbol name. Returns all callers up to max_depth.
+- **Timeout**: 20s
 - **Input Schema**:
 ```json
 {
   "type": "object",
   "properties": {
-    "template_id": { "type": "string", "default": "default" }
+    "qualified_name": { "type": "string" },
+    "max_depth": { "type": "integer" }
   },
+  "required": ["qualified_name"]
+}
+```
+
+#### `code_find_callers`
+- **Description**: Returns all direct caller symbols of a given qualified function name.
+- **Timeout**: 10s
+- **Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "qualified_name": { "type": "string" }
+  },
+  "required": ["qualified_name"]
+}
+```
+
+#### `code_find_dead_code`
+- **Description**: Scans code graph and returns unreferenced non-pub, non-test symbols with zero fan-in.
+- **Timeout**: 30s
+- **Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {},
+  "required": []
+}
+```
+
+#### `code_find_god_functions`
+- **Description**: Returns functions exceeding configurable thresholds for lines-of-code, complexity, or parameter count.
+- **Timeout**: 15s
+- **Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {},
+  "required": []
+}
+```
+
+#### `code_check_contract_drift`
+- **Description**: Verifies AST symbol signatures against HBP contract schemas and reports drift.
+- **Timeout**: 20s
+- **Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {},
   "required": []
 }
 ```
 
 ---
 
-## 4. Master MCP Resources (`uri` Schemas)
+## 4. Submodule Registration Protocol & Manifest Schema
+
+Submodules register with `shua_governor` over JSON IPC WebSocket (`ws://127.0.0.1:7701`) on startup:
+
+```json
+{
+  "op": "governor.mcp.register",
+  "module_id": "shua.code_visualizer",
+  "version": "0.3.1",
+  "scope": "code",
+  "tools": [
+    {
+      "name": "code_parse_ast",
+      "description": "Parses a single source file and returns symbol definitions.",
+      "scope": "code",
+      "timeout_s": 60,
+      "input_schema": { ... }
+    }
+  ]
+}
+```
+
+---
+
+## 5. Master MCP Resources (`uri` Schemas)
 
 | URI Pattern | Subsystem | Read Payload |
 | :--- | :--- | :--- |
 | `governor://status` | `shua.governor` | Process tree, RAM/CPU metrics, active Ollama model |
 | `governor://logs/recent` | `shua.governor` | Last 100 system log entries |
+| `governor://scopes` | `shua.governor` | Array of live registered context scopes and tool counts |
 | `diary://entries/{id}` | `shua.diary` | Full `DiaryEntryDto` with array of `DiaryBlockDto` |
 | `diary://mood/timeline` | `shua.diary` | Array of `{ date, mood_score, energy_level }` records |
 | `code://graph/{module}` | `shua.code_visualizer` | Hypergraph JSON payload (nodes, edges, weights) |

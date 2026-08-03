@@ -7,10 +7,6 @@
 
 /// HBP v2 operation key constants.
 abstract final class HbpOps {
-  /// Trigger a full repo AST scan
-  static const String shua_code_visualizer_scan = 'shua.code_visualizer.scan';
-  /// Return the latest topology export without re-scanning
-  static const String shua_code_visualizer_topology_get = 'shua.code_visualizer.topology.get';
   /// Start the file-watcher daemon
   static const String shua_code_visualizer_watch_start = 'shua.code_visualizer.watch.start';
   /// Stop the file-watcher daemon

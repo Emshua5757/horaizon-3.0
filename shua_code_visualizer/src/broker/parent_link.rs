@@ -73,9 +73,13 @@ fn is_process_alive(pid: u32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_detect_standalone_mode_when_env_unset() {
+        let _guard = TEST_LOCK.lock().unwrap();
         env::remove_var("SHUA_GOVERNOR_PID");
         env::remove_var("SHUA_GOVERNOR_IPC_PORT");
 
@@ -85,14 +89,16 @@ mod tests {
 
     #[test]
     fn test_detect_managed_mode_when_env_set() {
-        env::set_var("SHUA_GOVERNOR_PID", "12345");
+        let _guard = TEST_LOCK.lock().unwrap();
+        let my_pid = std::process::id();
+        env::set_var("SHUA_GOVERNOR_PID", my_pid.to_string());
         env::set_var("SHUA_GOVERNOR_IPC_PORT", "7700");
 
         let mode = ParentLink::detect_execution_mode();
         assert_eq!(
             mode,
             ExecutionMode::ManagedSubprocess {
-                parent_pid: 12345,
+                parent_pid: my_pid,
                 ipc_port: 7700
             }
         );

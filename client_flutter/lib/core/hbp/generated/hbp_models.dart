@@ -7,23 +7,140 @@
 
 import 'hbp_enums.dart';
 
+/// Single parameter signature representation
+class ParamDto {
+  final String name;
+  final String typeName;
+  final bool isOptional;
+
+  const ParamDto({required this.name, required this.typeName, required this.isOptional});
+
+  factory ParamDto.fromMap(Map<String, dynamic> m) {
+    return ParamDto(
+      name: m['name'] as String,
+      typeName: m['type_name'] as String,
+      isOptional: m['is_optional'] as bool,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'name': name,
+    'type_name': typeName,
+    'is_optional': isOptional,
+  };
+
+}
+
+/// Structured node representation for AST code topology
+class GraphNode {
+  final String id;
+  final String kind;
+  final String qualifiedName;
+  final String file;
+  final int line;
+  final List<ParamDto> params;
+  final String returnType;
+  final int complexity;
+  final List<String> sideEffects;
+  final String intent;
+  final int loc;
+  final int fanIn;
+  final int fanOut;
+  final double riskScore;
+  final bool isOrphan;
+  final bool exceedsParamThreshold;
+  final bool exceedsComplexityThreshold;
+  final bool exceedsLocThreshold;
+
+  const GraphNode({required this.id, required this.kind, required this.qualifiedName, required this.file, required this.line, required this.params, required this.returnType, required this.complexity, required this.sideEffects, required this.intent, required this.loc, required this.fanIn, required this.fanOut, required this.riskScore, required this.isOrphan, required this.exceedsParamThreshold, required this.exceedsComplexityThreshold, required this.exceedsLocThreshold});
+
+  factory GraphNode.fromMap(Map<String, dynamic> m) {
+    return GraphNode(
+      id: m['id'] as String,
+      kind: m['kind'] as String,
+      qualifiedName: m['qualified_name'] as String,
+      file: m['file'] as String,
+      line: m['line'] as int,
+      params: (m['params'] as List).map((e) => ParamDto.fromMap(e as Map<String, dynamic>)).toList(),
+      returnType: m['return_type'] as String,
+      complexity: m['complexity'] as int,
+      sideEffects: m['side_effects'] as List<String>,
+      intent: m['intent'] as String,
+      loc: m['loc'] as int,
+      fanIn: m['fan_in'] as int,
+      fanOut: m['fan_out'] as int,
+      riskScore: m['risk_score'] as double,
+      isOrphan: m['is_orphan'] as bool,
+      exceedsParamThreshold: m['exceeds_param_threshold'] as bool,
+      exceedsComplexityThreshold: m['exceeds_complexity_threshold'] as bool,
+      exceedsLocThreshold: m['exceeds_loc_threshold'] as bool,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'kind': kind,
+    'qualified_name': qualifiedName,
+    'file': file,
+    'line': line,
+    'params': params.map((e) => e.toMap()).toList(),
+    'return_type': returnType,
+    'complexity': complexity,
+    'side_effects': sideEffects,
+    'intent': intent,
+    'loc': loc,
+    'fan_in': fanIn,
+    'fan_out': fanOut,
+    'risk_score': riskScore,
+    'is_orphan': isOrphan,
+    'exceeds_param_threshold': exceedsParamThreshold,
+    'exceeds_complexity_threshold': exceedsComplexityThreshold,
+    'exceeds_loc_threshold': exceedsLocThreshold,
+  };
+
+}
+
+/// Dependency call/import edge between symbols
+class GraphEdge {
+  final String from;
+  final String to;
+  final String relation;
+
+  const GraphEdge({required this.from, required this.to, required this.relation});
+
+  factory GraphEdge.fromMap(Map<String, dynamic> m) {
+    return GraphEdge(
+      from: m['from'] as String,
+      to: m['to'] as String,
+      relation: m['relation'] as String,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'from': from,
+    'to': to,
+    'relation': relation,
+  };
+
+}
+
 /// Full AST topology graph payload
 class TopologyExportResponse {
-  final List<String> nodes;
-  final List<String> edges;
+  final List<GraphNode> nodes;
+  final List<GraphEdge> edges;
 
   const TopologyExportResponse({required this.nodes, required this.edges});
 
   factory TopologyExportResponse.fromMap(Map<String, dynamic> m) {
     return TopologyExportResponse(
-      nodes: m['nodes'] as List<String>,
-      edges: m['edges'] as List<String>,
+      nodes: (m['nodes'] as List).map((e) => GraphNode.fromMap(e as Map<String, dynamic>)).toList(),
+      edges: (m['edges'] as List).map((e) => GraphEdge.fromMap(e as Map<String, dynamic>)).toList(),
     );
   }
 
   Map<String, dynamic> toMap() => {
-    'nodes': nodes,
-    'edges': edges,
+    'nodes': nodes.map((e) => e.toMap()).toList(),
+    'edges': edges.map((e) => e.toMap()).toList(),
   };
 
 }
@@ -32,19 +149,22 @@ class TopologyExportResponse {
 class TopologyDeltaEvent {
   final String filePath;
   final String changeType;
+  final List<String> affectedNodeIds;
 
-  const TopologyDeltaEvent({required this.filePath, required this.changeType});
+  const TopologyDeltaEvent({required this.filePath, required this.changeType, required this.affectedNodeIds});
 
   factory TopologyDeltaEvent.fromMap(Map<String, dynamic> m) {
     return TopologyDeltaEvent(
       filePath: m['file_path'] as String,
       changeType: m['change_type'] as String,
+      affectedNodeIds: m['affected_node_ids'] as List<String>,
     );
   }
 
   Map<String, dynamic> toMap() => {
     'file_path': filePath,
     'change_type': changeType,
+    'affected_node_ids': affectedNodeIds,
   };
 
 }
