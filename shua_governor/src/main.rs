@@ -1,3 +1,4 @@
+// horAIzon 3.0 Central Governor Binary (v3.2.1 contract manifests)
 mod ai_router;
 mod broker;
 mod config;
@@ -80,6 +81,7 @@ async fn main() -> anyhow::Result<()> {
         .with(ChannelLogger::new(log_tx.clone()))
         .init();
 
+    // horAIzon 3.0 Central Governor Binary (v3.2.1 contract manifests)
     info!(
         module = "shua.governor",
         version = env!("CARGO_PKG_VERSION"),
