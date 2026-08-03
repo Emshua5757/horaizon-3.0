@@ -149,7 +149,7 @@ class _CopilotChatDrawerState extends ConsumerState<CopilotChatDrawer> {
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: cs.onSurface),
                       onChanged: (newModel) {
                         if (newModel != null) {
-                          ref.read(globalChatProvider.notifier).selectModel(newModel);
+                          ref.read(globalChatProvider.notifier).setSelectedModel(newModel);
                         }
                       },
                       items: chatState.availableModels.map((m) {
@@ -188,11 +188,11 @@ class _CopilotChatDrawerState extends ConsumerState<CopilotChatDrawer> {
                           child: Text('Target: Auto'),
                         ),
                         DropdownMenuItem(
-                          value: AiOffloadTarget.pi5,
+                          value: AiOffloadTarget.rpi5,
                           child: Text('Target: RPi 5'),
                         ),
                         DropdownMenuItem(
-                          value: AiOffloadTarget.laptop,
+                          value: AiOffloadTarget.laptopGpu,
                           child: Text('Target: Windows Host'),
                         ),
                       ],
