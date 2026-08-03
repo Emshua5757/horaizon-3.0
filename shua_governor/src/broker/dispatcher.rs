@@ -425,7 +425,7 @@ impl Dispatcher {
                 }
             }
 
-            "module.wake" | "governor.module.wake" => {
+            "module.wake" | "governor.module.wake" | "process.wake" | "governor.process.wake" => {
                 if let Ok(req) = frame.decode_payload::<ModuleOpRequest>() {
                     match self.process_manager.wake(&req.module).await {
                         Ok(_) => {
