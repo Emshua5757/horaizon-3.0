@@ -19,17 +19,25 @@ class SymbolInspectorDrawer extends ConsumerWidget {
     final isStart = pathStart?.id == node.id;
     final isEnd = pathEnd?.id == node.id;
 
-    return Container(
-      width: 320,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        border: Border(left: BorderSide(color: cs.outlineVariant)),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    final innerContent = SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Drag handle bar for mobile
+          if (isMobile)
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: cs.onSurfaceVariant.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
             // Title & Close Button
             Row(
               children: [
@@ -170,7 +178,37 @@ class SymbolInspectorDrawer extends ConsumerWidget {
             ],
           ],
         ),
+      );
+
+    if (isMobile) {
+      return Container(
+        constraints: const BoxConstraints(maxHeight: 220),
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerLow,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          border: Border(top: BorderSide(color: cs.outlineVariant)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: innerContent,
+      );
+    }
+
+    return Container(
+      width: 320,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        border: Border(left: BorderSide(color: cs.outlineVariant)),
       ),
+      child: innerContent,
     );
   }
 

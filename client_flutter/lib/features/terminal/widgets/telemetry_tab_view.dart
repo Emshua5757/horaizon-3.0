@@ -129,20 +129,29 @@ class _TelemetryTabViewState extends State<TelemetryTabView> {
             color: cs.surfaceContainerHigh.withValues(alpha: 0.5),
             child: Row(
               children: [
-                Text(
-                  'SEVERITY:',
-                  style: TextStyle(color: cs.onSurfaceVariant, fontWeight: FontWeight.bold, fontSize: 11),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'SEVERITY:',
+                          style: TextStyle(color: cs.onSurfaceVariant, fontWeight: FontWeight.bold, fontSize: 11),
+                        ),
+                        const SizedBox(width: 8),
+                        _FilterChip(label: 'ALL', isSelected: _filterSeverity == 0, onTap: () => setState(() => _filterSeverity = 0)),
+                        const SizedBox(width: 4),
+                        _FilterChip(label: 'INFO', isSelected: _filterSeverity == 2, color: const Color(0xFF10B981), onTap: () => setState(() => _filterSeverity = 2)),
+                        const SizedBox(width: 4),
+                        _FilterChip(label: 'WARN', isSelected: _filterSeverity == 3, color: const Color(0xFFF59E0B), onTap: () => setState(() => _filterSeverity = 3)),
+                        const SizedBox(width: 4),
+                        _FilterChip(label: 'ERR', isSelected: _filterSeverity == 4, color: const Color(0xFFEF4444), onTap: () => setState(() => _filterSeverity = 4)),
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 8),
-                _FilterChip(label: 'ALL', isSelected: _filterSeverity == 0, onTap: () => setState(() => _filterSeverity = 0)),
                 const SizedBox(width: 4),
-                _FilterChip(label: 'INFO', isSelected: _filterSeverity == 2, color: const Color(0xFF10B981), onTap: () => setState(() => _filterSeverity = 2)),
-                const SizedBox(width: 4),
-                _FilterChip(label: 'WARN', isSelected: _filterSeverity == 3, color: const Color(0xFFF59E0B), onTap: () => setState(() => _filterSeverity = 3)),
-                const SizedBox(width: 4),
-                _FilterChip(label: 'ERR', isSelected: _filterSeverity == 4, color: const Color(0xFFEF4444), onTap: () => setState(() => _filterSeverity = 4)),
-
-                const Spacer(),
 
                 IconButton(
                   icon: Icon(_isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded, size: 18, color: cs.primary),

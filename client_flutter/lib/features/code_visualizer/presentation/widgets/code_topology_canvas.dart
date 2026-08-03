@@ -171,7 +171,7 @@ class _CodeTopologyCanvasState extends ConsumerState<CodeTopologyCanvas>
     for (final n in widget.graphData.nodes.reversed) {
       final pos = layout.positions[n.id];
       if (pos == null) continue;
-      if ((pos - localPoint).distance <= _nodeRadius(n) + 12.0) return n;
+      if ((pos - localPoint).distance <= _nodeRadius(n) + 20.0) return n;
     }
     return null;
   }
@@ -234,66 +234,86 @@ class _CodeTopologyCanvasState extends ConsumerState<CodeTopologyCanvas>
     return RepaintBoundary(
       child: Container(
         color: const Color(0xFF0E1116),
-        child: InteractiveViewer(
-          transformationController: _transformController,
-          minScale: 0.12,
-          maxScale: 3.0,
-          constrained: false,
-          boundaryMargin: const EdgeInsets.all(500),
-          child: SizedBox(
-            width: width,
-            height: height,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapUp: (details) {
-                final tapped = _hitTest(details.localPosition, layout);
-                ref.read(selectedNodeProvider.notifier).state = tapped;
-              },
-              onPanStart: (details) {
-                if (mode != LayoutMode.physics || _physicsSim == null) return;
-                final hit = _hitTest(details.localPosition, layout);
-                if (hit != null) {
-                  _draggedNodeId = hit.id;
-                  final p = _physicsSim!.particles[hit.id];
-                  if (p != null) {
-                    _dragGrabOffset = details.localPosition - p.position;
-                  }
-                  _physicsSim!.pinnedIds.add(hit.id);
-                  _startTickerIfNeeded();
-                }
-              },
-              onPanUpdate: (details) {
-                if (mode != LayoutMode.physics || _physicsSim == null || _draggedNodeId == null) return;
-                final p = _physicsSim!.particles[_draggedNodeId];
+        child: Listener(
+          onPointerDown: (event) {
+            final scenePoint = _transformController.toScene(event.localPosition);
+            final hit = _hitTest(scenePoint, layout);
+            if (hit != null) {
+              setState(() {
+                _draggedNodeId = hit.id;
+              });
+              if (mode == LayoutMode.physics && _physicsSim != null) {
+                final p = _physicsSim!.particles[hit.id];
                 if (p != null) {
-                  p.position = details.localPosition - (_dragGrabOffset ?? Offset.zero);
-                  _physicsSim!.wakeUp();
-                  _startTickerIfNeeded();
+                  _dragGrabOffset = scenePoint - p.position;
                 }
-              },
-              onPanEnd: (_) {
-                if (_draggedNodeId != null) {
-                  _physicsSim?.pinnedIds.remove(_draggedNodeId);
-                  _draggedNodeId = null;
-                  _dragGrabOffset = null;
-                }
-              },
-              child: CustomPaint(
-                size: Size(width, height),
-                painter: _TopologyPainter(
-                  graphData: widget.graphData,
-                  layout: layout,
-                  activeFilters: activeFilters,
-                  matchAll: matchAll,
-                  query: query,
-                  isolationDepth: isolationDepth,
-                  graphIndex: graphIndex,
-                  selectedId: selected?.id,
-                  highlighted: highlighted,
-                  pathNodes: pathNodes,
-                  passesFilter: _passesFilter,
-                  isSimulating: isSimulating,
-                  transformController: _transformController,
+                _physicsSim!.pinnedIds.add(hit.id);
+                _startTickerIfNeeded();
+              }
+            }
+          },
+          onPointerMove: (event) {
+            if (_draggedNodeId != null && mode == LayoutMode.physics && _physicsSim != null) {
+              final scenePoint = _transformController.toScene(event.localPosition);
+              final p = _physicsSim!.particles[_draggedNodeId];
+              if (p != null) {
+                p.position = scenePoint - (_dragGrabOffset ?? Offset.zero);
+                _physicsSim!.wakeUp();
+                _startTickerIfNeeded();
+              }
+            }
+          },
+          onPointerUp: (_) {
+            if (_draggedNodeId != null) {
+              setState(() {
+                _physicsSim?.pinnedIds.remove(_draggedNodeId);
+                _draggedNodeId = null;
+                _dragGrabOffset = null;
+              });
+            }
+          },
+          onPointerCancel: (_) {
+            if (_draggedNodeId != null) {
+              setState(() {
+                _physicsSim?.pinnedIds.remove(_draggedNodeId);
+                _draggedNodeId = null;
+                _dragGrabOffset = null;
+              });
+            }
+          },
+          child: InteractiveViewer(
+            transformationController: _transformController,
+            panEnabled: _draggedNodeId == null,
+            minScale: 0.12,
+            maxScale: 3.0,
+            constrained: false,
+            boundaryMargin: const EdgeInsets.all(500),
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTapUp: (details) {
+                  final tapped = _hitTest(details.localPosition, layout);
+                  ref.read(selectedNodeProvider.notifier).state = tapped;
+                },
+                child: CustomPaint(
+                  size: Size(width, height),
+                  painter: _TopologyPainter(
+                    graphData: widget.graphData,
+                    layout: layout,
+                    activeFilters: activeFilters,
+                    matchAll: matchAll,
+                    query: query,
+                    isolationDepth: isolationDepth,
+                    graphIndex: graphIndex,
+                    selectedId: selected?.id,
+                    highlighted: highlighted,
+                    pathNodes: pathNodes,
+                    passesFilter: _passesFilter,
+                    isSimulating: isSimulating,
+                    transformController: _transformController,
+                  ),
                 ),
               ),
             ),

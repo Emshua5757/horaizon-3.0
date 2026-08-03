@@ -13,6 +13,7 @@ import 'presentation/widgets/symbol_inspector_drawer.dart';
 import 'providers/code_topology_provider.dart';
 
 final isAiCopilotOpenProvider = StateProvider<bool>((ref) => false);
+final isMobileFilterExpandedProvider = StateProvider<bool>((ref) => false);
 
 class CodeTopologyScreen extends ConsumerWidget {
   const CodeTopologyScreen({super.key});
@@ -250,10 +251,14 @@ class CodeTopologyScreen extends ConsumerWidget {
     final pathStart = ref.watch(pathStartNodeProvider);
     final pathEnd = ref.watch(pathEndNodeProvider);
     final isCopilotOpen = ref.watch(isAiCopilotOpenProvider);
+    final isFilterExpanded = ref.watch(isMobileFilterExpandedProvider);
 
     final graphData = topologyAsync.valueOrNull;
 
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: Container(
         decoration: BoxDecoration(
           color: cs.surface,
@@ -264,7 +269,7 @@ class CodeTopologyScreen extends ConsumerWidget {
             // Clean 2-Tier Header Toolbar
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
                 color: cs.surface,
                 border: Border(bottom: BorderSide(color: cs.outlineVariant)),
@@ -272,27 +277,27 @@ class CodeTopologyScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Tier 1: Title, Full Workspace Path Breadcrumb, Change Folder Button, and Metric Badge
+                  // Tier 1: Title, Full Workspace Path Breadcrumb, Change Folder Button & Mobile Toggles
                   Row(
                     children: [
-                      Icon(Icons.hub_rounded, color: cs.primary, size: 22),
-                      const SizedBox(width: 8),
+                      Icon(Icons.hub_rounded, color: cs.primary, size: 20),
+                      const SizedBox(width: 6),
                       Text(
-                        'Code Topology',
+                        isMobile ? 'Topology' : 'Code Topology',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: isMobile ? 13.5 : 16,
                           fontWeight: FontWeight.bold,
                           color: cs.onSurface,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
 
                       // Full Path Breadcrumb Pill
                       Expanded(
                         child: Tooltip(
                           message: activePath.isEmpty ? 'No path selected' : activePath,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: cs.surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(6),
@@ -301,15 +306,15 @@ class CodeTopologyScreen extends ConsumerWidget {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.folder_rounded, size: 14, color: cs.primary),
-                                const SizedBox(width: 6),
+                                Icon(Icons.folder_rounded, size: 13, color: cs.primary),
+                                const SizedBox(width: 4),
                                 Flexible(
                                   child: Text(
                                     activePath.isEmpty ? 'Select Workspace Folder...' : activePath,
                                     overflow: TextOverflow.ellipsis,
                                     maxLines: 1,
                                     style: TextStyle(
-                                      fontSize: 11.5,
+                                      fontSize: 10.5,
                                       fontFamily: 'monospace',
                                       fontWeight: FontWeight.w500,
                                       color: cs.onSurfaceVariant,
@@ -321,20 +326,68 @@ class CodeTopologyScreen extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 6),
 
                       // Folder Picker Button
-                      FilledButton.tonalIcon(
-                        icon: const Icon(Icons.folder_open_rounded, size: 14),
-                        label: const Text('Change Folder', style: TextStyle(fontSize: 11)),
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          visualDensity: VisualDensity.compact,
+                      if (isMobile) ...[
+                        IconButton.filledTonal(
+                          icon: const Icon(Icons.folder_open_rounded, size: 16),
+                          tooltip: 'Change Folder',
+                          style: IconButton.styleFrom(
+                            padding: const EdgeInsets.all(6),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () => _pickRepositoryFolder(ref),
                         ),
-                        onPressed: () => _pickRepositoryFolder(ref),
-                      ),
-                      const SizedBox(width: 8),
+                        const SizedBox(width: 4),
 
+                        // Controls Expand/Collapse Toggle Button for Mobile
+                        IconButton.filledTonal(
+                          icon: Icon(isFilterExpanded ? Icons.tune_rounded : Icons.tune_outlined, size: 16),
+                          tooltip: isFilterExpanded ? 'Hide Controls' : 'Show Controls & Filters',
+                          style: IconButton.styleFrom(
+                            backgroundColor: isFilterExpanded ? cs.primary : cs.surfaceContainerHighest,
+                            foregroundColor: isFilterExpanded ? cs.onPrimary : cs.onSurface,
+                            padding: const EdgeInsets.all(6),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () => ref.read(isMobileFilterExpandedProvider.notifier).state = !isFilterExpanded,
+                        ),
+                        const SizedBox(width: 4),
+
+                        // Copilot Drawer Button for Mobile
+                        IconButton.filledTonal(
+                          icon: Icon(Icons.smart_toy_rounded, size: 16, color: isCopilotOpen ? cs.primary : cs.onSurfaceVariant),
+                          tooltip: 'JOSH Copilot',
+                          style: IconButton.styleFrom(
+                            padding: const EdgeInsets.all(6),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () => ref.read(isAiCopilotOpenProvider.notifier).state = !isCopilotOpen,
+                        ),
+                      ] else ...[
+                        FilledButton.tonalIcon(
+                          icon: const Icon(Icons.folder_open_rounded, size: 14),
+                          label: const Text('Change Folder', style: TextStyle(fontSize: 11)),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () => _pickRepositoryFolder(ref),
+                        ),
+                      ],
+                    ],
+                  ),
+
+                  // Tier 2: Viewport Controls & Filter Chips (Collapsible on Mobile)
+                  if (!isMobile || isFilterExpanded) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    alignment: WrapAlignment.start,
+                    children: [
                       // Graph Nodes & Edges Metric Badge
                       if (graphData != null)
                         Container(
@@ -352,17 +405,7 @@ class CodeTopologyScreen extends ConsumerWidget {
                             ),
                           ),
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
 
-                  // Tier 2: Viewport Controls & Filter Chips (Wrap Layout)
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    alignment: WrapAlignment.start,
-                    children: [
                       // Layout Mode Segmented Control
                       SegmentedButton<LayoutMode>(
                         style: SegmentedButton.styleFrom(
@@ -555,6 +598,7 @@ class CodeTopologyScreen extends ConsumerWidget {
                     ],
                   ),
                 ],
+                ],
               ),
             ),
 
@@ -582,21 +626,35 @@ class CodeTopologyScreen extends ConsumerWidget {
                         Expanded(
                           child: CodeTopologyCanvas(graphData: data),
                         ),
-                        if (selectedNode != null && !isCopilotOpen)
+                        if (!isMobile && selectedNode != null && !isCopilotOpen)
                           SymbolInspectorDrawer(node: selectedNode),
-                        if (isCopilotOpen)
+                        if (!isMobile && isCopilotOpen)
                           CopilotChatDrawer(
                             contextHint: 'code',
                             onClose: () => ref.read(isAiCopilotOpenProvider.notifier).state = false,
                           ),
                       ],
                     ),
+                    if (isMobile && selectedNode != null && !isCopilotOpen)
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: SymbolInspectorDrawer(node: selectedNode),
+                      ),
+                    if (isMobile && isCopilotOpen)
+                      Positioned.fill(
+                        child: CopilotChatDrawer(
+                          contextHint: 'code',
+                          onClose: () => ref.read(isAiCopilotOpenProvider.notifier).state = false,
+                        ),
+                      ),
                     Positioned(
                       top: 12,
                       left: 12,
                       child: PathTracerPanel(graphData: data),
                     ),
-                    if (!isCopilotOpen)
+                    if (!isMobile && !isCopilotOpen)
                       Positioned(
                         bottom: 16,
                         right: 16,

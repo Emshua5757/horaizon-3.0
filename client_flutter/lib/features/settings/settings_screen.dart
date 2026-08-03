@@ -49,12 +49,14 @@ class SettingsScreen extends ConsumerWidget {
                         children: [
                           Icon(Icons.palette_rounded, color: cs.primary, size: 22),
                           const SizedBox(width: 10),
-                          Text(
-                            'Theme Vibe Presets (7 Environments)',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: cs.onSurface,
-                                ),
+                          Expanded(
+                            child: Text(
+                              'Theme Vibe Presets (7 Environments)',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: cs.onSurface,
+                                  ),
+                            ),
                           ),
                         ],
                       ),
@@ -312,12 +314,14 @@ class SettingsScreen extends ConsumerWidget {
                         children: [
                           Icon(Icons.auto_awesome_rounded, color: cs.primary, size: 22),
                           const SizedBox(width: 10),
-                          Text(
-                            'Fine-Tune Visual Effects & Animation Speed',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: cs.onSurface,
-                                ),
+                          Expanded(
+                            child: Text(
+                              'Fine-Tune Visual Effects & Animation Speed',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: cs.onSurface,
+                                  ),
+                            ),
                           ),
                         ],
                       ),
@@ -438,12 +442,14 @@ class SettingsScreen extends ConsumerWidget {
                         children: [
                           Icon(Icons.speed_rounded, color: cs.primary, size: 22),
                           const SizedBox(width: 10),
-                          Text(
-                            'HBP Telemetry Polling Rate & Pi 5 Impact',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: cs.onSurface,
-                                ),
+                          Expanded(
+                            child: Text(
+                              'HBP Telemetry Polling Rate & Pi 5 Impact',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: cs.onSurface,
+                                  ),
+                            ),
                           ),
                         ],
                       ),
@@ -562,12 +568,14 @@ class SettingsScreen extends ConsumerWidget {
                         children: [
                           Icon(Icons.router_rounded, color: cs.primary, size: 22),
                           const SizedBox(width: 10),
-                          Text(
-                            'Raspberry Pi 5 Network Link',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: cs.onSurface,
-                                ),
+                          Expanded(
+                            child: Text(
+                              'Raspberry Pi 5 Network Link',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: cs.onSurface,
+                                  ),
+                            ),
                           ),
                         ],
                       ),
@@ -625,12 +633,14 @@ class SettingsScreen extends ConsumerWidget {
                         children: [
                           Icon(Icons.developer_mode_rounded, color: cs.primary, size: 22),
                           const SizedBox(width: 10),
-                          Text(
-                            'Developer Tools & Component Gallery',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: cs.onSurface,
-                                ),
+                          Expanded(
+                            child: Text(
+                              'Developer Tools & Component Gallery',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: cs.onSurface,
+                                  ),
+                            ),
                           ),
                         ],
                       ),

@@ -347,24 +347,26 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> with SingleTick
                       labelColor: cs.primary,
                       unselectedLabelColor: cs.onSurfaceVariant,
                       indicatorSize: TabBarIndicatorSize.tab,
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.start,
                       tabs: const [
                         Tab(
-                          icon: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.radar_rounded, size: 18),
-                              SizedBox(width: 8),
-                              Text('Telemetry & Governor Logs', style: TextStyle(fontWeight: FontWeight.bold)),
+                              Icon(Icons.radar_rounded, size: 16),
+                              SizedBox(width: 6),
+                              Text('Telemetry & Logs', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ),
                         Tab(
-                          icon: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.terminal_rounded, size: 18),
-                              SizedBox(width: 8),
-                              Text('RPi 5 SSH Shell Terminal', style: TextStyle(fontWeight: FontWeight.bold)),
+                              Icon(Icons.terminal_rounded, size: 16),
+                              SizedBox(width: 6),
+                              Text('RPi 5 SSH Shell', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ),

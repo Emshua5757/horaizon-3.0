@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:messagepack/messagepack.dart';
 import '../../features/chat/models/chat_message.dart';
@@ -68,7 +69,10 @@ class OllamaAiService {
 
       if (_hbpClient.currentState == HbpConnectionState.connected) {
         final userPrompt = messages.lastWhere((m) => m.role == ChatRole.user, orElse: () => messages.last).content;
-        final offloadUrl = effectiveNode == AiOffloadTarget.windowsHost ? 'http://127.0.0.1:11434' : '';
+        final isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+        final offloadUrl = effectiveNode == AiOffloadTarget.windowsHost
+            ? (isMobile ? 'http://100.90.83.12:11434' : 'http://127.0.0.1:11434')
+            : '';
 
         _log('[HBP v2] Dispatching governor.ai.route (scope: "$contextHint", target: ${effectiveNode.shortLabel}, offload: "$offloadUrl", prompt: "$userPrompt")');
 

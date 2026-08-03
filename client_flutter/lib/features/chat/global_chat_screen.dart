@@ -70,26 +70,32 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> {
               children: [
                 Icon(Icons.psychology_rounded, color: cs.primary, size: 24),
                 const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'JOSH — Global AI Assistant',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: cs.onSurface,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'JOSH — Global AI Assistant',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: cs.onSurface,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    Text(
-                      'Context-Aware AI Engine • ${chatState.offloadTarget.displayName}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.onSurfaceVariant,
-                        fontSize: 10,
+                      Text(
+                        'Context-Aware AI Engine • ${chatState.offloadTarget.displayName}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 10,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
 
                 // Offload Node Badge Button
                 InkWell(
@@ -568,14 +574,16 @@ class _ChatMessageBubble extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 10),
-                          Text(
-                            'Executing N-Turn Agent Loop (Reasoning & MCP Tools)…',
-                            style: TextStyle(
-                              color: cs.primary,
-                              fontSize: 11.5,
-                              fontStyle: FontStyle.italic,
-                              fontWeight: FontWeight.w500,
-                              fontFamily: 'JetBrainsMono',
+                          Expanded(
+                            child: Text(
+                              'Executing N-Turn Agent Loop (Reasoning & MCP Tools)…',
+                              style: TextStyle(
+                                color: cs.primary,
+                                fontSize: 11.5,
+                                fontStyle: FontStyle.italic,
+                                fontWeight: FontWeight.w500,
+                                fontFamily: 'JetBrainsMono',
+                              ),
                             ),
                           ),
                         ],
