@@ -56,6 +56,25 @@ name        = "tailor_score"
 type        = "f32?"
 description = "Jaccard similarity score if tailored"
 
+[[structs]]
+name        = "ResumeExportMarkdownRequest"
+description = "Request payload for resume.export.markdown"
+[[structs.fields]]
+index       = 1
+name        = "matrix_id"
+type        = "str"
+description = "ID of resume matrix to export"
+
+[[structs]]
+name        = "ResumeExportMarkdownResponse"
+description = "Response payload for resume.export.markdown"
+[[structs.fields]]
+index       = 1
+name        = "markdown"
+type        = "str"
+description = "Rendered Markdown content of the resume"
+
+
 # ---------------------------------------------------------------------------
 # Operations
 # ---------------------------------------------------------------------------
@@ -95,3 +114,12 @@ requires_auth   = true
 description     = "List available Typst templates"
 request_struct  = ""
 response_struct = ""
+
+[[operations]]
+module          = "shua.resume"
+name            = "export.markdown"
+type            = "rpc"
+requires_auth   = true
+description     = "Export the resume matrix as Markdown"
+request_struct  = "ResumeExportMarkdownRequest"
+response_struct = "ResumeExportMarkdownResponse"

@@ -8,6 +8,7 @@
 //	shua.resume.compile        -> handleCompile
 //	shua.resume.history.list   -> handleHistoryList
 //	shua.resume.templates.list -> handleTemplatesList
+//	shua.resume.export.markdown -> handleExportMarkdown
 package hbp
 
 import (
@@ -22,6 +23,7 @@ import (
 
 	"shua_resume/pkg/ai"
 	"shua_resume/pkg/compiler"
+	"shua_resume/pkg/dateutil"
 	"shua_resume/pkg/logger"
 	"shua_resume/pkg/mcp"
 	"shua_resume/pkg/models"
@@ -72,6 +74,8 @@ func (h *Handler) Handle(raw []byte) []byte {
 		return h.handleHistoryList(frame)
 	case "templates.list":
 		return h.handleTemplatesList(frame)
+	case "export.markdown":
+		return h.handleExportMarkdown(frame)
 	default:
 		logger.Warn("hbp_handler", "unknown op", map[string]interface{}{"op": frame.Op})
 		return encodeError(frame.ID, frame.Mod, frame.Op, "ERR_UNKNOWN_OP")
@@ -88,6 +92,18 @@ func (h *Handler) handleMatrixGet(frame Frame) []byte {
 	return encodeOK(frame.ID, frame.Mod, frame.Op, matrix)
 }
 
+// normalizeDatesInItem runs NormalizeDate on any known date fields inside the
+// generic map[string]interface{} item before it is persisted to SQLite.
+func normalizeDatesInItem(item map[string]interface{}) {
+	for _, key := range []string{"start_date", "end_date", "date"} {
+		if v, ok := item[key]; ok {
+			if s, ok := v.(string); ok {
+				item[key] = dateutil.NormalizeDate(s)
+			}
+		}
+	}
+}
+
 // handleMatrixUpdate processes upsert/delete/reorder actions on a resume section.
 func (h *Handler) handleMatrixUpdate(frame Frame) []byte {
 	var req struct {
@@ -98,6 +114,11 @@ func (h *Handler) handleMatrixUpdate(frame Frame) []byte {
 	}
 	if err := decodeMsgpackOrJSON(frame.P, &req); err != nil {
 		return encodeError(frame.ID, frame.Mod, frame.Op, "ERR_MALFORMED_PAYLOAD")
+	}
+
+	// Normalize any date fields before persisting.
+	if req.Item != nil {
+		normalizeDatesInItem(req.Item)
 	}
 
 	newID, err := repository.UpdateSection("shua", req.Section, req.Action, req.Item, req.ID)
@@ -247,6 +268,22 @@ func (h *Handler) handleHistoryList(frame Frame) []byte {
 func (h *Handler) handleTemplatesList(frame Frame) []byte {
 	return encodeOK(frame.ID, frame.Mod, frame.Op, map[string]interface{}{
 		"templates": mcp.AvailableTemplates,
+	})
+}
+
+// handleExportMarkdown loads the current matrix and returns it as a Markdown string.
+func (h *Handler) handleExportMarkdown(frame Frame) []byte {
+	matrix, err := repository.GetMatrix("shua")
+	if err != nil {
+		logger.Error("hbp_handler", "export.markdown DB error", err, nil)
+		return encodeError(frame.ID, frame.Mod, frame.Op, fmt.Sprintf("ERR_DB: %v", err))
+	}
+	md := compiler.MatrixToMarkdown(matrix)
+	logger.Info("hbp_handler", "export.markdown complete", map[string]interface{}{
+		"bytes": len(md),
+	})
+	return encodeOK(frame.ID, frame.Mod, frame.Op, map[string]interface{}{
+		"1": md, // markdown
 	})
 }
 

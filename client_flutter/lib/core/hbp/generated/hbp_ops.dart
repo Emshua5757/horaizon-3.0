@@ -79,6 +79,8 @@ abstract final class HbpOps {
   static const String shua_resume_history_list = 'shua.resume.history.list';
   /// List available Typst templates
   static const String shua_resume_templates_list = 'shua.resume.templates.list';
+  /// Export the resume matrix as Markdown
+  static const String shua_resume_export_markdown = 'shua.resume.export.markdown';
 }
 
 /// HBP v2 module namespace constants.

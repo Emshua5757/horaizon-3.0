@@ -134,6 +134,7 @@ class WorkItemDto {
   final String endDate;
   final String summary;
   final List<String> highlights;
+  final List<String> keywords;
   final List<String> skills;
   final bool active;
 
@@ -146,6 +147,7 @@ class WorkItemDto {
     this.endDate = '',
     this.summary = '',
     this.highlights = const [],
+    this.keywords = const [],
     this.skills = const [],
     this.active = true,
   });
@@ -159,6 +161,7 @@ class WorkItemDto {
         endDate: (m['end_date'] ?? m['endDate'] ?? '') as String,
         summary: (m['summary'] ?? '') as String,
         highlights: _strList(m['highlights']),
+        keywords: _strList(m['keywords']),
         skills: _strList(m['skills']),
         active: (m['active'] ?? true) as bool,
       );
@@ -172,6 +175,7 @@ class WorkItemDto {
         'end_date': endDate,
         'summary': summary,
         'highlights': highlights,
+        'keywords': keywords,
         'skills': skills,
         'active': active,
       };
@@ -185,6 +189,7 @@ class WorkItemDto {
     String? endDate,
     String? summary,
     List<String>? highlights,
+    List<String>? keywords,
     List<String>? skills,
     bool? active,
   }) =>
@@ -197,6 +202,7 @@ class WorkItemDto {
         endDate: endDate ?? this.endDate,
         summary: summary ?? this.summary,
         highlights: highlights ?? this.highlights,
+        keywords: keywords ?? this.keywords,
         skills: skills ?? this.skills,
         active: active ?? this.active,
       );
@@ -286,6 +292,7 @@ class ProjectItemDto {
   final String name;
   final String description;
   final List<String> highlights;
+  final List<String> keywords;
   final String url;
   final List<String> exhibits;
   final bool active;
@@ -295,6 +302,7 @@ class ProjectItemDto {
     this.name = '',
     this.description = '',
     this.highlights = const [],
+    this.keywords = const [],
     this.url = '',
     this.exhibits = const [],
     this.active = true,
@@ -305,6 +313,7 @@ class ProjectItemDto {
         name: (m['name'] ?? '') as String,
         description: (m['description'] ?? '') as String,
         highlights: _strList(m['highlights']),
+        keywords: _strList(m['keywords']),
         url: (m['url'] ?? '') as String,
         exhibits: _strList(m['exhibits']),
         active: (m['active'] ?? true) as bool,
@@ -315,6 +324,7 @@ class ProjectItemDto {
         'name': name,
         'description': description,
         'highlights': highlights,
+        'keywords': keywords,
         'url': url,
         'exhibits': exhibits,
         'active': active,
@@ -325,6 +335,7 @@ class ProjectItemDto {
     String? name,
     String? description,
     List<String>? highlights,
+    List<String>? keywords,
     String? url,
     List<String>? exhibits,
     bool? active,
@@ -334,6 +345,7 @@ class ProjectItemDto {
         name: name ?? this.name,
         description: description ?? this.description,
         highlights: highlights ?? this.highlights,
+        keywords: keywords ?? this.keywords,
         url: url ?? this.url,
         exhibits: exhibits ?? this.exhibits,
         active: active ?? this.active,
@@ -479,6 +491,75 @@ class AwardDto {
 }
 
 // ---------------------------------------------------------------------------
+// OrgItemDto
+// ---------------------------------------------------------------------------
+
+class OrgItemDto {
+  final String id;
+  final String organization;
+  final String role;
+  final String startDate;
+  final String endDate;
+  final String summary;
+  final List<String> highlights;
+  final bool active;
+
+  const OrgItemDto({
+    this.id = '',
+    this.organization = '',
+    this.role = '',
+    this.startDate = '',
+    this.endDate = '',
+    this.summary = '',
+    this.highlights = const [],
+    this.active = true,
+  });
+
+  factory OrgItemDto.fromMap(Map<dynamic, dynamic> m) => OrgItemDto(
+        id: (m['id'] ?? '') as String,
+        organization: (m['organization'] ?? '') as String,
+        role: (m['role'] ?? '') as String,
+        startDate: (m['start_date'] ?? '') as String,
+        endDate: (m['end_date'] ?? '') as String,
+        summary: (m['summary'] ?? '') as String,
+        highlights: _strList(m['highlights']),
+        active: (m['active'] ?? true) as bool,
+      );
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'organization': organization,
+        'role': role,
+        'start_date': startDate,
+        'end_date': endDate,
+        'summary': summary,
+        'highlights': highlights,
+        'active': active,
+      };
+
+  OrgItemDto copyWith({
+    String? id,
+    String? organization,
+    String? role,
+    String? startDate,
+    String? endDate,
+    String? summary,
+    List<String>? highlights,
+    bool? active,
+  }) =>
+      OrgItemDto(
+        id: id ?? this.id,
+        organization: organization ?? this.organization,
+        role: role ?? this.role,
+        startDate: startDate ?? this.startDate,
+        endDate: endDate ?? this.endDate,
+        summary: summary ?? this.summary,
+        highlights: highlights ?? this.highlights,
+        active: active ?? this.active,
+      );
+}
+
+// ---------------------------------------------------------------------------
 // ResumeMatrixDto
 // ---------------------------------------------------------------------------
 
@@ -490,6 +571,7 @@ class ResumeMatrixDto {
   final List<SkillDto> skills;
   final List<CertificateDto> certificates;
   final List<AwardDto> awards;
+  final List<OrgItemDto> organizations;
 
   const ResumeMatrixDto({
     this.basics = const BasicsDto(),
@@ -499,6 +581,7 @@ class ResumeMatrixDto {
     this.skills = const [],
     this.certificates = const [],
     this.awards = const [],
+    this.organizations = const [],
   });
 
   /// Decode from base64-encoded msgpack bytes (as received in HBP v2 `p` field).
@@ -544,6 +627,10 @@ class ResumeMatrixDto {
             .whereType<Map>()
             .map(AwardDto.fromMap)
             .toList(),
+        organizations: (m['organizations'] as List? ?? [])
+            .whereType<Map>()
+            .map(OrgItemDto.fromMap)
+            .toList(),
       );
 
   ResumeMatrixDto copyWith({
@@ -554,6 +641,7 @@ class ResumeMatrixDto {
     List<SkillDto>? skills,
     List<CertificateDto>? certificates,
     List<AwardDto>? awards,
+    List<OrgItemDto>? organizations,
   }) =>
       ResumeMatrixDto(
         basics: basics ?? this.basics,
@@ -563,6 +651,7 @@ class ResumeMatrixDto {
         skills: skills ?? this.skills,
         certificates: certificates ?? this.certificates,
         awards: awards ?? this.awards,
+        organizations: organizations ?? this.organizations,
       );
 }
 

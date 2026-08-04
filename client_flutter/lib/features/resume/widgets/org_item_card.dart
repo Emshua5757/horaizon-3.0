@@ -5,35 +5,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/resume_matrix_provider.dart';
 import '../resume_matrix_dto.dart';
 
-/// Inline expand-to-edit card for a single work experience entry.
+/// Inline expand-to-edit card for an organizational/leadership experience entry.
 ///
-/// - Collapsed: shows company name, position, date range.
-/// - Expanded: full edit form with auto-save (800ms debounce).
+/// - Collapsed: shows organization name, role, and date range.
+/// - Expanded: full edit form with auto-save (800 ms debounce).
 /// - Swipe-to-dismiss: optimistic delete via [ResumeMatrixNotifier].
-class WorkItemCard extends ConsumerStatefulWidget {
-  final WorkItemDto item;
+class OrgItemCard extends ConsumerStatefulWidget {
+  final OrgItemDto item;
   final bool initiallyExpanded;
 
-  const WorkItemCard({
+  const OrgItemCard({
     super.key,
     required this.item,
     this.initiallyExpanded = false,
   });
 
   @override
-  ConsumerState<WorkItemCard> createState() => _WorkItemCardState();
+  ConsumerState<OrgItemCard> createState() => _OrgItemCardState();
 }
 
-class _WorkItemCardState extends ConsumerState<WorkItemCard> {
+class _OrgItemCardState extends ConsumerState<OrgItemCard> {
   late bool _expanded;
-  late TextEditingController _nameCtrl;
-  late TextEditingController _posCtrl;
+  late TextEditingController _orgCtrl;
+  late TextEditingController _roleCtrl;
   late TextEditingController _startCtrl;
   late TextEditingController _endCtrl;
   late TextEditingController _summaryCtrl;
   late TextEditingController _highlightsCtrl;
-  late TextEditingController _keywordsCtrl;
-
 
   Timer? _debounce;
   bool _saved = false;
@@ -42,23 +40,16 @@ class _WorkItemCardState extends ConsumerState<WorkItemCard> {
   void initState() {
     super.initState();
     _expanded = widget.initiallyExpanded;
-    _initControllers(widget.item);
-  }
-
-  void _initControllers(WorkItemDto item) {
-    _nameCtrl = TextEditingController(text: item.name);
-    _posCtrl = TextEditingController(text: item.position);
-    _startCtrl = TextEditingController(text: item.startDate);
-    _endCtrl = TextEditingController(text: item.endDate);
-    _summaryCtrl = TextEditingController(text: item.summary);
+    _orgCtrl = TextEditingController(text: widget.item.organization);
+    _roleCtrl = TextEditingController(text: widget.item.role);
+    _startCtrl = TextEditingController(text: widget.item.startDate);
+    _endCtrl = TextEditingController(text: widget.item.endDate);
+    _summaryCtrl = TextEditingController(text: widget.item.summary);
     _highlightsCtrl =
-        TextEditingController(text: item.highlights.join('\n'));
-    _keywordsCtrl =
-        TextEditingController(text: item.keywords.join(', '));
+        TextEditingController(text: widget.item.highlights.join('\n'));
 
     for (final ctrl in [
-      _nameCtrl, _posCtrl, _startCtrl, _endCtrl, _summaryCtrl,
-      _highlightsCtrl, _keywordsCtrl,
+      _orgCtrl, _roleCtrl, _startCtrl, _endCtrl, _summaryCtrl, _highlightsCtrl,
     ]) {
       ctrl.addListener(_onChanged);
     }
@@ -68,8 +59,7 @@ class _WorkItemCardState extends ConsumerState<WorkItemCard> {
   void dispose() {
     _debounce?.cancel();
     for (final ctrl in [
-      _nameCtrl, _posCtrl, _startCtrl, _endCtrl, _summaryCtrl,
-      _highlightsCtrl, _keywordsCtrl,
+      _orgCtrl, _roleCtrl, _startCtrl, _endCtrl, _summaryCtrl, _highlightsCtrl,
     ]) {
       ctrl.dispose();
     }
@@ -87,25 +77,17 @@ class _WorkItemCardState extends ConsumerState<WorkItemCard> {
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty)
         .toList();
-    final keywords = _keywordsCtrl.text
-        .split(',')
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
 
     await ref.read(resumeMatrixProvider.notifier).upsertSection(
-      'work',
+      'organizations',
       {
         'id': widget.item.id,
-        'name': _nameCtrl.text,
-        'position': _posCtrl.text,
+        'organization': _orgCtrl.text,
+        'role': _roleCtrl.text,
         'start_date': _startCtrl.text,
         'end_date': _endCtrl.text,
         'summary': _summaryCtrl.text,
         'highlights': highlights,
-        'keywords': keywords,
-        'skills': widget.item.skills,
-        'url': widget.item.url,
         'active': widget.item.active,
       },
     );
@@ -122,14 +104,14 @@ class _WorkItemCardState extends ConsumerState<WorkItemCard> {
     final theme = Theme.of(context);
 
     return Dismissible(
-      key: ValueKey('work_${widget.item.id}'),
+      key: ValueKey('org_${widget.item.id}'),
       direction: DismissDirection.endToStart,
       background: _deleteBg(cs),
       confirmDismiss: (_) async => await _confirmDelete(context),
       onDismissed: (_) {
         ref
             .read(resumeMatrixProvider.notifier)
-            .deleteItem('work', widget.item.id);
+            .deleteItem('organizations', widget.item.id);
       },
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
@@ -153,15 +135,15 @@ class _WorkItemCardState extends ConsumerState<WorkItemCard> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              widget.item.name.isEmpty
-                                  ? 'New Position'
-                                  : widget.item.name,
+                              widget.item.organization.isEmpty
+                                  ? 'New Org Experience'
+                                  : widget.item.organization,
                               style: theme.textTheme.titleMedium
                                   ?.copyWith(fontWeight: FontWeight.w600),
                             ),
-                            if (widget.item.position.isNotEmpty)
+                            if (widget.item.role.isNotEmpty)
                               Text(
-                                widget.item.position,
+                                widget.item.role,
                                 style: theme.textTheme.bodySmall
                                     ?.copyWith(color: cs.outline),
                               ),
@@ -194,35 +176,31 @@ class _WorkItemCardState extends ConsumerState<WorkItemCard> {
                     const SizedBox(height: 16),
                     const Divider(),
                     const SizedBox(height: 12),
-                    _field('Company / Organisation', _nameCtrl),
-                    _field('Position / Title', _posCtrl),
+                    _field('Organization / Club / Committee', _orgCtrl,
+                        hint: 'e.g. ICpEP.SE CTU-MC, Student Government'),
+                    _field('Role / Title', _roleCtrl,
+                        hint: 'e.g. Secretary, Vice President'),
                     Row(
                       children: [
                         Expanded(child: _field('Start Date', _startCtrl,
-                            hint: 'e.g. Aug 2024 or Present')),
+                            hint: 'e.g. Aug 2023 or Present')),
                         const SizedBox(width: 8),
                         Expanded(child: _field('End Date', _endCtrl,
-                            hint: 'e.g. May 2026 or Present')),
+                            hint: 'e.g. May 2025 or Present')),
                       ],
                     ),
                     _field(
                       'Summary',
                       _summaryCtrl,
                       maxLines: 2,
-                      hint: 'Describe what you did overall (1–3 sentences)',
+                      hint: 'Describe your overall role or involvement',
                     ),
                     _field(
                       'Highlights (one per line — auto-bulleted)',
                       _highlightsCtrl,
-                      maxLines: 5,
-                      hint: 'e.g. Led migration of legacy monolith, reducing p99 latency by 40%',
+                      maxLines: 4,
+                      hint: 'e.g. Organized Annual Tech Summit with 200+ attendees',
                       helper: 'Each line becomes a bullet point (•) on the resume',
-                    ),
-                    _field(
-                      'Keywords (comma-separated)',
-                      _keywordsCtrl,
-                      hint: 'e.g. Go, Docker, gRPC, Kubernetes',
-                      helper: 'ATS skill tags — shown as a subtle tag line',
                     ),
                   ],
                 ],
@@ -258,7 +236,6 @@ class _WorkItemCardState extends ConsumerState<WorkItemCard> {
     );
   }
 
-
   Widget _deleteBg(ColorScheme cs) => Container(
         decoration: BoxDecoration(
           color: cs.errorContainer,
@@ -273,9 +250,9 @@ class _WorkItemCardState extends ConsumerState<WorkItemCard> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Delete experience?'),
+        title: const Text('Delete org experience?'),
         content: Text(
-          '"${widget.item.name}" will be permanently removed.',
+          '"${widget.item.organization}" will be permanently removed.',
         ),
         actions: [
           TextButton(
@@ -290,3 +267,15 @@ class _WorkItemCardState extends ConsumerState<WorkItemCard> {
     return confirmed ?? false;
   }
 }
+
+/// Factory helper — creates a new blank [OrgItemDto] for the FAB add action.
+OrgItemDto newBlankOrgItem() => const OrgItemDto(
+      id: '',
+      organization: '',
+      role: '',
+      startDate: '',
+      endDate: '',
+      summary: '',
+      highlights: [],
+      active: true,
+    );

@@ -870,3 +870,41 @@ class ResumeCompileResponse {
   };
 
 }
+
+/// Request payload for resume.export.markdown
+class ResumeExportMarkdownRequest {
+  /// ID of resume matrix to export
+  final String matrixId;
+
+  const ResumeExportMarkdownRequest({required this.matrixId});
+
+  factory ResumeExportMarkdownRequest.fromMap(Map<String, dynamic> m) {
+    return ResumeExportMarkdownRequest(
+      matrixId: m['matrix_id'] as String,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'matrix_id': matrixId,
+  };
+
+}
+
+/// Response payload for resume.export.markdown
+class ResumeExportMarkdownResponse {
+  /// Rendered Markdown content of the resume
+  final String markdown;
+
+  const ResumeExportMarkdownResponse({required this.markdown});
+
+  factory ResumeExportMarkdownResponse.fromMap(Map<String, dynamic> m) {
+    return ResumeExportMarkdownResponse(
+      markdown: m['markdown'] as String,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'markdown': markdown,
+  };
+
+}

@@ -64,6 +64,12 @@ func GetMatrix(userID string) (*models.ResumeMatrix, error) {
 		return nil, fmt.Errorf("get awards: %w", err)
 	}
 
+	// Organizations
+	matrix.Organizations, err = getOrganizations(userID)
+	if err != nil {
+		return nil, fmt.Errorf("get organizations: %w", err)
+	}
+
 	return matrix, nil
 }
 
@@ -84,7 +90,7 @@ func getBasics(userID string) (models.Basics, error) {
 }
 
 func getWork(userID string) ([]models.WorkItem, error) {
-	rows, err := db.DB.Query(`SELECT id,name,position,url,start_date,end_date,summary,highlights,skills,active FROM resume_work WHERE user_id=? ORDER BY sort_order ASC`, userID)
+	rows, err := db.DB.Query(`SELECT id,name,position,url,start_date,end_date,summary,highlights,keywords,skills,active FROM resume_work WHERE user_id=? ORDER BY sort_order ASC`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -93,16 +99,20 @@ func getWork(userID string) ([]models.WorkItem, error) {
 	var items []models.WorkItem
 	for rows.Next() {
 		var item models.WorkItem
-		var highlightsJSON, skillsJSON string
+		var highlightsJSON, keywordsJSON, skillsJSON string
 		var active int
-		if err := rows.Scan(&item.Id, &item.Name, &item.Position, &item.Url, &item.StartDate, &item.EndDate, &item.Summary, &highlightsJSON, &skillsJSON, &active); err != nil {
+		if err := rows.Scan(&item.Id, &item.Name, &item.Position, &item.Url, &item.StartDate, &item.EndDate, &item.Summary, &highlightsJSON, &keywordsJSON, &skillsJSON, &active); err != nil {
 			return nil, err
 		}
 		item.Active = active != 0
 		_ = json.Unmarshal([]byte(highlightsJSON), &item.Highlights)
+		_ = json.Unmarshal([]byte(keywordsJSON), &item.Keywords)
 		_ = json.Unmarshal([]byte(skillsJSON), &item.Skills)
 		if item.Highlights == nil {
 			item.Highlights = []string{}
+		}
+		if item.Keywords == nil {
+			item.Keywords = []string{}
 		}
 		if item.Skills == nil {
 			item.Skills = []string{}
@@ -142,7 +152,7 @@ func getEducation(userID string) ([]models.Education, error) {
 }
 
 func getProjects(userID string) ([]models.ProjectItem, error) {
-	rows, err := db.DB.Query(`SELECT id,name,description,highlights,url,exhibits,active FROM resume_projects WHERE user_id=? ORDER BY sort_order ASC`, userID)
+	rows, err := db.DB.Query(`SELECT id,name,description,highlights,keywords,url,exhibits,active FROM resume_projects WHERE user_id=? ORDER BY sort_order ASC`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -151,16 +161,20 @@ func getProjects(userID string) ([]models.ProjectItem, error) {
 	var items []models.ProjectItem
 	for rows.Next() {
 		var item models.ProjectItem
-		var highJSON, exhibJSON string
+		var highJSON, kwJSON, exhibJSON string
 		var active int
-		if err := rows.Scan(&item.Id, &item.Name, &item.Description, &highJSON, &item.Url, &exhibJSON, &active); err != nil {
+		if err := rows.Scan(&item.Id, &item.Name, &item.Description, &highJSON, &kwJSON, &item.Url, &exhibJSON, &active); err != nil {
 			return nil, err
 		}
 		item.Active = active != 0
 		_ = json.Unmarshal([]byte(highJSON), &item.Highlights)
+		_ = json.Unmarshal([]byte(kwJSON), &item.Keywords)
 		_ = json.Unmarshal([]byte(exhibJSON), &item.Exhibits)
 		if item.Highlights == nil {
 			item.Highlights = []string{}
+		}
+		if item.Keywords == nil {
+			item.Keywords = []string{}
 		}
 		if item.Exhibits == nil {
 			item.Exhibits = []string{}
@@ -241,6 +255,35 @@ func getAwards(userID string) ([]models.Award, error) {
 	return items, rows.Err()
 }
 
+func getOrganizations(userID string) ([]models.OrgItem, error) {
+	rows, err := db.DB.Query(`SELECT id,organization,role,start_date,end_date,summary,highlights,active FROM resume_organizations WHERE user_id=? ORDER BY sort_order ASC`, userID)
+	if err != nil {
+		// Table may not exist on older deployments — return empty gracefully.
+		return []models.OrgItem{}, nil
+	}
+	defer rows.Close()
+
+	var items []models.OrgItem
+	for rows.Next() {
+		var item models.OrgItem
+		var highJSON string
+		var active int
+		if err := rows.Scan(&item.Id, &item.Organization, &item.Role, &item.StartDate, &item.EndDate, &item.Summary, &highJSON, &active); err != nil {
+			return nil, err
+		}
+		item.Active = active != 0
+		_ = json.Unmarshal([]byte(highJSON), &item.Highlights)
+		if item.Highlights == nil {
+			item.Highlights = []string{}
+		}
+		items = append(items, item)
+	}
+	if items == nil {
+		items = []models.OrgItem{}
+	}
+	return items, rows.Err()
+}
+
 // UpdateSection handles upsert, delete, and reorder actions for a named section.
 func UpdateSection(userID, section, action string, item map[string]interface{}, id string) (string, error) {
 	switch section {
@@ -258,6 +301,8 @@ func UpdateSection(userID, section, action string, item map[string]interface{}, 
 		return upsertCertificate(userID, action, item, id)
 	case "awards":
 		return upsertAward(userID, action, item, id)
+	case "organizations":
+		return upsertOrganization(userID, action, item, id)
 	default:
 		return "", fmt.Errorf("unknown section: %s", section)
 	}
@@ -270,7 +315,7 @@ func upsertBasics(userID string, item map[string]interface{}) (string, error) {
 	locMap, _ := item["location"].(map[string]interface{})
 	city, _ := locMap["city"].(string)
 	region, _ := locMap["region"].(string)
-	countryCode, _ := locMap["countryCode"].(string)
+	countryCode, _ := locMap["country_code"].(string)
 
 	profilesJSON := "[]"
 	if p, ok := item["profiles"]; ok {
@@ -305,22 +350,23 @@ func upsertWork(userID, action string, item map[string]interface{}, id string) (
 		itemID = uuid.New().String()
 	}
 	h, _ := json.Marshal(jsonArray(item, "highlights"))
+	k, _ := json.Marshal(jsonArray(item, "keywords"))
 	s, _ := json.Marshal(jsonArray(item, "skills"))
 	active := 1
 	if v, ok := item["active"].(bool); ok && !v {
 		active = 0
 	}
 	_, err := db.DB.Exec(`INSERT INTO resume_work
-		(id,user_id,name,position,url,start_date,end_date,summary,highlights,skills,active)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?)
+		(id,user_id,name,position,url,start_date,end_date,summary,highlights,keywords,skills,active)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			name=excluded.name, position=excluded.position, url=excluded.url,
 			start_date=excluded.start_date, end_date=excluded.end_date, summary=excluded.summary,
-			highlights=excluded.highlights, skills=excluded.skills, active=excluded.active`,
+			highlights=excluded.highlights, keywords=excluded.keywords, skills=excluded.skills, active=excluded.active`,
 		itemID, userID,
 		strField(item, "name"), strField(item, "position"), strField(item, "url"),
-		strField(item, "startDate"), strField(item, "endDate"), strField(item, "summary"),
-		string(h), string(s), active,
+		strField(item, "start_date"), strField(item, "end_date"), strField(item, "summary"),
+		string(h), string(k), string(s), active,
 	)
 	return itemID, err
 }
@@ -344,7 +390,7 @@ func upsertEducation(userID, action string, item map[string]interface{}, id stri
 			end_date=excluded.end_date, score=excluded.score, courses=excluded.courses`,
 		itemID, userID,
 		strField(item, "institution"), strField(item, "url"), strField(item, "area"),
-		strField(item, "studyType"), strField(item, "startDate"), strField(item, "endDate"),
+		strField(item, "study_type"), strField(item, "start_date"), strField(item, "end_date"),
 		strField(item, "score"), string(c),
 	)
 	return itemID, err
@@ -360,21 +406,22 @@ func upsertProject(userID, action string, item map[string]interface{}, id string
 		itemID = uuid.New().String()
 	}
 	h, _ := json.Marshal(jsonArray(item, "highlights"))
+	k, _ := json.Marshal(jsonArray(item, "keywords"))
 	e, _ := json.Marshal(jsonArray(item, "exhibits"))
 	active := 1
 	if v, ok := item["active"].(bool); ok && !v {
 		active = 0
 	}
 	_, err := db.DB.Exec(`INSERT INTO resume_projects
-		(id,user_id,name,description,highlights,url,exhibits,active)
-		VALUES (?,?,?,?,?,?,?,?)
+		(id,user_id,name,description,highlights,keywords,url,exhibits,active)
+		VALUES (?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			name=excluded.name, description=excluded.description,
-			highlights=excluded.highlights, url=excluded.url,
+			highlights=excluded.highlights, keywords=excluded.keywords, url=excluded.url,
 			exhibits=excluded.exhibits, active=excluded.active`,
 		itemID, userID,
 		strField(item, "name"), strField(item, "description"), string(h),
-		strField(item, "url"), string(e), active,
+		string(k), strField(item, "url"), string(e), active,
 	)
 	return itemID, err
 }
@@ -426,6 +473,35 @@ func upsertAward(userID, action string, item map[string]interface{}, id string) 
 		ON CONFLICT(id) DO UPDATE SET title=excluded.title, date=excluded.date, awarder=excluded.awarder, summary=excluded.summary`,
 		itemID, userID,
 		strField(item, "title"), strField(item, "date"), strField(item, "awarder"), strField(item, "summary"),
+	)
+	return itemID, err
+}
+
+func upsertOrganization(userID, action string, item map[string]interface{}, id string) (string, error) {
+	if action == "delete" {
+		_, err := db.DB.Exec("DELETE FROM resume_organizations WHERE id=? AND user_id=?", id, userID)
+		return id, err
+	}
+	itemID := strField(item, "id")
+	if itemID == "" {
+		itemID = uuid.New().String()
+	}
+	h, _ := json.Marshal(jsonArray(item, "highlights"))
+	active := 1
+	if v, ok := item["active"].(bool); ok && !v {
+		active = 0
+	}
+	_, err := db.DB.Exec(`INSERT INTO resume_organizations
+		(id,user_id,organization,role,start_date,end_date,summary,highlights,active)
+		VALUES (?,?,?,?,?,?,?,?,?)
+		ON CONFLICT(id) DO UPDATE SET
+			organization=excluded.organization, role=excluded.role,
+			start_date=excluded.start_date, end_date=excluded.end_date,
+			summary=excluded.summary, highlights=excluded.highlights, active=excluded.active`,
+		itemID, userID,
+		strField(item, "organization"), strField(item, "role"),
+		strField(item, "start_date"), strField(item, "end_date"),
+		strField(item, "summary"), string(h), active,
 	)
 	return itemID, err
 }

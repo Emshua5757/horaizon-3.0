@@ -310,3 +310,15 @@ type ResumeCompileResponse struct {
 	// Jaccard similarity score if tailored
 	TailorScore *float32 `msgpack:"tailor_score"`
 }
+
+// Request payload for resume.export.markdown
+type ResumeExportMarkdownRequest struct {
+	// ID of resume matrix to export
+	MatrixId string `msgpack:"matrix_id"`
+}
+
+// Response payload for resume.export.markdown
+type ResumeExportMarkdownResponse struct {
+	// Rendered Markdown content of the resume
+	Markdown string `msgpack:"markdown"`
+}

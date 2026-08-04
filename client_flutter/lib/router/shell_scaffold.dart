@@ -42,12 +42,6 @@ class ShellScaffold extends ConsumerWidget {
       label: 'Settings',
       path: '/settings',
     ),
-    _Dest(
-      icon: Icons.description_outlined,
-      selectedIcon: Icons.description_rounded,
-      label: 'Resume',
-      path: '/resume',
-    ),
   ];
 
   int _selectedIndex(BuildContext context) {
@@ -65,10 +59,12 @@ class ShellScaffold extends ConsumerWidget {
     final selectedIndex = _selectedIndex(context);
     final mediaWidth = MediaQuery.of(context).size.width;
     final isMobile = mediaWidth < 640;
-    final isExpanded = ref.watch(isSidebarExpandedProvider) && mediaWidth >= 900;
+    final isExpanded =
+        ref.watch(isSidebarExpandedProvider) && mediaWidth >= 900;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final connState = ref.watch(hbpConnectionStateProvider).valueOrNull ?? HbpConnectionState.disconnected;
+    final connState = ref.watch(hbpConnectionStateProvider).valueOrNull ??
+        HbpConnectionState.disconnected;
 
     if (!isMobile) {
       return Scaffold(
@@ -93,7 +89,7 @@ class ShellScaffold extends ConsumerWidget {
                 child: Column(
                   children: [
                     const SizedBox(height: 16),
-                    
+
                     // Brand Header matching Stitch
                     _SidebarBrandHeader(isExpanded: isExpanded),
                     const SizedBox(height: 24),
@@ -101,7 +97,8 @@ class ShellScaffold extends ConsumerWidget {
                     // Primary Navigation Items
                     Expanded(
                       child: ListView.separated(
-                        padding: EdgeInsets.symmetric(horizontal: isExpanded ? 12 : 14),
+                        padding: EdgeInsets.symmetric(
+                            horizontal: isExpanded ? 12 : 14),
                         itemCount: _destinations.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 8),
                         itemBuilder: (context, i) {
@@ -202,14 +199,17 @@ class _SidebarBrandHeader extends ConsumerWidget {
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: isExpanded ? 16 : 0),
         child: Row(
-          mainAxisAlignment: isExpanded ? MainAxisAlignment.start : MainAxisAlignment.center,
+          mainAxisAlignment:
+              isExpanded ? MainAxisAlignment.start : MainAxisAlignment.center,
           children: [
             IconButton(
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
-              icon: const Icon(Icons.dataset_rounded, color: Color(0xFF00E5FF), size: 24),
+              icon: const Icon(Icons.dataset_rounded,
+                  color: Color(0xFF00E5FF), size: 24),
               onPressed: () {
-                ref.read(isSidebarExpandedProvider.notifier).state = !isExpanded;
+                ref.read(isSidebarExpandedProvider.notifier).state =
+                    !isExpanded;
               },
               tooltip: isExpanded ? 'Collapse Sidebar' : 'Expand Sidebar',
             ),
@@ -240,8 +240,14 @@ class _SidebarBrandHeader extends ConsumerWidget {
                         IconButton(
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
-                          icon: Icon(Icons.chevron_left_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 20),
-                          onPressed: () => ref.read(isSidebarExpandedProvider.notifier).state = false,
+                          icon: Icon(Icons.chevron_left_rounded,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                              size: 20),
+                          onPressed: () => ref
+                              .read(isSidebarExpandedProvider.notifier)
+                              .state = false,
                           tooltip: 'Collapse Sidebar',
                         ),
                       ],
@@ -255,6 +261,7 @@ class _SidebarBrandHeader extends ConsumerWidget {
     );
   }
 }
+
 /// System Telemetry Footer Block with Windows Task Manager style mini sparklines.
 class _SidebarTelemetryCard extends ConsumerWidget {
   final bool isExpanded;
@@ -275,32 +282,52 @@ class _SidebarTelemetryCard extends ConsumerWidget {
 
     final cpuPct = status?.cpuUsagePct ?? 18.0;
     final cpuStr = cpuPct.toStringAsFixed(0);
-    final usedRamGb = ((status?.totalRamMb ?? 2140.0) / 1024.0).toStringAsFixed(1);
-    final totalRamGb = ((status?.ramCeilingMb ?? 7168.0) / 1024.0).toStringAsFixed(1);
+    final usedRamGb =
+        ((status?.totalRamMb ?? 2140.0) / 1024.0).toStringAsFixed(1);
+    final totalRamGb =
+        ((status?.ramCeilingMb ?? 7168.0) / 1024.0).toStringAsFixed(1);
     final tempStr = (status?.socTempC ?? 41.8).toStringAsFixed(1);
     final pingMs = status?.tailscaleLatencyMs ?? 12;
 
     final cpuHist = status?.cpuHistory ?? [12.0, 15.0, 18.0, 14.0, 16.0, 18.0];
-    final ramHist = status?.ramHistory ?? [2100.0, 2120.0, 2140.0, 2130.0, 2140.0];
+    final ramHist =
+        status?.ramHistory ?? [2100.0, 2120.0, 2140.0, 2130.0, 2140.0];
     final tempHist = status?.tempHistory ?? [40.5, 41.0, 41.5, 41.8, 41.6];
     final pingHist = status?.latencyHistory ?? [14.0, 12.0, 13.0, 12.0, 12.0];
 
     return AnimatedCrossFade(
       duration: const Duration(milliseconds: 200),
-      crossFadeState: isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+      crossFadeState:
+          isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
       firstChild: SizedBox(
         width: 72,
         child: Column(
           children: [
             Divider(indent: 12, endIndent: 12, color: cs.outlineVariant),
             const SizedBox(height: 4),
-            _MiniTelemetryTag(label: 'CPU', value: '$cpuStr%', values: cpuHist, color: successColor),
+            _MiniTelemetryTag(
+                label: 'CPU',
+                value: '$cpuStr%',
+                values: cpuHist,
+                color: successColor),
             const SizedBox(height: 6),
-            _MiniTelemetryTag(label: 'MEM', value: '${usedRamGb}G', values: ramHist, color: infoColor),
+            _MiniTelemetryTag(
+                label: 'MEM',
+                value: '${usedRamGb}G',
+                values: ramHist,
+                color: infoColor),
             const SizedBox(height: 6),
-            _MiniTelemetryTag(label: 'TMP', value: '$tempStr°', values: tempHist, color: tempColor),
+            _MiniTelemetryTag(
+                label: 'TMP',
+                value: '$tempStr°',
+                values: tempHist,
+                color: tempColor),
             const SizedBox(height: 6),
-            _MiniTelemetryTag(label: 'PNG', value: '${pingMs}ms', values: pingHist, color: pingColor),
+            _MiniTelemetryTag(
+                label: 'PNG',
+                value: '${pingMs}ms',
+                values: pingHist,
+                color: pingColor),
           ],
         ),
       ),
@@ -337,7 +364,10 @@ class _SidebarTelemetryCard extends ConsumerWidget {
                       const SizedBox(width: 4),
                       Text(
                         'Operational',
-                        style: TextStyle(color: successColor, fontSize: 9, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            color: successColor,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -347,8 +377,16 @@ class _SidebarTelemetryCard extends ConsumerWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('CPU UTILIZATION', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 9, fontWeight: FontWeight.bold)),
-                      Text('$cpuStr%', style: TextStyle(color: successColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                      Text('CPU UTILIZATION',
+                          style: TextStyle(
+                              color: cs.onSurfaceVariant,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold)),
+                      Text('$cpuStr%',
+                          style: TextStyle(
+                              color: successColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const SizedBox(height: 3),
@@ -365,8 +403,16 @@ class _SidebarTelemetryCard extends ConsumerWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('MEMORY USAGE', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 9, fontWeight: FontWeight.bold)),
-                      Text('$usedRamGb/${totalRamGb}GB', style: TextStyle(color: infoColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                      Text('MEMORY USAGE',
+                          style: TextStyle(
+                              color: cs.onSurfaceVariant,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold)),
+                      Text('$usedRamGb/${totalRamGb}GB',
+                          style: TextStyle(
+                              color: infoColor,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const SizedBox(height: 3),
@@ -387,8 +433,16 @@ class _SidebarTelemetryCard extends ConsumerWidget {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('TEMP', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 8, fontWeight: FontWeight.bold)),
-                                Text('$tempStr°C', style: const TextStyle(color: tempColor, fontSize: 9, fontWeight: FontWeight.bold)),
+                                Text('TEMP',
+                                    style: TextStyle(
+                                        color: cs.onSurfaceVariant,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.bold)),
+                                Text('$tempStr°C',
+                                    style: const TextStyle(
+                                        color: tempColor,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold)),
                               ],
                             ),
                             const SizedBox(height: 2),
@@ -409,8 +463,16 @@ class _SidebarTelemetryCard extends ConsumerWidget {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('PING', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 8, fontWeight: FontWeight.bold)),
-                                Text('${pingMs}ms', style: const TextStyle(color: pingColor, fontSize: 9, fontWeight: FontWeight.bold)),
+                                Text('PING',
+                                    style: TextStyle(
+                                        color: cs.onSurfaceVariant,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.bold)),
+                                Text('${pingMs}ms',
+                                    style: const TextStyle(
+                                        color: pingColor,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold)),
                               ],
                             ),
                             const SizedBox(height: 2),
@@ -460,8 +522,16 @@ class _MiniTelemetryTag extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(label, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 8, fontWeight: FontWeight.bold)),
-              Text(value, style: TextStyle(color: activeColor, fontSize: 9, fontWeight: FontWeight.bold)),
+              Text(label,
+                  style: TextStyle(
+                      color: cs.onSurfaceVariant,
+                      fontSize: 8,
+                      fontWeight: FontWeight.bold)),
+              Text(value,
+                  style: TextStyle(
+                      color: activeColor,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold)),
             ],
           ),
           if (values != null && values!.isNotEmpty) ...[
@@ -504,14 +574,21 @@ class _DesktopHeader extends StatelessWidget {
         children: [
           // Back & Forward navigation buttons matching Stitch screenshot
           IconButton(
-            icon: Icon(Icons.arrow_back_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 18),
+            icon: Icon(Icons.arrow_back_rounded,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                size: 18),
             onPressed: () => context.canPop() ? context.pop() : null,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             tooltip: 'Back',
           ),
           IconButton(
-            icon: Icon(Icons.arrow_forward_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5), size: 18),
+            icon: Icon(Icons.arrow_forward_rounded,
+                color: Theme.of(context)
+                    .colorScheme
+                    .onSurfaceVariant
+                    .withValues(alpha: 0.5),
+                size: 18),
             onPressed: null,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -523,32 +600,44 @@ class _DesktopHeader extends StatelessWidget {
               children: [
                 TextSpan(
                   text: 'Workspace  ›  ',
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 13),
                 ),
                 TextSpan(
                   text: title,
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 13, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold),
                 ),
               ],
             ),
           ),
           const Spacer(),
           IconButton(
-            icon: Icon(Icons.search_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 20),
+            icon: Icon(Icons.search_rounded,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                size: 20),
             onPressed: () {
               // TODO: Implement Global Command Palette / Search Modal (TASK-022)
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Global Search / Command Palette coming soon.')),
+                const SnackBar(
+                    content:
+                        Text('Global Search / Command Palette coming soon.')),
               );
             },
             tooltip: 'Search',
           ),
           IconButton(
-            icon: Icon(Icons.notifications_outlined, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 20),
+            icon: Icon(Icons.notifications_outlined,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                size: 20),
             onPressed: () {
               // TODO: Implement Central Notification & Alert Drawer (TASK-023)
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Notification Center coming soon.')),
+                const SnackBar(
+                    content: Text('Notification Center coming soon.')),
               );
             },
             tooltip: 'Notifications',
@@ -581,21 +670,31 @@ class _MobileHeader extends StatelessWidget {
             children: [
               Text(
                 'horAIzon 3.0',
-                style: TextStyle(color: cs.onSurface, fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: -0.5),
+                style: TextStyle(
+                    color: cs.onSurface,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.5),
               ),
               Text(
                 'AI OPERATING SYSTEM',
-                style: TextStyle(color: cs.primary, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                style: TextStyle(
+                    color: cs.primary,
+                    fontSize: 8,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2),
               ),
             ],
           ),
           const Spacer(),
           IconButton(
-            icon: Icon(Icons.notifications_outlined, color: cs.primary, size: 22),
+            icon:
+                Icon(Icons.notifications_outlined, color: cs.primary, size: 22),
             onPressed: () {
               // TODO: Implement Central Notification & Alert Drawer (TASK-023)
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Notification Center coming soon.')),
+                const SnackBar(
+                    content: Text('Notification Center coming soon.')),
               );
             },
             tooltip: 'Notifications',
@@ -629,8 +728,11 @@ class _MobileFloatingPill extends ConsumerWidget {
     final cs = Theme.of(context).colorScheme;
     final status = ref.watch(governorStatusProvider).valueOrNull;
     final (color, label) = switch (connState) {
-      HbpConnectionState.connected    => (cs.primary, 'RPi5: ${status?.tailscaleLatencyMs ?? 12}MS | ONLINE'),
-      HbpConnectionState.connecting   => (Colors.amber, 'RPi5: CONNECTING...'),
+      HbpConnectionState.connected => (
+          cs.primary,
+          'RPi5: ${status?.tailscaleLatencyMs ?? 12}MS | ONLINE'
+        ),
+      HbpConnectionState.connecting => (Colors.amber, 'RPi5: CONNECTING...'),
       HbpConnectionState.reconnecting => (Colors.orange, 'RPi5: RETRYING...'),
       HbpConnectionState.disconnected => (cs.error, 'RPi5: OFFLINE'),
     };
@@ -642,7 +744,10 @@ class _MobileFloatingPill extends ConsumerWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withValues(alpha: 0.5), width: 1),
         boxShadow: [
-          BoxShadow(color: color.withValues(alpha: 0.2), blurRadius: 10, spreadRadius: 1),
+          BoxShadow(
+              color: color.withValues(alpha: 0.2),
+              blurRadius: 10,
+              spreadRadius: 1),
         ],
       ),
       child: Row(
@@ -660,7 +765,11 @@ class _MobileFloatingPill extends ConsumerWidget {
           const SizedBox(width: 8),
           Text(
             label,
-            style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+            style: TextStyle(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.8),
           ),
         ],
       ),
@@ -697,11 +806,17 @@ class _NavTile extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: isExpanded ? 12 : 0),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            color: isSelected ? activeColor.withValues(alpha: 0.15) : Colors.transparent,
-            border: isSelected ? Border.all(color: activeColor.withValues(alpha: 0.4), width: 1) : null,
+            color: isSelected
+                ? activeColor.withValues(alpha: 0.15)
+                : Colors.transparent,
+            border: isSelected
+                ? Border.all(
+                    color: activeColor.withValues(alpha: 0.4), width: 1)
+                : null,
           ),
           child: Row(
-            mainAxisAlignment: isExpanded ? MainAxisAlignment.start : MainAxisAlignment.center,
+            mainAxisAlignment:
+                isExpanded ? MainAxisAlignment.start : MainAxisAlignment.center,
             children: [
               Icon(
                 isSelected ? destination.selectedIcon : destination.icon,
@@ -720,7 +835,8 @@ class _NavTile extends StatelessWidget {
                         destination.label,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: isSelected ? activeColor : cs.onSurfaceVariant,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.normal,
                         ),
                         overflow: TextOverflow.clip,
                         maxLines: 1,
