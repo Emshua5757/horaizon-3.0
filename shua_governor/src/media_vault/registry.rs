@@ -37,8 +37,9 @@ pub struct VaultRegistry {
 impl VaultRegistry {
     /// Open (or create) the registry in the given SQLite path.
     pub fn open(db_path: &std::path::Path) -> Result<Self> {
-        let conn = Connection::open(db_path)
-            .with_context(|| format!("Failed to open vault registry DB at {}", db_path.display()))?;
+        let conn = Connection::open(db_path).with_context(|| {
+            format!("Failed to open vault registry DB at {}", db_path.display())
+        })?;
 
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
 
@@ -191,23 +192,20 @@ impl VaultRegistry {
 
         let mut stmt = conn.prepare(list_sql)?;
         let rows: Vec<MediaAsset> = if use_filter {
-            stmt.query_map(
-                params![module_filter.unwrap(), page_size, offset],
-                |row| {
-                    Ok(MediaAsset {
-                        sha256_hash: row.get(0)?,
-                        module: row.get(1)?,
-                        file_path: row.get(2)?,
-                        file_name: row.get(3)?,
-                        mime_type: row.get(4)?,
-                        file_size: row.get(5)?,
-                        ref_count: row.get(6)?,
-                        uploaded_by: row.get(7)?,
-                        created_at: row.get(8)?,
-                        last_accessed: row.get(9)?,
-                    })
-                },
-            )?
+            stmt.query_map(params![module_filter.unwrap(), page_size, offset], |row| {
+                Ok(MediaAsset {
+                    sha256_hash: row.get(0)?,
+                    module: row.get(1)?,
+                    file_path: row.get(2)?,
+                    file_name: row.get(3)?,
+                    mime_type: row.get(4)?,
+                    file_size: row.get(5)?,
+                    ref_count: row.get(6)?,
+                    uploaded_by: row.get(7)?,
+                    created_at: row.get(8)?,
+                    last_accessed: row.get(9)?,
+                })
+            })?
             .filter_map(|r| r.ok())
             .collect()
         } else {

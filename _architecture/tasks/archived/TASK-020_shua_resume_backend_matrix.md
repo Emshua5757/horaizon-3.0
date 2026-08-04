@@ -1,8 +1,8 @@
-﻿# TASK-020 — `shua_resume` Go Microservice: Resume Matrix, Typst Engine & MCP Server
+# TASK-020 — `shua_resume` Go Microservice: Resume Matrix, Typst Engine & MCP Server
 
 | Field | Value |
 | :--- | :--- |
-| **Status** | [ ] Not started |
+| **Status** | [x] Completed |
 | **Phase** | Phase 4 |
 | **Type** | AI-executable |
 | **Language** | Go / SQLite / Typst |
