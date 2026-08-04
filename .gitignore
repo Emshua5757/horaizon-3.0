@@ -120,6 +120,8 @@ _architecture/reference/
 *.bin
 *.safetensors
 models/
+!shua_resume/pkg/models/
+!shua_resume/pkg/models/**
 
 
 # ─── SQLite (shua_portal, shua_diary) ───────────────────────
