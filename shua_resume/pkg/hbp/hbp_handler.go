@@ -2,11 +2,12 @@
 // dispatches to the correct handler, and encodes the response.
 //
 // Frame routing:
-//   shua.resume.matrix.get     -> handleMatrixGet
-//   shua.resume.matrix.update  -> handleMatrixUpdate
-//   shua.resume.compile        -> handleCompile
-//   shua.resume.history.list   -> handleHistoryList
-//   shua.resume.templates.list -> handleTemplatesList
+//
+//	shua.resume.matrix.get     -> handleMatrixGet
+//	shua.resume.matrix.update  -> handleMatrixUpdate
+//	shua.resume.compile        -> handleCompile
+//	shua.resume.history.list   -> handleHistoryList
+//	shua.resume.templates.list -> handleTemplatesList
 package hbp
 
 import (
@@ -61,15 +62,15 @@ func (h *Handler) Handle(raw []byte) []byte {
 	})
 
 	switch frame.Op {
-	case "shua.resume.matrix.get":
+	case "matrix.get":
 		return h.handleMatrixGet(frame)
-	case "shua.resume.matrix.update":
+	case "matrix.update":
 		return h.handleMatrixUpdate(frame)
-	case "shua.resume.compile":
+	case "compile":
 		return h.handleCompile(frame)
-	case "shua.resume.history.list":
+	case "history.list":
 		return h.handleHistoryList(frame)
-	case "shua.resume.templates.list":
+	case "templates.list":
 		return h.handleTemplatesList(frame)
 	default:
 		logger.Warn("hbp_handler", "unknown op", map[string]interface{}{"op": frame.Op})
@@ -220,14 +221,14 @@ func (h *Handler) handleCompile(frame Frame) []byte {
 
 	// 7. Response
 	resp := map[string]interface{}{
-		"1": sha256Hash, // exhibit_id
-		"2": vaultURL,   // pdf_url
-		"3": durationMs, // duration_ms
-		"4": tailorScore,// tailor_score (nil if not tailored)
+		"1": sha256Hash,  // exhibit_id
+		"2": vaultURL,    // pdf_url
+		"3": durationMs,  // duration_ms
+		"4": tailorScore, // tailor_score (nil if not tailored)
 	}
 	if compileErr != "" {
 		resp["err"] = compileErr
-		resp["p"]  = string(pdfBytes) // markdown fallback text
+		resp["p"] = string(pdfBytes) // markdown fallback text
 	}
 	return encodeOK(frame.ID, frame.Mod, frame.Op, resp)
 }
