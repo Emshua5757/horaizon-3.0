@@ -42,6 +42,12 @@ class ShellScaffold extends ConsumerWidget {
       label: 'Settings',
       path: '/settings',
     ),
+    _Dest(
+      icon: Icons.description_outlined,
+      selectedIcon: Icons.description_rounded,
+      label: 'Resume',
+      path: '/resume',
+    ),
   ];
 
   int _selectedIndex(BuildContext context) {
