@@ -11,6 +11,7 @@ use crate::logging::broadcaster::LogBroadcaster;
 use crate::logging::entry::{LogEntry, MODULE_FLUTTER};
 use crate::logging::filter::LogFilter;
 use crate::logging::flush::{query_logs_from_db, resolved_db_path, LogQueryParams};
+use crate::media_vault::vault::MediaVault;
 use crate::ollama::lifecycle::OllamaLifecycle;
 use crate::registry::process_manager::ProcessManager;
 
@@ -221,6 +222,7 @@ pub struct Dispatcher {
     ai_runtime: Arc<tokio::runtime::Runtime>,
     mcp_aggregator: Arc<crate::mcp::aggregator::McpAggregator>,
     cpu_tracker: CpuTracker,
+    media_vault: Arc<MediaVault>,
 }
 
 impl Dispatcher {
@@ -231,6 +233,7 @@ impl Dispatcher {
         ollama: Arc<OllamaLifecycle>,
         config: Arc<RwLock<AppConfig>>,
         ai_runtime: Arc<tokio::runtime::Runtime>,
+        media_vault: Arc<MediaVault>,
     ) -> Self {
         Self {
             log_tx,
@@ -241,6 +244,7 @@ impl Dispatcher {
             ai_runtime,
             mcp_aggregator: Arc::new(crate::mcp::aggregator::McpAggregator::new()),
             cpu_tracker: CpuTracker::new(),
+            media_vault,
         }
     }
 
@@ -269,17 +273,63 @@ impl Dispatcher {
 
         match frame.mod_.as_str() {
             "shua.governor" => self.handle_governor(frame, client_tx, peer_ip).await,
+
+            // ── Submodule frame forwarding ───────────────────────────────────────
+            // Frames addressed to shua.resume, shua.diary, etc. are forwarded to
+            // the registered submodule's IPC WebSocket channel.
             other => {
+                let modules = self.process_manager.modules.read().await;
+                if let Some(entry) = modules.get(other) {
+                    if let Some(ref ipc_tx) = entry.ipc_tx {
+                        // Serialize frame to JSON and forward via IPC channel
+                        match serde_json::to_string(&serde_json::json!({
+                            "op": frame.op,
+                            "id": frame.id,
+                            "mod": frame.mod_,
+                            "p": frame.p,
+                            "ts": frame.ts
+                        })) {
+                            Ok(json) => {
+                                if ipc_tx.send(json).is_ok() {
+                                    info!(
+                                        subsystem = "dispatcher",
+                                        module = other,
+                                        op = %frame.op,
+                                        "Frame forwarded to submodule via IPC"
+                                    );
+                                    // Response arrives asynchronously over IPC and is
+                                    // handled in ipc_server.rs pending_calls resolution.
+                                    return None;
+                                } else {
+                                    warn!(
+                                        subsystem = "dispatcher",
+                                        module = other,
+                                        "IPC channel for module closed — cannot forward frame"
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                warn!(subsystem = "dispatcher", module = other, error = %e, "Frame JSON serialization failed");
+                            }
+                        }
+                    } else {
+                        warn!(
+                            subsystem = "dispatcher",
+                            module = other,
+                            "Module found but IPC channel not connected"
+                        );
+                    }
+                }
                 warn!(
                     subsystem = "dispatcher",
                     module = other,
-                    "Unknown target module"
+                    "Unknown or offline target module"
                 );
                 Some(HbpFrame::error_response(
                     &frame.id,
                     &frame.mod_,
                     &frame.op,
-                    "ERR_UNKNOWN_MODULE",
+                    "ERR_MODULE_OFFLINE",
                 ))
             }
         }
@@ -1073,6 +1123,143 @@ impl Dispatcher {
                         &frame.op,
                         &format!("ERR_TASK_JOIN: {e}"),
                     )),
+                }
+            }
+
+            // ── Media Vault Operations ──────────────────────────────────────────
+            "vault.upload" | "governor.vault.upload" => {
+                #[derive(serde::Deserialize)]
+                struct VaultUploadReq {
+                    module: String,
+                    file_name: String,
+                    mime_type: String,
+                    /// Raw bytes stored in HBP payload — decode from msgpack bytes field
+                    data: Option<Vec<u8>>,
+                    /// Base64 alternative (from JSON IPC submodule callers)
+                    data_base64: Option<String>,
+                }
+                match frame.decode_payload::<VaultUploadReq>() {
+                    Ok(req) => {
+                        let result = if let Some(raw) = req.data {
+                            self.media_vault.store(&req.module, &req.file_name, &req.mime_type, &raw, "shua")
+                        } else if let Some(b64) = req.data_base64 {
+                            self.media_vault.store_base64(&req.module, &req.file_name, &req.mime_type, &b64, "shua")
+                        } else {
+                            Err(anyhow::anyhow!("vault.upload: neither data nor data_base64 provided"))
+                        };
+                        match result {
+                            Ok(upload) => {
+                                info!(
+                                    subsystem = "vault_rpc",
+                                    sha256 = %upload.sha256_hash,
+                                    module = %req.module,
+                                    deduplicated = upload.deduplicated,
+                                    "vault.upload complete"
+                                );
+                                let payload = HbpFrame::encode_payload(&serde_json::json!({
+                                    "sha256_hash": upload.sha256_hash,
+                                    "url": upload.url,
+                                    "file_size": upload.file_size,
+                                    "deduplicated": upload.deduplicated,
+                                })).unwrap_or_default();
+                                Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                            }
+                            Err(e) => {
+                                warn!(subsystem = "vault_rpc", error = %e, "vault.upload failed");
+                                Some(HbpFrame::error_response(&frame.id, &frame.mod_, &frame.op, &format!("ERR_VAULT_UPLOAD: {e}")))
+                            }
+                        }
+                    }
+                    Err(e) => Some(HbpFrame::error_response(&frame.id, &frame.mod_, &frame.op, &format!("ERR_MALFORMED_PAYLOAD: {e}"))),
+                }
+            }
+
+            "vault.get" | "governor.vault.get" => {
+                #[derive(serde::Deserialize)]
+                struct VaultGetReq { sha256_hash: String }
+                match frame.decode_payload::<VaultGetReq>() {
+                    Ok(req) => match self.media_vault.get_asset(&req.sha256_hash) {
+                        Ok(Some(asset)) => {
+                            let ext = std::path::Path::new(&asset.file_name)
+                                .extension().and_then(|e| e.to_str()).unwrap_or("bin");
+                            let url = self.media_vault.build_url(&asset.module, &asset.sha256_hash, ext);
+                            let payload = HbpFrame::encode_payload(&serde_json::json!({
+                                "sha256_hash": asset.sha256_hash,
+                                "module": asset.module,
+                                "file_name": asset.file_name,
+                                "mime_type": asset.mime_type,
+                                "file_size": asset.file_size,
+                                "url": url,
+                                "created_at": asset.created_at,
+                            })).unwrap_or_default();
+                            Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                        }
+                        Ok(None) => Some(HbpFrame::error_response(&frame.id, &frame.mod_, &frame.op, "ERR_NOT_FOUND")),
+                        Err(e) => Some(HbpFrame::error_response(&frame.id, &frame.mod_, &frame.op, &format!("ERR_VAULT_GET: {e}"))),
+                    },
+                    Err(e) => Some(HbpFrame::error_response(&frame.id, &frame.mod_, &frame.op, &format!("ERR_MALFORMED_PAYLOAD: {e}"))),
+                }
+            }
+
+            "vault.list" | "governor.vault.list" => {
+                #[derive(serde::Deserialize)]
+                struct VaultListReq {
+                    module: Option<String>,
+                    #[serde(default)] page: u32,
+                    #[serde(default = "default_page_size")] page_size: u32,
+                }
+                fn default_page_size() -> u32 { 50 }
+                let req: VaultListReq = frame.decode_payload().unwrap_or(VaultListReq { module: None, page: 0, page_size: 50 });
+                match self.media_vault.list_assets(req.module.as_deref(), req.page, req.page_size) {
+                    Ok((assets, total)) => {
+                        let items: Vec<_> = assets.iter().map(|a| {
+                            let ext = std::path::Path::new(&a.file_name)
+                                .extension().and_then(|e| e.to_str()).unwrap_or("bin");
+                            let url = self.media_vault.build_url(&a.module, &a.sha256_hash, ext);
+                            serde_json::json!({
+                                "sha256_hash": a.sha256_hash,
+                                "module": a.module,
+                                "file_name": a.file_name,
+                                "mime_type": a.mime_type,
+                                "file_size": a.file_size,
+                                "url": url,
+                                "created_at": a.created_at,
+                            })
+                        }).collect();
+                        let has_more = (req.page + 1) * req.page_size < total;
+                        let payload = HbpFrame::encode_payload(&serde_json::json!({
+                            "items": items,
+                            "total": total,
+                            "has_more": has_more,
+                        })).unwrap_or_default();
+                        Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                    }
+                    Err(e) => Some(HbpFrame::error_response(&frame.id, &frame.mod_, &frame.op, &format!("ERR_VAULT_LIST: {e}"))),
+                }
+            }
+
+            "vault.delete" | "governor.vault.delete" => {
+                #[derive(serde::Deserialize)]
+                struct VaultDeleteReq { sha256_hash: String }
+                match frame.decode_payload::<VaultDeleteReq>() {
+                    Ok(req) => match self.media_vault.delete_asset(&req.sha256_hash) {
+                        Ok((new_rc, physically_deleted)) => {
+                            info!(
+                                subsystem = "vault_rpc",
+                                sha256 = %req.sha256_hash,
+                                new_ref_count = new_rc,
+                                physically_deleted = physically_deleted,
+                                "vault.delete complete"
+                            );
+                            let payload = HbpFrame::encode_payload(&serde_json::json!({
+                                "ok": true,
+                                "physically_deleted": physically_deleted,
+                            })).unwrap_or_default();
+                            Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                        }
+                        Err(e) => Some(HbpFrame::error_response(&frame.id, &frame.mod_, &frame.op, &format!("ERR_VAULT_DELETE: {e}"))),
+                    },
+                    Err(e) => Some(HbpFrame::error_response(&frame.id, &frame.mod_, &frame.op, &format!("ERR_MALFORMED_PAYLOAD: {e}"))),
                 }
             }
 
