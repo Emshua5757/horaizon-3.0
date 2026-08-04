@@ -65,7 +65,7 @@ async fn main() -> anyhow::Result<()> {
             .worker_threads(2)
             .thread_name("governor-ai-worker")
             .enable_all()
-            .build()?
+            .build()?,
     );
 
     // 2. Ingress MPSC channel (capacity 4096)
@@ -179,7 +179,9 @@ async fn main() -> anyhow::Result<()> {
     let log_broadcaster = Arc::new(LogBroadcaster::new());
     let log_broadcaster_clone = Arc::clone(&log_broadcaster);
     tokio::spawn(async move {
-        log_broadcaster_clone.run_broadcast_loop(log_broadcast_rx).await;
+        log_broadcaster_clone
+            .run_broadcast_loop(log_broadcast_rx)
+            .await;
     });
 
     // 11. Initialize HBP v2 Dispatcher & Broker Server
@@ -190,16 +192,25 @@ async fn main() -> anyhow::Result<()> {
         Path::new(&vault_db_path),
     ) {
         Ok(v) => {
-            info!(subsystem = "governor_main", "Media Vault initialized — vault HTTP server starting on port {}", app_config.media_vault.http_port);
+            info!(
+                subsystem = "governor_main",
+                "Media Vault initialized — vault HTTP server starting on port {}",
+                app_config.media_vault.http_port
+            );
             Arc::new(v)
         }
         Err(e) => {
             warn!(subsystem = "governor_main", error = %e, "Media Vault init failed — vault features unavailable");
             // Fail-open: create vault with a temp dir so the binary still starts
             let mut fallback_cfg = app_config.media_vault.clone();
-            fallback_cfg.root_path = std::env::temp_dir().join("horaizon_vault").to_string_lossy().to_string();
-            Arc::new(MediaVault::new(fallback_cfg, Path::new(&vault_db_path))
-                .expect("Vault fallback init must succeed"))
+            fallback_cfg.root_path = std::env::temp_dir()
+                .join("horaizon_vault")
+                .to_string_lossy()
+                .to_string();
+            Arc::new(
+                MediaVault::new(fallback_cfg, Path::new(&vault_db_path))
+                    .expect("Vault fallback init must succeed"),
+            )
         }
     };
 
@@ -230,10 +241,8 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // 12. Initialize & Spawn Dedicated Submodule JSON IPC Listener (Port 7701)
-    let ipc_server = broker::ipc_server::IpcServer::new(
-        Arc::clone(&process_manager),
-        Arc::clone(&media_vault),
-    );
+    let ipc_server =
+        broker::ipc_server::IpcServer::new(Arc::clone(&process_manager), Arc::clone(&media_vault));
     let ipc_addr_str = "0.0.0.0:7701";
     let ipc_addr: SocketAddr = ipc_addr_str.parse()?;
     tokio::spawn(async move {
@@ -246,10 +255,14 @@ async fn main() -> anyhow::Result<()> {
         module = "shua.governor",
         port = app_config.governor.port,
         ipc_port = 7701,
-        "HBP v2 WebSocket broker (port {}) & JSON IPC listener (port 7701) active", app_config.governor.port
+        "HBP v2 WebSocket broker (port {}) & JSON IPC listener (port 7701) active",
+        app_config.governor.port
     );
 
     tokio::signal::ctrl_c().await?;
-    info!(module = "shua.governor", "Shutdown signal received — exiting cleanly");
+    info!(
+        module = "shua.governor",
+        "Shutdown signal received — exiting cleanly"
+    );
     Ok(())
 }
