@@ -1,8 +1,8 @@
+use anyhow::Result;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use anyhow::Result;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{mpsc, Mutex, RwLock};
 use tracing::{error, info, warn};
 
 #[cfg(unix)]
@@ -16,6 +16,7 @@ use crate::registry::module_entry::{ModuleEntry, ModuleState};
 pub struct ProcessManager {
     pub modules: Arc<RwLock<HashMap<String, ModuleEntry>>>,
     pub ipc_port: u16,
+    pub client_replies: Arc<Mutex<HashMap<String, mpsc::UnboundedSender<Vec<u8>>>>>,
 }
 
 impl ProcessManager {
@@ -23,6 +24,7 @@ impl ProcessManager {
         Self {
             modules: Arc::new(RwLock::new(HashMap::new())),
             ipc_port,
+            client_replies: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -67,10 +69,14 @@ impl ProcessManager {
 
     /// Start a module process
     #[allow(dead_code)]
-    pub fn start<'a>(&'a self, name: &'a str) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + 'a>> {
+    pub fn start<'a>(
+        &'a self,
+        name: &'a str,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + 'a>> {
         Box::pin(async move {
             let mut modules = self.modules.write().await;
-            let entry = modules.get_mut(name)
+            let entry = modules
+                .get_mut(name)
                 .ok_or_else(|| anyhow::anyhow!("ERR_UNKNOWN_MODULE: {name}"))?;
 
             if entry.is_alive() {
@@ -86,14 +92,21 @@ impl ProcessManager {
             let sanitized = name.replace('.', "_");
             let candidate_binaries = vec![
                 entry.binary.clone(),
-                PathBuf::from(format!("/home/shua/horaizon-3.0/target/release/{sanitized}")),
-                PathBuf::from(format!("/home/shua/horaizon-3.0/{sanitized}/target/release/{sanitized}")),
+                PathBuf::from(format!(
+                    "/home/shua/horaizon-3.0/target/release/{sanitized}"
+                )),
+                PathBuf::from(format!(
+                    "/home/shua/horaizon-3.0/{sanitized}/target/release/{sanitized}"
+                )),
                 PathBuf::from(format!("../target/release/{sanitized}")),
                 PathBuf::from(format!("../{sanitized}/target/release/{sanitized}")),
                 PathBuf::from(format!("./target/release/{sanitized}")),
             ];
 
-            let effective_binary = candidate_binaries.into_iter().find(|p| p.exists()).unwrap_or_else(|| entry.binary.clone());
+            let effective_binary = candidate_binaries
+                .into_iter()
+                .find(|p| p.exists())
+                .unwrap_or_else(|| entry.binary.clone());
 
             info!(
                 subsystem = "process_manager",
@@ -123,7 +136,9 @@ impl ProcessManager {
             }
 
             let child = cmd.spawn()?;
-            let pid = child.id().ok_or_else(|| anyhow::anyhow!("Could not get PID"))?;
+            let pid = child
+                .id()
+                .ok_or_else(|| anyhow::anyhow!("Could not get PID"))?;
 
             let child_arc = Arc::new(Mutex::new(child));
             entry.pid = Some(pid);
@@ -149,6 +164,7 @@ impl ProcessManager {
 
             // Spawn background watchdog monitoring child process exit
             let modules_clone = Arc::clone(&self.modules);
+            let client_replies_clone = Arc::clone(&self.client_replies);
             let name_string = name.to_string();
             let ipc_port_val = self.ipc_port;
 
@@ -197,10 +213,15 @@ impl ProcessManager {
                                 "Auto-restarting module process in 2 seconds"
                             );
                             let modules_arc_again = Arc::clone(&modules_clone);
+                            let client_replies_arc_again = Arc::clone(&client_replies_clone); // <-- this line was missing
                             let name_again = name_string.clone();
                             tokio::spawn(async move {
                                 tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-                                let pm_dummy = ProcessManager { modules: modules_arc_again, ipc_port: ipc_port_val };
+                                let pm_dummy = ProcessManager {
+                                    modules: modules_arc_again,
+                                    ipc_port: ipc_port_val,
+                                    client_replies: client_replies_arc_again,
+                                };
                                 let _ = pm_dummy.start(&name_again).await;
                             });
                         } else if entry.restart_count > 3 {
@@ -219,7 +240,10 @@ impl ProcessManager {
         })
     }
 
-    fn find_key(modules: &std::collections::HashMap<String, ModuleEntry>, name: &str) -> Option<String> {
+    fn find_key(
+        modules: &std::collections::HashMap<String, ModuleEntry>,
+        name: &str,
+    ) -> Option<String> {
         if modules.contains_key(name) {
             return Some(name.to_string());
         }
@@ -274,7 +298,9 @@ impl ProcessManager {
                 None => {
                     let keys: Vec<String> = modules.keys().cloned().collect();
                     warn!(subsystem = "process_manager", target_name = %name, available_keys = ?keys, "ERR_UNKNOWN_MODULE lookup failed");
-                    return Err(anyhow::anyhow!("ERR_UNKNOWN_MODULE: {name} (available: {keys:?})"));
+                    return Err(anyhow::anyhow!(
+                        "ERR_UNKNOWN_MODULE: {name} (available: {keys:?})"
+                    ));
                 }
             }
         };

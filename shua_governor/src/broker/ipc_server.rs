@@ -1,3 +1,4 @@
+use base64::Engine;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -21,7 +22,10 @@ pub struct IpcServer {
 
 impl IpcServer {
     pub fn new(process_manager: Arc<ProcessManager>, media_vault: Arc<MediaVault>) -> Self {
-        Self { process_manager, media_vault }
+        Self {
+            process_manager,
+            media_vault,
+        }
     }
 
     /// Runs the dedicated JSON IPC WebSocket listener on target SocketAddr (default loopback 7701)
@@ -143,7 +147,8 @@ async fn handle_ipc_connection(
                         }
 
                         // Parse MCP tools array from manifest
-                        let tools: Vec<McpToolSchema> = val.get("tools")
+                        let tools: Vec<McpToolSchema> = val
+                            .get("tools")
                             .and_then(|t| serde_json::from_value(t.clone()).ok())
                             .unwrap_or_default();
 
@@ -199,13 +204,39 @@ async fn handle_ipc_connection(
                         }
                     } else if op == "vault.upload" {
                         // Submodule depositing a file into the vault via IPC (Base64 path)
-                        let call_id = val.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let module   = val.get("module").and_then(|v| v.as_str()).unwrap_or("shared").to_string();
-                        let fname    = val.get("file_name").and_then(|v| v.as_str()).unwrap_or("file.bin").to_string();
-                        let mime     = val.get("mime_type").and_then(|v| v.as_str()).unwrap_or("application/octet-stream").to_string();
-                        let b64      = val.get("data_base64").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let call_id = val
+                            .get("id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let module = val
+                            .get("module")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("shared")
+                            .to_string();
+                        let fname = val
+                            .get("file_name")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("file.bin")
+                            .to_string();
+                        let mime = val
+                            .get("mime_type")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("application/octet-stream")
+                            .to_string();
+                        let b64 = val
+                            .get("data_base64")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
 
-                        let response_json = match media_vault.store_base64(&module, &fname, &mime, &b64, "submodule") {
+                        let response_json = match media_vault.store_base64(
+                            &module,
+                            &fname,
+                            &mime,
+                            &b64,
+                            "submodule",
+                        ) {
                             Ok(upload) => {
                                 info!(
                                     subsystem = "ipc_vault",
@@ -223,7 +254,8 @@ async fn handle_ipc_connection(
                                         "file_size": upload.file_size,
                                         "deduplicated": upload.deduplicated,
                                     }
-                                }).to_string()
+                                })
+                                .to_string()
                             }
                             Err(e) => {
                                 warn!(subsystem = "ipc_vault", error = %e, "vault.upload from submodule failed");
@@ -231,20 +263,73 @@ async fn handle_ipc_connection(
                                     "id": call_id,
                                     "status": "error",
                                     "error": format!("ERR_VAULT_UPLOAD: {e}")
-                                }).to_string()
+                                })
+                                .to_string()
                             }
                         };
 
                         let _ = tx.send(response_json);
-
                     } else if let Some(id_str) = val.get("id").and_then(|v| v.as_str()) {
-                        // Response frame matching pending in-flight tool call request ID
-                        if let Some(ref mod_id) = registered_module_id {
+                        let id_str = id_str.to_string();
+
+                        // Check first: is this the reply to a direct client-forwarded
+                        // HBP request (e.g. Flutter's matrix.get)?
+                        let client_reply_tx = {
+                            let mut replies = process_manager.client_replies.lock().await;
+                            replies.remove(&id_str)
+                        };
+
+                        if let Some(reply_tx) = client_reply_tx {
+                            let mod_name = val
+                                .get("mod")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            let op_name = val
+                                .get("op")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+
+                            let hbp_frame = if let Some(err_msg) =
+                                val.get("err").and_then(|v| v.as_str())
+                            {
+                                crate::broker::frame::HbpFrame::error_response(
+                                    &id_str, &mod_name, &op_name, err_msg,
+                                )
+                            } else {
+                                let payload_bytes = val
+                                    .get("p")
+                                    .and_then(|v| v.as_str())
+                                    .and_then(|b64| {
+                                        base64::engine::general_purpose::STANDARD.decode(b64).ok()
+                                    })
+                                    .unwrap_or_default();
+                                crate::broker::frame::HbpFrame::response(
+                                    &id_str,
+                                    &mod_name,
+                                    &op_name,
+                                    payload_bytes,
+                                )
+                            };
+
+                            match hbp_frame.encode() {
+                                Ok(encoded) => {
+                                    let _ = reply_tx.send(encoded);
+                                    info!(subsystem = "ipc_server", id = %id_str, module = %mod_name, "Routed submodule reply back to client");
+                                }
+                                Err(e) => {
+                                    warn!(subsystem = "ipc_server", error = %e, "Failed to encode HBP frame for client reply");
+                                }
+                            }
+                        } else if let Some(ref mod_id) = registered_module_id {
+                            // Existing MCP tool-call reply resolution (unchanged)
                             let modules = process_manager.modules.read().await;
                             if let Some(entry) = modules.get(mod_id) {
                                 let mut pending = entry.pending_calls.lock().await;
-                                if let Some(oneshot_tx) = pending.remove(id_str) {
-                                    let status = val.get("status").and_then(|v| v.as_str()).unwrap_or("ok");
+                                if let Some(oneshot_tx) = pending.remove(&id_str) {
+                                    let status =
+                                        val.get("status").and_then(|v| v.as_str()).unwrap_or("ok");
                                     let payload = if status == "ok" {
                                         val.get("result").cloned().unwrap_or(Value::Null)
                                     } else {

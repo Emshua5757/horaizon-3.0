@@ -45,9 +45,9 @@ func main() {
 	mcpSrv.OnHBPFrame = func(raw []byte) {
 		response := hbpHandler.Handle(raw)
 		if response != nil {
-			// TODO: send response back over IPC once governor dispatcher
-			// supports reply channel (TASK-020 follow-up)
-			_ = response
+			if err := mcpSrv.SendHBPReply(response); err != nil {
+				logger.Error("main", "failed to send HBP reply over IPC", err, nil)
+			}
 		}
 	}
 

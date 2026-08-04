@@ -281,7 +281,6 @@ impl Dispatcher {
                 let modules = self.process_manager.modules.read().await;
                 if let Some(entry) = modules.get(other) {
                     if let Some(ref ipc_tx) = entry.ipc_tx {
-                        // Serialize frame to JSON and forward via IPC channel
                         match serde_json::to_string(&serde_json::json!({
                             "op": frame.op,
                             "id": frame.id,
@@ -290,6 +289,14 @@ impl Dispatcher {
                             "ts": frame.ts
                         })) {
                             Ok(json) => {
+                                // Register this client's reply channel BEFORE forwarding,
+                                // so ipc_server.rs can route the submodule's reply back here.
+                                {
+                                    let mut replies =
+                                        self.process_manager.client_replies.lock().await;
+                                    replies.insert(frame.id.clone(), client_tx.clone());
+                                }
+
                                 if ipc_tx.send(json).is_ok() {
                                     info!(
                                         subsystem = "dispatcher",
@@ -297,10 +304,28 @@ impl Dispatcher {
                                         op = %frame.op,
                                         "Frame forwarded to submodule via IPC"
                                     );
+
+                                    // Cleanup: if no reply arrives in 30s, drop the
+                                    // registration so it doesn't leak.
+                                    let replies_cleanup =
+                                        Arc::clone(&self.process_manager.client_replies);
+                                    let cleanup_id = frame.id.clone();
+                                    tokio::spawn(async move {
+                                        tokio::time::sleep(std::time::Duration::from_secs(30))
+                                            .await;
+                                        replies_cleanup.lock().await.remove(&cleanup_id);
+                                    });
+
                                     // Response arrives asynchronously over IPC and is
-                                    // handled in ipc_server.rs pending_calls resolution.
+                                    // routed back via process_manager.client_replies.
                                     return None;
                                 } else {
+                                    // Forward failed — drop the registration immediately.
+                                    self.process_manager
+                                        .client_replies
+                                        .lock()
+                                        .await
+                                        .remove(&frame.id);
                                     warn!(
                                         subsystem = "dispatcher",
                                         module = other,
@@ -309,6 +334,11 @@ impl Dispatcher {
                                 }
                             }
                             Err(e) => {
+                                self.process_manager
+                                    .client_replies
+                                    .lock()
+                                    .await
+                                    .remove(&frame.id);
                                 warn!(subsystem = "dispatcher", module = other, error = %e, "Frame JSON serialization failed");
                             }
                         }
@@ -443,8 +473,15 @@ impl Dispatcher {
                     }));
                 }
 
-                let payload = HbpFrame::encode_payload(&serde_json::json!({ "scopes": scopes_list })).unwrap_or_default();
-                Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                let payload =
+                    HbpFrame::encode_payload(&serde_json::json!({ "scopes": scopes_list }))
+                        .unwrap_or_default();
+                Some(HbpFrame::response(
+                    &frame.id,
+                    &frame.mod_,
+                    &frame.op,
+                    payload,
+                ))
             }
 
             "config.get" | "governor.config.get" => {
@@ -545,27 +582,25 @@ impl Dispatcher {
             "module.sleep" | "governor.module.sleep" | "process.sleep" => {
                 info!(subsystem = "dispatcher", op = %frame.op, "Received process.sleep request");
                 match frame.decode_payload::<ModuleOpRequest>() {
-                    Ok(req) => {
-                        match self.process_manager.sleep(&req.module).await {
-                            Ok(_) => {
-                                let res =
-                                    serde_json::json!({ "status": "sleeping", "module": req.module });
-                                let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
-                                Some(HbpFrame::response(
-                                    &frame.id,
-                                    &frame.mod_,
-                                    &frame.op,
-                                    payload,
-                                ))
-                            }
-                            Err(e) => Some(HbpFrame::error_response(
+                    Ok(req) => match self.process_manager.sleep(&req.module).await {
+                        Ok(_) => {
+                            let res =
+                                serde_json::json!({ "status": "sleeping", "module": req.module });
+                            let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
+                            Some(HbpFrame::response(
                                 &frame.id,
                                 &frame.mod_,
                                 &frame.op,
-                                &format!("ERR_MODULE_SLEEP: {e}"),
-                            )),
+                                payload,
+                            ))
                         }
-                    }
+                        Err(e) => Some(HbpFrame::error_response(
+                            &frame.id,
+                            &frame.mod_,
+                            &frame.op,
+                            &format!("ERR_MODULE_SLEEP: {e}"),
+                        )),
+                    },
                     Err(e) => {
                         warn!(subsystem = "dispatcher", op = %frame.op, error = %e, "Failed to decode payload for ModuleOpRequest");
                         Some(HbpFrame::error_response(
@@ -581,27 +616,24 @@ impl Dispatcher {
             "module.stop" | "governor.module.stop" | "process.stop" | "process.kill" => {
                 info!(subsystem = "dispatcher", op = %frame.op, "Received process.stop request");
                 match frame.decode_payload::<ModuleOpRequest>() {
-                    Ok(req) => {
-                        match self.process_manager.stop(&req.module).await {
-                            Ok(_) => {
-                                let res =
-                                    serde_json::json!({ "status": "stopped", "module": req.module, "ram_freed_mb": 245.0 });
-                                let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
-                                Some(HbpFrame::response(
-                                    &frame.id,
-                                    &frame.mod_,
-                                    &frame.op,
-                                    payload,
-                                ))
-                            }
-                            Err(e) => Some(HbpFrame::error_response(
+                    Ok(req) => match self.process_manager.stop(&req.module).await {
+                        Ok(_) => {
+                            let res = serde_json::json!({ "status": "stopped", "module": req.module, "ram_freed_mb": 245.0 });
+                            let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
+                            Some(HbpFrame::response(
                                 &frame.id,
                                 &frame.mod_,
                                 &frame.op,
-                                &format!("ERR_MODULE_STOP: {e}"),
-                            )),
+                                payload,
+                            ))
                         }
-                    }
+                        Err(e) => Some(HbpFrame::error_response(
+                            &frame.id,
+                            &frame.mod_,
+                            &frame.op,
+                            &format!("ERR_MODULE_STOP: {e}"),
+                        )),
+                    },
                     Err(e) => {
                         warn!(subsystem = "dispatcher", op = %frame.op, error = %e, "Failed to decode payload for ModuleOpRequest");
                         Some(HbpFrame::error_response(
@@ -809,7 +841,9 @@ impl Dispatcher {
                     let ollama_lifecycle = Arc::clone(&self.ollama);
 
                     let (tx, rx) = tokio::sync::oneshot::channel();
-                    let (step_tx, mut step_rx) = tokio::sync::mpsc::unbounded_channel::<crate::ai_router::agent_loop::AgentLoopStep>();
+                    let (step_tx, mut step_rx) = tokio::sync::mpsc::unbounded_channel::<
+                        crate::ai_router::agent_loop::AgentLoopStep,
+                    >();
                     let (delta_tx, mut delta_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
 
                     let client_tx_step = client_tx.clone();
@@ -826,7 +860,9 @@ impl Dispatcher {
                                     "success": tc.success,
                                 })).collect::<Vec<_>>(),
                             });
-                            let payload_bytes = crate::broker::frame::HbpFrame::encode_payload(&payload).unwrap_or_default();
+                            let payload_bytes =
+                                crate::broker::frame::HbpFrame::encode_payload(&payload)
+                                    .unwrap_or_default();
                             let event_frame = crate::broker::frame::HbpFrame::stream_event(
                                 &req_id_step,
                                 "shua.governor",
@@ -857,7 +893,9 @@ impl Dispatcher {
                                 "chunk_data": delta_text,
                                 "is_last": false,
                             });
-                            let payload_bytes = crate::broker::frame::HbpFrame::encode_payload(&stream_payload).unwrap_or_default();
+                            let payload_bytes =
+                                crate::broker::frame::HbpFrame::encode_payload(&stream_payload)
+                                    .unwrap_or_default();
                             let event_frame = crate::broker::frame::HbpFrame::stream_event(
                                 &req_id_delta,
                                 "shua.governor",
@@ -889,7 +927,8 @@ impl Dispatcher {
                         let _ = tx.send(result);
                     });
 
-                    let (reply, iterations, tools_called, prompt_truncated, steps) = match rx.await {
+                    let (reply, iterations, tools_called, prompt_truncated, steps) = match rx.await
+                    {
                         Ok(Ok(res)) => (
                             res.final_reply,
                             res.iterations,
@@ -903,7 +942,13 @@ impl Dispatcher {
                         }
                         Err(_) => {
                             warn!(subsystem = "dispatcher", "AI runtime task channel canceled");
-                            ("ERR_AI_RUNTIME_CANCELED".to_string(), 1, vec![], false, vec![])
+                            (
+                                "ERR_AI_RUNTIME_CANCELED".to_string(),
+                                1,
+                                vec![],
+                                false,
+                                vec![],
+                            )
                         }
                     };
 
@@ -915,19 +960,22 @@ impl Dispatcher {
                     }
 
                     let duration_ms = start.elapsed().as_millis() as u32;
-                    let steps_json: Vec<serde_json::Value> = steps.iter().map(|s| {
-                        serde_json::json!({
-                            "turn": s.turn,
-                            "step_type": s.step_type,
-                            "model_content": s.model_content,
-                            "tool_calls": s.tool_calls.iter().map(|tc| serde_json::json!({
-                                "tool_name": tc.tool_name,
-                                "arguments": tc.arguments,
-                                "result_summary": tc.result_summary,
-                                "success": tc.success,
-                            })).collect::<Vec<_>>(),
+                    let steps_json: Vec<serde_json::Value> = steps
+                        .iter()
+                        .map(|s| {
+                            serde_json::json!({
+                                "turn": s.turn,
+                                "step_type": s.step_type,
+                                "model_content": s.model_content,
+                                "tool_calls": s.tool_calls.iter().map(|tc| serde_json::json!({
+                                    "tool_name": tc.tool_name,
+                                    "arguments": tc.arguments,
+                                    "result_summary": tc.result_summary,
+                                    "success": tc.success,
+                                })).collect::<Vec<_>>(),
+                            })
                         })
-                    }).collect();
+                        .collect();
                     let res = serde_json::json!({
                         "model_used": budget.model,
                         "intent": intent.as_str(),
@@ -1141,11 +1189,25 @@ impl Dispatcher {
                 match frame.decode_payload::<VaultUploadReq>() {
                     Ok(req) => {
                         let result = if let Some(raw) = req.data {
-                            self.media_vault.store(&req.module, &req.file_name, &req.mime_type, &raw, "shua")
+                            self.media_vault.store(
+                                &req.module,
+                                &req.file_name,
+                                &req.mime_type,
+                                &raw,
+                                "shua",
+                            )
                         } else if let Some(b64) = req.data_base64 {
-                            self.media_vault.store_base64(&req.module, &req.file_name, &req.mime_type, &b64, "shua")
+                            self.media_vault.store_base64(
+                                &req.module,
+                                &req.file_name,
+                                &req.mime_type,
+                                &b64,
+                                "shua",
+                            )
                         } else {
-                            Err(anyhow::anyhow!("vault.upload: neither data nor data_base64 provided"))
+                            Err(anyhow::anyhow!(
+                                "vault.upload: neither data nor data_base64 provided"
+                            ))
                         };
                         match result {
                             Ok(upload) => {
@@ -1161,28 +1223,50 @@ impl Dispatcher {
                                     "url": upload.url,
                                     "file_size": upload.file_size,
                                     "deduplicated": upload.deduplicated,
-                                })).unwrap_or_default();
-                                Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                                }))
+                                .unwrap_or_default();
+                                Some(HbpFrame::response(
+                                    &frame.id,
+                                    &frame.mod_,
+                                    &frame.op,
+                                    payload,
+                                ))
                             }
                             Err(e) => {
                                 warn!(subsystem = "vault_rpc", error = %e, "vault.upload failed");
-                                Some(HbpFrame::error_response(&frame.id, &frame.mod_, &frame.op, &format!("ERR_VAULT_UPLOAD: {e}")))
+                                Some(HbpFrame::error_response(
+                                    &frame.id,
+                                    &frame.mod_,
+                                    &frame.op,
+                                    &format!("ERR_VAULT_UPLOAD: {e}"),
+                                ))
                             }
                         }
                     }
-                    Err(e) => Some(HbpFrame::error_response(&frame.id, &frame.mod_, &frame.op, &format!("ERR_MALFORMED_PAYLOAD: {e}"))),
+                    Err(e) => Some(HbpFrame::error_response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        &format!("ERR_MALFORMED_PAYLOAD: {e}"),
+                    )),
                 }
             }
 
             "vault.get" | "governor.vault.get" => {
                 #[derive(serde::Deserialize)]
-                struct VaultGetReq { sha256_hash: String }
+                struct VaultGetReq {
+                    sha256_hash: String,
+                }
                 match frame.decode_payload::<VaultGetReq>() {
                     Ok(req) => match self.media_vault.get_asset(&req.sha256_hash) {
                         Ok(Some(asset)) => {
                             let ext = std::path::Path::new(&asset.file_name)
-                                .extension().and_then(|e| e.to_str()).unwrap_or("bin");
-                            let url = self.media_vault.build_url(&asset.module, &asset.sha256_hash, ext);
+                                .extension()
+                                .and_then(|e| e.to_str())
+                                .unwrap_or("bin");
+                            let url =
+                                self.media_vault
+                                    .build_url(&asset.module, &asset.sha256_hash, ext);
                             let payload = HbpFrame::encode_payload(&serde_json::json!({
                                 "sha256_hash": asset.sha256_hash,
                                 "module": asset.module,
@@ -1191,13 +1275,34 @@ impl Dispatcher {
                                 "file_size": asset.file_size,
                                 "url": url,
                                 "created_at": asset.created_at,
-                            })).unwrap_or_default();
-                            Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                            }))
+                            .unwrap_or_default();
+                            Some(HbpFrame::response(
+                                &frame.id,
+                                &frame.mod_,
+                                &frame.op,
+                                payload,
+                            ))
                         }
-                        Ok(None) => Some(HbpFrame::error_response(&frame.id, &frame.mod_, &frame.op, "ERR_NOT_FOUND")),
-                        Err(e) => Some(HbpFrame::error_response(&frame.id, &frame.mod_, &frame.op, &format!("ERR_VAULT_GET: {e}"))),
+                        Ok(None) => Some(HbpFrame::error_response(
+                            &frame.id,
+                            &frame.mod_,
+                            &frame.op,
+                            "ERR_NOT_FOUND",
+                        )),
+                        Err(e) => Some(HbpFrame::error_response(
+                            &frame.id,
+                            &frame.mod_,
+                            &frame.op,
+                            &format!("ERR_VAULT_GET: {e}"),
+                        )),
                     },
-                    Err(e) => Some(HbpFrame::error_response(&frame.id, &frame.mod_, &frame.op, &format!("ERR_MALFORMED_PAYLOAD: {e}"))),
+                    Err(e) => Some(HbpFrame::error_response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        &format!("ERR_MALFORMED_PAYLOAD: {e}"),
+                    )),
                 }
             }
 
@@ -1205,42 +1310,72 @@ impl Dispatcher {
                 #[derive(serde::Deserialize)]
                 struct VaultListReq {
                     module: Option<String>,
-                    #[serde(default)] page: u32,
-                    #[serde(default = "default_page_size")] page_size: u32,
+                    #[serde(default)]
+                    page: u32,
+                    #[serde(default = "default_page_size")]
+                    page_size: u32,
                 }
-                fn default_page_size() -> u32 { 50 }
-                let req: VaultListReq = frame.decode_payload().unwrap_or(VaultListReq { module: None, page: 0, page_size: 50 });
-                match self.media_vault.list_assets(req.module.as_deref(), req.page, req.page_size) {
+                fn default_page_size() -> u32 {
+                    50
+                }
+                let req: VaultListReq = frame.decode_payload().unwrap_or(VaultListReq {
+                    module: None,
+                    page: 0,
+                    page_size: 50,
+                });
+                match self
+                    .media_vault
+                    .list_assets(req.module.as_deref(), req.page, req.page_size)
+                {
                     Ok((assets, total)) => {
-                        let items: Vec<_> = assets.iter().map(|a| {
-                            let ext = std::path::Path::new(&a.file_name)
-                                .extension().and_then(|e| e.to_str()).unwrap_or("bin");
-                            let url = self.media_vault.build_url(&a.module, &a.sha256_hash, ext);
-                            serde_json::json!({
-                                "sha256_hash": a.sha256_hash,
-                                "module": a.module,
-                                "file_name": a.file_name,
-                                "mime_type": a.mime_type,
-                                "file_size": a.file_size,
-                                "url": url,
-                                "created_at": a.created_at,
+                        let items: Vec<_> = assets
+                            .iter()
+                            .map(|a| {
+                                let ext = std::path::Path::new(&a.file_name)
+                                    .extension()
+                                    .and_then(|e| e.to_str())
+                                    .unwrap_or("bin");
+                                let url =
+                                    self.media_vault.build_url(&a.module, &a.sha256_hash, ext);
+                                serde_json::json!({
+                                    "sha256_hash": a.sha256_hash,
+                                    "module": a.module,
+                                    "file_name": a.file_name,
+                                    "mime_type": a.mime_type,
+                                    "file_size": a.file_size,
+                                    "url": url,
+                                    "created_at": a.created_at,
+                                })
                             })
-                        }).collect();
+                            .collect();
                         let has_more = (req.page + 1) * req.page_size < total;
                         let payload = HbpFrame::encode_payload(&serde_json::json!({
                             "items": items,
                             "total": total,
                             "has_more": has_more,
-                        })).unwrap_or_default();
-                        Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                        }))
+                        .unwrap_or_default();
+                        Some(HbpFrame::response(
+                            &frame.id,
+                            &frame.mod_,
+                            &frame.op,
+                            payload,
+                        ))
                     }
-                    Err(e) => Some(HbpFrame::error_response(&frame.id, &frame.mod_, &frame.op, &format!("ERR_VAULT_LIST: {e}"))),
+                    Err(e) => Some(HbpFrame::error_response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        &format!("ERR_VAULT_LIST: {e}"),
+                    )),
                 }
             }
 
             "vault.delete" | "governor.vault.delete" => {
                 #[derive(serde::Deserialize)]
-                struct VaultDeleteReq { sha256_hash: String }
+                struct VaultDeleteReq {
+                    sha256_hash: String,
+                }
                 match frame.decode_payload::<VaultDeleteReq>() {
                     Ok(req) => match self.media_vault.delete_asset(&req.sha256_hash) {
                         Ok((new_rc, physically_deleted)) => {
@@ -1254,12 +1389,28 @@ impl Dispatcher {
                             let payload = HbpFrame::encode_payload(&serde_json::json!({
                                 "ok": true,
                                 "physically_deleted": physically_deleted,
-                            })).unwrap_or_default();
-                            Some(HbpFrame::response(&frame.id, &frame.mod_, &frame.op, payload))
+                            }))
+                            .unwrap_or_default();
+                            Some(HbpFrame::response(
+                                &frame.id,
+                                &frame.mod_,
+                                &frame.op,
+                                payload,
+                            ))
                         }
-                        Err(e) => Some(HbpFrame::error_response(&frame.id, &frame.mod_, &frame.op, &format!("ERR_VAULT_DELETE: {e}"))),
+                        Err(e) => Some(HbpFrame::error_response(
+                            &frame.id,
+                            &frame.mod_,
+                            &frame.op,
+                            &format!("ERR_VAULT_DELETE: {e}"),
+                        )),
                     },
-                    Err(e) => Some(HbpFrame::error_response(&frame.id, &frame.mod_, &frame.op, &format!("ERR_MALFORMED_PAYLOAD: {e}"))),
+                    Err(e) => Some(HbpFrame::error_response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        &format!("ERR_MALFORMED_PAYLOAD: {e}"),
+                    )),
                 }
             }
 

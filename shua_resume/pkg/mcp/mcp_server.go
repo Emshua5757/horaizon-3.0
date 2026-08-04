@@ -26,9 +26,9 @@ const (
 
 // Server manages the IPC connection to the Governor.
 type Server struct {
-	mu       sync.Mutex
-	conn     *websocket.Conn
-	pending  map[string]chan string // request_id -> reply channel
+	mu      sync.Mutex
+	conn    *websocket.Conn
+	pending map[string]chan string // request_id -> reply channel
 	// OnHBPFrame is called for incoming HBP frames forwarded from dispatcher.
 	// Set by mcp_server.go after construction.
 	OnHBPFrame func(raw []byte)
@@ -222,7 +222,7 @@ func (s *Server) handleToolCall(frame map[string]interface{}) {
 		cfg.MinScore = threshold
 		filtered, score := ai.FilterResume(matrix, jobDesc, cfg)
 		result = map[string]interface{}{
-			"matrix":      filtered,
+			"matrix":       filtered,
 			"tailor_score": score,
 		}
 
@@ -249,6 +249,19 @@ func (s *Server) handleToolCall(frame map[string]interface{}) {
 			logger.Error("mcp_server", "failed to send tool call response", err, map[string]interface{}{"call_id": callID})
 		}
 	}
+}
+
+// SendHBPReply writes a raw HBP response frame (already JSON-encoded by
+// hbp.Handle via encodeOK/encodeError) back over the IPC WebSocket to
+// Governor, which routes it back to the client that made the request.
+func (s *Server) SendHBPReply(raw []byte) error {
+	s.mu.Lock()
+	conn := s.conn
+	s.mu.Unlock()
+	if conn == nil {
+		return fmt.Errorf("IPC not connected")
+	}
+	return conn.WriteMessage(websocket.TextMessage, raw)
 }
 
 // SendVaultUpload sends a vault.upload IPC frame and waits for the Governor's response.
