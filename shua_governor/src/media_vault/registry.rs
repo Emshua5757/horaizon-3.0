@@ -72,6 +72,7 @@ impl VaultRegistry {
 
     /// Insert a new asset row. Returns `true` if newly inserted, `false` if
     /// it already existed (ref_count incremented).
+    #[allow(clippy::too_many_arguments)]
     pub fn insert_or_increment(
         &self,
         sha256: &str,

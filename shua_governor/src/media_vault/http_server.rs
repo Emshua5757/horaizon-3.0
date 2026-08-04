@@ -78,7 +78,7 @@ async fn handle_connection(
     let range_header = request_str
         .lines()
         .find(|l| l.to_lowercase().starts_with("range:"))
-        .and_then(|l| l.splitn(2, ':').nth(1))
+        .and_then(|l| l.split_once(':').map(|x| x.1))
         .map(|v| v.trim().to_string());
 
     // URL must be /vault/{module}/{bucket}/{sha256}.{ext}
