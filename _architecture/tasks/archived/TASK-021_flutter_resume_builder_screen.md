@@ -1,8 +1,8 @@
-﻿# TASK-021 — `client_flutter` Native Resume Builder & Live PDF Preview Screen
+# TASK-021 — `client_flutter` Native Resume Builder & Live PDF Preview Screen
 
 | Field | Value |
 | :--- | :--- |
-| **Status** | [ ] Planned |
+| **Status** | [x] Completed |
 | **Phase** | Phase 4 |
 | **Type** | AI-executable |
 | **Language** | Dart / Flutter |
