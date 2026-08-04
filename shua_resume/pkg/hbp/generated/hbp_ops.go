@@ -79,6 +79,8 @@ const (
 	ShuaResumeHistoryList = "shua.resume.history.list"
 	// List available Typst templates
 	ShuaResumeTemplatesList = "shua.resume.templates.list"
+	// Export the resume matrix as Markdown
+	ShuaResumeExportMarkdown = "shua.resume.export.markdown"
 )
 
 // HBP v2 module namespace constants.

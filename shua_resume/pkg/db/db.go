@@ -150,6 +150,29 @@ func runMigrations() error {
 			return fmt.Errorf("migration error: %w", err)
 		}
 	}
+
+	// Additive migrations for existing deployments — idempotent via IF NOT EXISTS / IGNORE.
+	additiveMigrations := []string{
+		`ALTER TABLE resume_work ADD COLUMN keywords TEXT NOT NULL DEFAULT '[]'`,
+		`ALTER TABLE resume_projects ADD COLUMN keywords TEXT NOT NULL DEFAULT '[]'`,
+		`CREATE TABLE IF NOT EXISTS resume_organizations (
+			id           TEXT PRIMARY KEY,
+			user_id      TEXT NOT NULL DEFAULT 'shua',
+			organization TEXT NOT NULL DEFAULT '',
+			role         TEXT NOT NULL DEFAULT '',
+			start_date   TEXT NOT NULL DEFAULT '',
+			end_date     TEXT NOT NULL DEFAULT '',
+			summary      TEXT NOT NULL DEFAULT '',
+			highlights   TEXT NOT NULL DEFAULT '[]',
+			active       INTEGER NOT NULL DEFAULT 1,
+			sort_order   INTEGER NOT NULL DEFAULT 0
+		);`,
+	}
+	for _, stmt := range additiveMigrations {
+		// Ignore errors — ALTER TABLE fails harmlessly if column already exists.
+		_, _ = DB.Exec(stmt)
+	}
+
 	return nil
 }
 
@@ -224,8 +247,9 @@ func seedDatabase() error {
 	for i, w := range workItems {
 		h, _ := json.Marshal(w.highlights)
 		s, _ := json.Marshal(w.skills)
-		if _, err := DB.Exec(`INSERT INTO resume_work (id,user_id,name,position,url,start_date,end_date,summary,highlights,skills,active,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-			uuid.New().String(), "shua", w.name, w.position, "", w.startDate, w.endDate, w.summary, string(h), string(s), 1, i,
+		kw, _ := json.Marshal([]string{})
+		if _, err := DB.Exec(`INSERT INTO resume_work (id,user_id,name,position,url,start_date,end_date,summary,highlights,keywords,skills,active,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			uuid.New().String(), "shua", w.name, w.position, "", w.startDate, w.endDate, w.summary, string(h), string(kw), string(s), 1, i,
 		); err != nil {
 			return fmt.Errorf("seed work: %w", err)
 		}
@@ -256,12 +280,13 @@ func seedDatabase() error {
 		"Constructed firmware optimizations to yield higher execution speeds on restricted 8-bit microcontrollers.",
 		"Modeled multi-axis linkages using Autodesk systems to print structural joints.",
 	})
+	projKeywords, _ := json.Marshal([]string{"Flutter", "Embedded Systems", "GRBL", "ESP32", "Edge AI"})
 	projExhibits, _ := json.Marshal([]string{"e5a6f2b4-7c9d-4e8f-9a1b-3c5d7e9f1a2b"})
-	if _, err := DB.Exec(`INSERT INTO resume_projects (id,user_id,name,description,highlights,url,exhibits,active,sort_order) VALUES (?,?,?,?,?,?,?,?,?)`,
+	if _, err := DB.Exec(`INSERT INTO resume_projects (id,user_id,name,description,highlights,keywords,url,exhibits,active,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?)`,
 		uuid.New().String(), "shua",
 		"Agri3D Platform",
 		"Automated horticulture platform incorporating custom embedded motion controls, spatial design, and Edge AI.",
-		string(projHighlights), "", string(projExhibits), 1, 0,
+		string(projHighlights), string(projKeywords), "", string(projExhibits), 1, 0,
 	); err != nil {
 		return fmt.Errorf("seed projects: %w", err)
 	}

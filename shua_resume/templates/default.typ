@@ -26,7 +26,7 @@
       #data.basics.phone
       #if data.basics.profiles.len() > 0 [
         #h(6pt) | #h(6pt)
-        #data.basics.profiles.first().url
+        #data.basics.profiles.map(p => p.network + ": " + p.url).join("  |  ")
       ]
     ]
   ]
@@ -52,7 +52,38 @@
       )
       text(size: 9.5pt, style: "italic")[#w.position]
       v(2pt)
+      if w.summary != "" {
+        text(size: 9pt)[#w.summary]
+        v(2pt)
+      }
       for h in w.highlights {
+        [• #h \ ]
+      }
+      if w.keywords.len() > 0 {
+        v(1pt)
+        text(size: 8pt, fill: rgb("#888888"), style: "italic")[Keywords: #w.keywords.join(", ")]
+      }
+      v(4pt)
+    }
+  }
+
+  // ── Organizational Experience ───────────────────────────────────────────────
+  let active_orgs = data.organizations.filter(o => o.active)
+  if active_orgs.len() > 0 {
+    heading(level: 2)[Organizational Experience]
+    for o in active_orgs {
+      grid(
+        columns: (1fr, auto),
+        text(weight: "bold")[#o.organization],
+        text(size: 9pt, fill: rgb("#666666"))[#o.start_date – #o.end_date]
+      )
+      text(size: 9.5pt, style: "italic")[#o.role]
+      v(2pt)
+      if o.summary != "" {
+        text(size: 9pt)[#o.summary]
+        v(2pt)
+      }
+      for h in o.highlights {
         [• #h \ ]
       }
       v(4pt)
@@ -73,6 +104,10 @@
       v(2pt)
       for h in p.highlights {
         [• #h \ ]
+      }
+      if p.keywords.len() > 0 {
+        v(1pt)
+        text(size: 8pt, fill: rgb("#888888"), style: "italic")[Keywords: #p.keywords.join(", ")]
       }
       v(4pt)
     }
@@ -119,7 +154,7 @@
       },
       {
         if has_awards {
-          heading(level: 2)[Awards]
+          heading(level: 2)[Awards & Recognition]
           for a in data.awards {
             [• *#a.title* (#a.date) \ ]
           }

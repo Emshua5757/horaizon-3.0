@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:async';
 
 import '../../../core/hbp/hbp_client.dart';
 import '../../../core/hbp/hbp_client_provider.dart';
@@ -8,15 +9,15 @@ import '../resume_matrix_dto.dart';
 import '../widgets/award_item_card.dart';
 import '../widgets/certificate_item_card.dart';
 import '../widgets/education_item_card.dart';
+import '../widgets/org_item_card.dart';
 import '../widgets/project_item_card.dart';
 import '../widgets/resume_section_tab.dart';
 import '../widgets/skill_chip_row.dart';
 import '../widgets/work_item_card.dart';
 
-
-/// 7-tab CRUD matrix editor for the resume data.
+/// 8-tab CRUD matrix editor for the resume data.
 ///
-/// Tabs: Basics | Experience | Projects | Skills | Education | Certs | Awards
+/// Tabs: Basics | Experience | Projects | Skills | Education | Certs | Awards | Org Exp
 ///
 /// Each list tab supports: inline expand-to-edit, 800ms debounced auto-save,
 /// FAB add, swipe-to-dismiss delete (optimistic UI).
@@ -30,7 +31,7 @@ class ResumeEditorScreen extends ConsumerWidget {
     final isOffline = connState != HbpConnectionState.connected;
 
     return DefaultTabController(
-      length: 7,
+      length: 8,
       child: Column(
         children: [
           // ── Offline banner ─────────────────────────────────────────────
@@ -38,12 +39,10 @@ class ResumeEditorScreen extends ConsumerWidget {
             MaterialBanner(
               content: const Text('Pi 5 offline — Resume data unavailable'),
               backgroundColor: const Color(0xFFFFF3E0),
-              leading: const Icon(Icons.wifi_off_rounded,
-                  color: Color(0xFFFFA000)),
+              leading:
+                  const Icon(Icons.wifi_off_rounded, color: Color(0xFFFFA000)),
               actions: [
-                TextButton(
-                    onPressed: () {},
-                    child: const Text('Dismiss')),
+                TextButton(onPressed: () {}, child: const Text('Dismiss')),
               ],
             ),
 
@@ -59,26 +58,29 @@ class ResumeEditorScreen extends ConsumerWidget {
               Tab(text: 'Education'),
               Tab(text: 'Certs'),
               Tab(text: 'Awards'),
+              Tab(text: 'Org Exp'),
             ],
           ),
 
           // ── Tab views ──────────────────────────────────────────────────
           Expanded(
             child: ref.watch(resumeMatrixProvider).when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (err, _) => _ErrorState(message: err.toString()),
-              data: (matrix) => TabBarView(
-                children: [
-                  _BasicsTab(matrix: matrix),
-                  _WorkTab(matrix: matrix),
-                  _ProjectsTab(matrix: matrix),
-                  _SkillsTab(matrix: matrix),
-                  _EducationTab(matrix: matrix),
-                  _CertsTab(matrix: matrix),
-                  _AwardsTab(matrix: matrix),
-                ],
-              ),
-            ),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (err, _) => _ErrorState(message: err.toString()),
+                  data: (matrix) => TabBarView(
+                    children: [
+                      _BasicsTab(matrix: matrix),
+                      _WorkTab(matrix: matrix),
+                      _ProjectsTab(matrix: matrix),
+                      _SkillsTab(matrix: matrix),
+                      _EducationTab(matrix: matrix),
+                      _CertsTab(matrix: matrix),
+                      _AwardsTab(matrix: matrix),
+                      _OrgsTab(matrix: matrix),
+                    ],
+                  ),
+                ),
           ),
         ],
       ),
@@ -128,8 +130,14 @@ class _BasicsTabState extends ConsumerState<_BasicsTab> {
   @override
   void dispose() {
     for (final c in [
-      _nameCtrl, _labelCtrl, _emailCtrl, _phoneCtrl,
-      _urlCtrl, _summaryCtrl, _cityCtrl, _regionCtrl,
+      _nameCtrl,
+      _labelCtrl,
+      _emailCtrl,
+      _phoneCtrl,
+      _urlCtrl,
+      _summaryCtrl,
+      _cityCtrl,
+      _regionCtrl,
     ]) {
       c.dispose();
     }
@@ -149,14 +157,35 @@ class _BasicsTabState extends ConsumerState<_BasicsTab> {
         'region': _regionCtrl.text,
         'country_code': widget.matrix.basics.location.countryCode,
       },
-      'profiles': widget.matrix.basics.profiles
-          .map((p) => p.toMap())
-          .toList(),
+      'profiles': widget.matrix.basics.profiles.map((p) => p.toMap()).toList(),
     });
     if (!mounted) return;
     setState(() => _saved = true);
     await Future.delayed(const Duration(milliseconds: 1500));
     if (mounted) setState(() => _saved = false);
+  }
+
+  void _addProfile() {
+    setState(() {
+      widget.matrix.basics.profiles.add(
+        const ProfileDto(network: '', username: '', url: ''),
+      );
+    });
+    _save();
+  }
+
+  void _removeProfile(int index) {
+    setState(() {
+      widget.matrix.basics.profiles.removeAt(index);
+    });
+    _save();
+  }
+
+  void _updateProfile(int index, ProfileDto updated) {
+    setState(() {
+      widget.matrix.basics.profiles[index] = updated;
+    });
+    _save();
   }
 
   @override
@@ -173,8 +202,7 @@ class _BasicsTabState extends ConsumerState<_BasicsTab> {
               padding: const EdgeInsets.only(bottom: 12),
               child: Row(
                 children: [
-                  Icon(Icons.check_circle_rounded,
-                      color: cs.primary, size: 18),
+                  Icon(Icons.check_circle_rounded, color: cs.primary, size: 18),
                   const SizedBox(width: 6),
                   Text('Saved', style: TextStyle(color: cs.primary)),
                 ],
@@ -182,12 +210,8 @@ class _BasicsTabState extends ConsumerState<_BasicsTab> {
             ),
           _field('Full Name', _nameCtrl),
           _field('Label / Headline', _labelCtrl),
-          _field('Email', _emailCtrl,
-              keyboard: TextInputType.emailAddress),
-          _field('Phone', _phoneCtrl,
-              keyboard: TextInputType.phone),
-          _field('Website URL', _urlCtrl,
-              keyboard: TextInputType.url),
+          _field('Email', _emailCtrl, keyboard: TextInputType.emailAddress),
+          _field('Phone', _phoneCtrl, keyboard: TextInputType.phone),
           _field('Professional Summary', _summaryCtrl, maxLines: 4),
           const SizedBox(height: 8),
           Text('Location',
@@ -201,6 +225,42 @@ class _BasicsTabState extends ConsumerState<_BasicsTab> {
             const SizedBox(width: 8),
             Expanded(child: _field('Region', _regionCtrl)),
           ]),
+          const SizedBox(height: 16),
+          // ── Profile Links ───────────────────────────────────────────
+          Row(
+            children: [
+              Expanded(
+                child: Text('Profile Links',
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(color: cs.outline)),
+              ),
+              TextButton.icon(
+                onPressed: _addProfile,
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('Add Link'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'e.g. GitHub, LinkedIn, Portfolio — these appear in the resume header',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: cs.outline),
+          ),
+          const SizedBox(height: 8),
+          ...List.generate(widget.matrix.basics.profiles.length, (i) {
+            final p = widget.matrix.basics.profiles[i];
+            return _ProfileLinkRow(
+              key: ValueKey('profile_$i'),
+              initial: p,
+              onRemove: () => _removeProfile(i),
+              onChanged: (updated) => _updateProfile(i, updated),
+            );
+          }),
           const SizedBox(height: 20),
           FilledButton.icon(
             onPressed: _save,
@@ -348,8 +408,7 @@ class _CertsTab extends ConsumerWidget {
             .upsertSection('certificates', newBlankCertificate().toMap()),
         child: Column(
           children: matrix.certificates
-              .map((c) =>
-                  CertificateItemCard(key: ValueKey(c.id), item: c))
+              .map((c) => CertificateItemCard(key: ValueKey(c.id), item: c))
               .toList(),
         ),
       );
@@ -379,6 +438,30 @@ class _AwardsTab extends ConsumerWidget {
       );
 }
 
+class _OrgsTab extends ConsumerWidget {
+  final ResumeMatrixDto matrix;
+
+  const _OrgsTab({required this.matrix});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ResumeSectionTab(
+        title: 'Org Experience',
+        isEmpty: matrix.organizations.isEmpty,
+        emptyState: const SectionEmptyState(
+          icon: Icons.groups_rounded,
+          message: 'No org experience yet\nTap + to add one',
+        ),
+        onAdd: () => ref
+            .read(resumeMatrixProvider.notifier)
+            .upsertSection('organizations', newBlankOrgItem().toMap()),
+        child: Column(
+          children: matrix.organizations
+              .map((o) => OrgItemCard(key: ValueKey(o.id), item: o))
+              .toList(),
+        ),
+      );
+}
+
 // ---------------------------------------------------------------------------
 // Error state
 // ---------------------------------------------------------------------------
@@ -400,11 +483,109 @@ class _ErrorState extends StatelessWidget {
             Icon(Icons.error_outline_rounded, size: 48, color: cs.error),
             const SizedBox(height: 12),
             Text(message,
-                textAlign: TextAlign.center,
-                style:
-                    TextStyle(color: cs.error)),
+                textAlign: TextAlign.center, style: TextStyle(color: cs.error)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Profile link row (Basics tab — dynamic social profile editor)
+// ---------------------------------------------------------------------------
+
+class _ProfileLinkRow extends StatefulWidget {
+  final ProfileDto initial;
+  final VoidCallback onRemove;
+  final ValueChanged<ProfileDto> onChanged;
+
+  const _ProfileLinkRow({
+    super.key,
+    required this.initial,
+    required this.onRemove,
+    required this.onChanged,
+  });
+
+  @override
+  State<_ProfileLinkRow> createState() => _ProfileLinkRowState();
+}
+
+class _ProfileLinkRowState extends State<_ProfileLinkRow> {
+  late TextEditingController _networkCtrl;
+  late TextEditingController _urlCtrl;
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    _networkCtrl = TextEditingController(text: widget.initial.network);
+    _urlCtrl = TextEditingController(text: widget.initial.url);
+    _networkCtrl.addListener(_onChanged);
+    _urlCtrl.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _networkCtrl.dispose();
+    _urlCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onChanged() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 800), () {
+      widget.onChanged(
+        ProfileDto(
+          network: _networkCtrl.text,
+          username: widget.initial.username,
+          url: _urlCtrl.text,
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: TextField(
+              controller: _networkCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Network',
+                hintText: 'GitHub',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _urlCtrl,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(
+                labelText: 'URL',
+                hintText: 'https://github.com/username',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.close_rounded, color: cs.outline, size: 20),
+            onPressed: widget.onRemove,
+            tooltip: 'Remove link',
+          ),
+        ],
       ),
     );
   }

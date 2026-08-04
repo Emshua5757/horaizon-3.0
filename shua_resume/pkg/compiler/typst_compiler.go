@@ -139,14 +139,25 @@ func CompileTypst(matrix *models.ResumeMatrix, templateName string) ([]byte, err
 	return stdoutBuf.Bytes(), nil
 }
 
-// MatrixToMarkdown generates a plain-text Markdown fallback when Typst is unavailable.
+// MatrixToMarkdown generates a plain-text Markdown fallback when Typst is unavailable,
+// or when the user explicitly requests a Markdown export.
 func MatrixToMarkdown(matrix *models.ResumeMatrix) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("# %s\n\n", matrix.Basics.Name))
+
+	// Header line: label | email | phone
 	sb.WriteString(fmt.Sprintf("**%s** | %s | %s | %s\n\n",
 		matrix.Basics.Label, matrix.Basics.Email, matrix.Basics.Phone,
 		matrix.Basics.Location.City+", "+matrix.Basics.Location.Region))
+
+	// Profile links
+	if len(matrix.Basics.Profiles) > 0 {
+		for _, p := range matrix.Basics.Profiles {
+			sb.WriteString(fmt.Sprintf("- **%s**: %s\n", p.Network, p.Url))
+		}
+		sb.WriteString("\n")
+	}
 
 	if matrix.Basics.Summary != "" {
 		sb.WriteString("## Summary\n\n")
@@ -161,7 +172,31 @@ func MatrixToMarkdown(matrix *models.ResumeMatrix) string {
 			}
 			sb.WriteString(fmt.Sprintf("### %s — %s  \n", w.Position, w.Name))
 			sb.WriteString(fmt.Sprintf("*%s – %s*\n\n", w.StartDate, w.EndDate))
+			if w.Summary != "" {
+				sb.WriteString(w.Summary + "\n\n")
+			}
 			for _, h := range w.Highlights {
+				sb.WriteString(fmt.Sprintf("- %s\n", h))
+			}
+			if len(w.Keywords) > 0 {
+				sb.WriteString(fmt.Sprintf("\n*Keywords: %s*\n", strings.Join(w.Keywords, ", ")))
+			}
+			sb.WriteString("\n")
+		}
+	}
+
+	if len(matrix.Organizations) > 0 {
+		sb.WriteString("## Organizational Experience\n\n")
+		for _, o := range matrix.Organizations {
+			if !o.Active {
+				continue
+			}
+			sb.WriteString(fmt.Sprintf("### %s — %s  \n", o.Role, o.Organization))
+			sb.WriteString(fmt.Sprintf("*%s – %s*\n\n", o.StartDate, o.EndDate))
+			if o.Summary != "" {
+				sb.WriteString(o.Summary + "\n\n")
+			}
+			for _, h := range o.Highlights {
 				sb.WriteString(fmt.Sprintf("- %s\n", h))
 			}
 			sb.WriteString("\n")
@@ -177,6 +212,9 @@ func MatrixToMarkdown(matrix *models.ResumeMatrix) string {
 			sb.WriteString(fmt.Sprintf("### %s\n\n%s\n\n", p.Name, p.Description))
 			for _, h := range p.Highlights {
 				sb.WriteString(fmt.Sprintf("- %s\n", h))
+			}
+			if len(p.Keywords) > 0 {
+				sb.WriteString(fmt.Sprintf("\n*Keywords: %s*\n", strings.Join(p.Keywords, ", ")))
 			}
 			sb.WriteString("\n")
 		}
@@ -206,7 +244,7 @@ func MatrixToMarkdown(matrix *models.ResumeMatrix) string {
 	}
 
 	if len(matrix.Awards) > 0 {
-		sb.WriteString("## Awards\n\n")
+		sb.WriteString("## Awards & Recognition\n\n")
 		for _, a := range matrix.Awards {
 			sb.WriteString(fmt.Sprintf("- **%s** (%s) — %s\n", a.Title, a.Date, a.Sender))
 		}
@@ -215,3 +253,4 @@ func MatrixToMarkdown(matrix *models.ResumeMatrix) string {
 
 	return sb.String()
 }
+

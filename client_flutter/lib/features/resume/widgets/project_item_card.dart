@@ -26,6 +26,7 @@ class _ProjectItemCardState extends ConsumerState<ProjectItemCard> {
   late TextEditingController _descCtrl;
   late TextEditingController _urlCtrl;
   late TextEditingController _highlightsCtrl;
+  late TextEditingController _keywordsCtrl;
   Timer? _debounce;
   bool _saved = false;
 
@@ -38,7 +39,9 @@ class _ProjectItemCardState extends ConsumerState<ProjectItemCard> {
     _urlCtrl = TextEditingController(text: widget.item.url);
     _highlightsCtrl =
         TextEditingController(text: widget.item.highlights.join('\n'));
-    for (final c in [_nameCtrl, _descCtrl, _urlCtrl, _highlightsCtrl]) {
+    _keywordsCtrl =
+        TextEditingController(text: widget.item.keywords.join(', '));
+    for (final c in [_nameCtrl, _descCtrl, _urlCtrl, _highlightsCtrl, _keywordsCtrl]) {
       c.addListener(_onChanged);
     }
   }
@@ -46,7 +49,7 @@ class _ProjectItemCardState extends ConsumerState<ProjectItemCard> {
   @override
   void dispose() {
     _debounce?.cancel();
-    for (final c in [_nameCtrl, _descCtrl, _urlCtrl, _highlightsCtrl]) {
+    for (final c in [_nameCtrl, _descCtrl, _urlCtrl, _highlightsCtrl, _keywordsCtrl]) {
       c.dispose();
     }
     super.dispose();
@@ -63,12 +66,18 @@ class _ProjectItemCardState extends ConsumerState<ProjectItemCard> {
         .map((s) => s.trim())
         .where((s) => s.isNotEmpty)
         .toList();
+    final keywords = _keywordsCtrl.text
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
     await ref.read(resumeMatrixProvider.notifier).upsertSection('projects', {
       'id': widget.item.id,
       'name': _nameCtrl.text,
       'description': _descCtrl.text,
       'url': _urlCtrl.text,
       'highlights': highlights,
+      'keywords': keywords,
       'exhibits': widget.item.exhibits,
       'active': widget.item.active,
     });
@@ -142,10 +151,24 @@ class _ProjectItemCardState extends ConsumerState<ProjectItemCard> {
                     const Divider(),
                     const SizedBox(height: 12),
                     _field('Project Name', _nameCtrl),
-                    _field('Description', _descCtrl, maxLines: 3),
-                    _field('URL', _urlCtrl),
-                    _field('Highlights (one per line)', _highlightsCtrl,
-                        maxLines: 4),
+                    _field('Description', _descCtrl,
+                        maxLines: 3,
+                        hint: 'Brief overall description of the project'),
+                    _field('URL', _urlCtrl,
+                        hint: 'e.g. https://github.com/you/project'),
+                    _field(
+                      'Highlights (one per line — auto-bulleted)',
+                      _highlightsCtrl,
+                      maxLines: 4,
+                      hint: 'e.g. Reduced build time by 60% via parallelized CI pipeline',
+                      helper: 'Each line becomes a bullet point (•) on the resume',
+                    ),
+                    _field(
+                      'Keywords (comma-separated)',
+                      _keywordsCtrl,
+                      hint: 'e.g. Flutter, Dart, Firebase, REST API',
+                      helper: 'ATS skill tags — shown as a subtle tag line',
+                    ),
                   ],
                 ],
               ),
@@ -156,18 +179,29 @@ class _ProjectItemCardState extends ConsumerState<ProjectItemCard> {
     );
   }
 
-  Widget _field(String label, TextEditingController ctrl, {int maxLines = 1}) =>
+  Widget _field(
+    String label,
+    TextEditingController ctrl, {
+    int maxLines = 1,
+    String? hint,
+    String? helper,
+  }) =>
       Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: TextField(
           controller: ctrl,
           maxLines: maxLines,
           decoration: InputDecoration(
-              labelText: label,
-              border: const OutlineInputBorder(),
-              isDense: true),
+            labelText: label,
+            hintText: hint,
+            helperText: helper,
+            helperMaxLines: 2,
+            border: const OutlineInputBorder(),
+            isDense: true,
+          ),
         ),
       );
+
 
   Widget _deleteBg(ColorScheme cs) => Container(
         decoration: BoxDecoration(
