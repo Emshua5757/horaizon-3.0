@@ -21,8 +21,23 @@ dependencies:
   # MessagePack (HBP v2 payload encoding)
   messagepack: ^0.2.1
 
-  # HTTP Client for Ollama REST API
+  # HTTP Client for Ollama REST API + PDF download
   http: ^1.2.1
+
+  # PDF rendering from HTTP URI (range-request capable) — TASK-021
+  pdfx: ^2.7.0
+
+  # Platform share sheet (Android/iOS) + open-in-browser fallback (Windows) — TASK-021
+  share_plus: ^10.0.0
+
+  # Path utilities for download directory
+  path_provider: ^2.1.3
+
+  # URL launcher for open-in-browser PDF fallback (Windows) — TASK-021
+  url_launcher: ^6.3.0
+
+  # Platform detection (Windows vs Android/iOS) — TASK-021
+  universal_platform: ^1.0.0
 
   # WebSocket
   web_socket_channel: ^3.0.1

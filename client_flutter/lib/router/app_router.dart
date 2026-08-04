@@ -9,6 +9,7 @@ import '../features/terminal/terminal_screen.dart';
 import '../features/diary/diary_screen.dart';
 import '../features/diary/block_gallery_screen.dart';
 import '../features/code_visualizer/code_topology_screen.dart';
+import '../features/resume/resume_screen.dart';
 import 'splash_screen.dart';
 import 'shell_scaffold.dart';
 
@@ -56,6 +57,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/dev/blocks',
             builder: (_, __) => const BlockGalleryScreen(),
+          ),
+          GoRoute(
+            path: '/resume',
+            builder: (_, __) => const ResumeScreen(),
           ),
         ],
       ),
