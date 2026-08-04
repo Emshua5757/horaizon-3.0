@@ -168,7 +168,7 @@ class _BasicsTabState extends ConsumerState<_BasicsTab> {
   void _addProfile() {
     setState(() {
       widget.matrix.basics.profiles.add(
-        ProfileDto(network: '', username: '', url: ''),
+        const ProfileDto(network: '', username: '', url: ''),
       );
     });
     _save();
