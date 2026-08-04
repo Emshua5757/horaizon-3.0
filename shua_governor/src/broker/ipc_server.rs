@@ -1,4 +1,4 @@
-﻿use std::net::SocketAddr;
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -10,16 +10,18 @@ use tokio_tungstenite::{accept_async, tungstenite::Message};
 use tracing::{error, info, warn};
 
 use crate::mcp::McpToolSchema;
+use crate::media_vault::vault::MediaVault;
 use crate::registry::module_entry::ModuleState;
 use crate::registry::process_manager::ProcessManager;
 
 pub struct IpcServer {
     process_manager: Arc<ProcessManager>,
+    media_vault: Arc<MediaVault>,
 }
 
 impl IpcServer {
-    pub fn new(process_manager: Arc<ProcessManager>) -> Self {
-        Self { process_manager }
+    pub fn new(process_manager: Arc<ProcessManager>, media_vault: Arc<MediaVault>) -> Self {
+        Self { process_manager, media_vault }
     }
 
     /// Runs the dedicated JSON IPC WebSocket listener on target SocketAddr (default loopback 7701)
@@ -50,7 +52,8 @@ impl IpcServer {
                         "Submodule IPC TCP connection accepted"
                     );
                     let pm = Arc::clone(&self.process_manager);
-                    tokio::spawn(handle_ipc_connection(stream, peer_addr, pm));
+                    let vault = Arc::clone(&self.media_vault);
+                    tokio::spawn(handle_ipc_connection(stream, peer_addr, pm, vault));
                 }
                 Err(e) => {
                     error!(
@@ -96,6 +99,7 @@ async fn handle_ipc_connection(
     stream: TcpStream,
     peer_addr: SocketAddr,
     process_manager: Arc<ProcessManager>,
+    media_vault: Arc<MediaVault>,
 ) {
     let peer_pid_opt = get_peer_pid(&stream);
 
@@ -193,6 +197,46 @@ async fn handle_ipc_connection(
                                 "Submodule pushed topology delta event"
                             );
                         }
+                    } else if op == "vault.upload" {
+                        // Submodule depositing a file into the vault via IPC (Base64 path)
+                        let call_id = val.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let module   = val.get("module").and_then(|v| v.as_str()).unwrap_or("shared").to_string();
+                        let fname    = val.get("file_name").and_then(|v| v.as_str()).unwrap_or("file.bin").to_string();
+                        let mime     = val.get("mime_type").and_then(|v| v.as_str()).unwrap_or("application/octet-stream").to_string();
+                        let b64      = val.get("data_base64").and_then(|v| v.as_str()).unwrap_or("").to_string();
+
+                        let response_json = match media_vault.store_base64(&module, &fname, &mime, &b64, "submodule") {
+                            Ok(upload) => {
+                                info!(
+                                    subsystem = "ipc_vault",
+                                    sha256 = %upload.sha256_hash,
+                                    module = %module,
+                                    deduplicated = upload.deduplicated,
+                                    "vault.upload from submodule complete"
+                                );
+                                serde_json::json!({
+                                    "id": call_id,
+                                    "status": "ok",
+                                    "result": {
+                                        "sha256_hash": upload.sha256_hash,
+                                        "url": upload.url,
+                                        "file_size": upload.file_size,
+                                        "deduplicated": upload.deduplicated,
+                                    }
+                                }).to_string()
+                            }
+                            Err(e) => {
+                                warn!(subsystem = "ipc_vault", error = %e, "vault.upload from submodule failed");
+                                serde_json::json!({
+                                    "id": call_id,
+                                    "status": "error",
+                                    "error": format!("ERR_VAULT_UPLOAD: {e}")
+                                }).to_string()
+                            }
+                        };
+
+                        let _ = tx.send(response_json);
+
                     } else if let Some(id_str) = val.get("id").and_then(|v| v.as_str()) {
                         // Response frame matching pending in-flight tool call request ID
                         if let Some(ref mod_id) = registered_module_id {

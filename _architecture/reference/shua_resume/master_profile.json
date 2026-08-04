@@ -1,0 +1,212 @@
+{
+  "basics": {
+    "name": "Joshua B. Ygot",
+    "label": "Computer Engineer & Embedded Systems Specialist",
+    "email": "ygot.joshua5142004@gmail.com",
+    "phone": "09615981753",
+    "url": "https://www.linkedin.com/in/joshua-ygot-298a5736a",
+    "summary": "Computer Engineering student and systems engineer specializing in hardware-software co-design, embedded systems, and mobile client integrations. Certified in Java Programming, Internet of Things, Creative Web Design, and Data Analytics. Experienced in custom firmware optimization, hardware prototyping, and edge-native ML deployment.",
+    "location": {
+      "address": "Liong Extension Alang-alang",
+      "city": "Mandaue City",
+      "region": "Cebu",
+      "countryCode": "PH"
+    },
+    "personalData": {
+      "dateOfBirth": "2004-05-14",
+      "civilStatus": "Single",
+      "sex": "Male",
+      "religion": "Roman Catholic",
+      "citizenship": "Filipino",
+      "parents": {
+        "mother": "Jeryl B. Ygot",
+        "father": "Jeremias M. Ygot"
+      },
+      "siblings": ["Jericho B. Ygot"]
+    },
+    "profiles": [
+      {
+        "network": "LinkedIn",
+        "username": "joshua-ygot-298a5736a",
+        "url": "https://www.linkedin.com/in/joshua-ygot-298a5736a"
+      }
+    ]
+  },
+  "work": [
+    {
+      "name": "Sustainable Center for Engineering and Next-Generation Technology",
+      "position": "Project Research Assistant (Intern)",
+      "url": "",
+      "startDate": "2026-02-01",
+      "endDate": "2026-05-01",
+      "summary": "Research and systems engineering for the Agri3D automated horticulture platform.",
+      "highlights": [
+        "Embedded Firmware: Customized the GRBL motion control engine on an ATmega328P, stripping unused modules to optimize Flash footprint and interfacing stepper drivers via custom routines.",
+        "Hardware Co-design: Routed a custom PCB shield in KiCAD for an Arduino Nano host to drive stepper control circuits.",
+        "Dynamic Modeling & Kinematics: Modeled mechanical linkages and 3D-printed components using Autodesk Inventor and Fusion 360, with animation in Blender.",
+        "Client Integration: Integrated hardware state telemetry with a cross-platform mobile client built in Flutter.",
+        "TinyML & Computer Vision: Engineered and trained an edge-native classification model using Edge Impulse for real-time weed detection, deploying the optimized C++ model library onto an ESP32 node for localized, low-latency inferencing."
+      ],
+      "skills": ["Research and Development (R&D)", "Embedded Systems", "Mechatronics", "Flutter"]
+    },
+    {
+      "name": "Department of Science and Technology (DOST)",
+      "position": "On-the-Job Trainee – Quality Assurance (Intern)",
+      "url": "",
+      "startDate": "2025-07-01",
+      "endDate": "2025-08-01",
+      "summary": "Participated in the League of Developers Initiative (Project LODI), supporting quality assurance and system compliance workflows for the Information Technology Division.",
+      "highlights": [
+        "Test Specification Engineering: Translated technical requirements into structured test case specifications to validate system behavior against functional specifications.",
+        "Defect Isolation: Executed systematic test protocols, logging results and verifying compliance boundaries for remote software services.",
+        "SDLC Standards: Maintained requirement-to-test traceability matrices in accordance with agency engineering and documentation standards."
+      ],
+      "skills": ["Quality Assurance"]
+    }
+  ],
+  "education": [
+    {
+      "institution": "Cebu Technological University Main Campus",
+      "url": "https://ctu.edu.ph",
+      "area": "Computer Engineering",
+      "studyType": "Bachelor of Science",
+      "startDate": "2022-08-01",
+      "endDate": "2026-07-01",
+      "score": "GWA: 1.35",
+      "courses": [
+        "Embedded Systems",
+        "Microprocessors",
+        "Hardware Description Languages",
+        "Data Structures and Algorithms"
+      ]
+    },
+    {
+      "institution": "Mandaue City Science High School",
+      "url": "",
+      "area": "Secondary Education (High School)",
+      "studyType": "With Honors",
+      "startDate": "2016-06-01",
+      "endDate": "2022-05-01",
+      "score": "With Honors",
+      "courses": []
+    },
+    {
+      "institution": "Opao Elementary School",
+      "url": "",
+      "area": "Primary Education (Elementary)",
+      "studyType": "Valedictorian",
+      "startDate": "2010-06-01",
+      "endDate": "2016-03-01",
+      "score": "Valedictorian",
+      "courses": []
+    }
+  ],
+  "projects": [
+    {
+      "name": "Agri3D Platform",
+      "description": "Automated horticulture platform incorporating custom embedded motion controls, spatial design, and Edge AI.",
+      "highlights": [
+        "Constructed firmware optimizations to yield higher execution speeds on restricted 8-bit microcontrollers.",
+        "Modeled multi-axis linkages using Autodesk systems to print structural joints."
+      ],
+      "url": "",
+      "exhibits": [
+        "e5a6f2b4-7c9d-4e8f-9a1b-3c5d7e9f1a2b"
+      ]
+    }
+  ],
+  "skills": [
+    {
+      "name": "Mechatronics & Embedded Systems",
+      "level": "Expert",
+      "keywords": ["ATmega328P", "ESP32", "Arduino", "GRBL", "KiCAD", "PCB Routing", "Autodesk Inventor", "Fusion 360", "Microcontrollers", "Hardware design"]
+    },
+    {
+      "name": "Software Development",
+      "level": "Expert",
+      "keywords": ["Flutter", "Dart", "Java", "C++", "C", "Go", "TypeScript", "HTML", "CSS", "Creative Web Design"]
+    },
+    {
+      "name": "Data Analysis",
+      "level": "Intermediate",
+      "keywords": ["Data Analytics", "Microsoft Power BI", "Data Wrangling", "Visualization"]
+    },
+    {
+      "name": "Quality Assurance",
+      "level": "Intermediate",
+      "keywords": ["Test Cases", "Traceability Matrices", "SDLC Standards", "Defect Isolation"]
+    }
+  ],
+  "certificates": [
+    {
+      "name": "Programming (Java) NC III",
+      "issuer": "TESDA: Technical Education and Skills Development Authority",
+      "date": "2025-02-01",
+      "url": "",
+      "id": "YJB-04-174-07022-001"
+    },
+    {
+      "name": "Internet of Things (TESDA NC)",
+      "issuer": "TESDA: Technical Education and Skills Development Authority",
+      "date": "2024-02-01",
+      "url": "",
+      "id": "YJB-04-174-07022-001"
+    },
+    {
+      "name": "Creative Web Design (TESDA NC)",
+      "issuer": "TESDA: Technical Education and Skills Development Authority",
+      "date": "2023-10-01",
+      "url": "",
+      "id": "YJB-04-174-07022-001"
+    },
+    {
+      "name": "Data Analytics Level III",
+      "issuer": "TESDA: Technical Education and Skills Development Authority",
+      "date": "2026-04-01",
+      "url": "",
+      "id": "YJB-04-174-07022-001"
+    }
+  ],
+  "awards": [
+    {
+      "title": "DOST-SEI Scholar (JLSS-RA 10612)",
+      "date": "2024-10-01",
+      "awarder": "Department of Science and Technology – Science Education Institute (DOST-SEI)",
+      "summary": "Awarded junior level science scholarship for high academic performance in computer engineering."
+    },
+    {
+      "title": "Deans Lister Awardee",
+      "date": "2024-05-01",
+      "awarder": "Cebu Technological University",
+      "summary": "Academic honor recipient during Second Year, GWA: 1.40, and served as ICpEP.SE CTU-MC Secretary."
+    },
+    {
+      "title": "Academic Excellence - First Year",
+      "date": "2023-05-01",
+      "awarder": "Cebu Technological University",
+      "summary": "GWA - 1.28 (First Semester), GWA - 1.32 (Second Semester), and served as ICpEP.SE CTU-MC Secretary."
+    },
+    {
+      "title": "Secondary Education With Honors",
+      "date": "2022-05-01",
+      "awarder": "Mandaue City Science High School",
+      "summary": "Graduated secondary education with honors."
+    },
+    {
+      "title": "Elementary Valedictorian",
+      "date": "2016-03-01",
+      "awarder": "Opao Elementary School",
+      "summary": "Graduated primary education as class valedictorian."
+    }
+  ],
+  "accomplishments": [
+    {
+      "category": "High School Achievements",
+      "details": "With Honors, 1st Place MTAP district level, PMO Qualifying Stage qualifier, PCO Area Stage qualifier, PopCom Quiz Division Level 1st Place, PopCom Quiz Regional Level 7th Place, DENR quiz 4th Place, Science Quiz Division Level 1st Place, Science Quiz Regional Level 1st Place, University of Cebu Quiz 2nd Place, Mandaue City 50th Anniversary Speech Choir 1st Place, Sharp Mind Excellence Award, BSP Scouting Crew Leader, ICT Club Auditor, Class President."
+    },
+    {
+      "category": "Elementary Achievements",
+      "details": "Valedictorian, MTAP division level representative, MTAP district 3rd Place district level, Prescon Science Writing 6th Place, Math Quiz Bowl 1st Placer, Nutri Quiz School Level 1st Place, Healthy You Summit Circle Robinson Hotel Nutri Quiz 4th Placer, Mandaue City Charter Day Trivia 2nd Place, Sci-Damath 2nd Place, Supreme Pupil Government President, School Watch Action Team President, 2nd Most Outstanding Scout School Level, Best in Math, Best in English, Best in Science."
+    }
+  ]
+}

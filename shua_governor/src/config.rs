@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 
+use crate::media_vault::vault::MediaVaultConfig;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub governor: GovernorConfig,
@@ -10,6 +12,8 @@ pub struct AppConfig {
     pub ollama: OllamaConfig,
     #[serde(default)]
     pub modules: ModulesConfig,
+    #[serde(default)]
+    pub media_vault: MediaVaultConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,6 +70,7 @@ pub struct ModuleConfigEntry {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
+            media_vault: MediaVaultConfig::default(),
             governor: GovernorConfig {
                 port: 7700,
                 log_level: "info".to_string(),

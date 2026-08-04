@@ -6,11 +6,12 @@ mod dream_loop;
 mod error;
 mod logging;
 mod mcp;
+mod media_vault;
 mod ollama;
 mod registry;
 
 use std::net::SocketAddr;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use broker::{dispatcher::Dispatcher, server::BrokerServer};
@@ -21,6 +22,7 @@ use logging::broadcaster::LogBroadcaster;
 use logging::entry::LogEntry;
 use logging::flush::{flush_loop, resolved_important_log_path};
 use logging::listener::start_log_ipc_listener;
+use media_vault::vault::MediaVault;
 use ollama::{ModelRegistry, OllamaClient, OllamaLifecycle, RegisteredModel};
 use registry::{ModuleEntry, ProcessManager};
 use tokio::sync::{broadcast, mpsc, RwLock};
@@ -181,6 +183,33 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // 11. Initialize HBP v2 Dispatcher & Broker Server
+    // Resolve DB path for vault registry (same activity.db used by logging)
+    let vault_db_path = logging::flush::resolved_db_path();
+    let media_vault = match MediaVault::new(
+        app_config.media_vault.clone(),
+        Path::new(&vault_db_path),
+    ) {
+        Ok(v) => {
+            info!(subsystem = "governor_main", "Media Vault initialized — vault HTTP server starting on port {}", app_config.media_vault.http_port);
+            Arc::new(v)
+        }
+        Err(e) => {
+            warn!(subsystem = "governor_main", error = %e, "Media Vault init failed — vault features unavailable");
+            // Fail-open: create vault with a temp dir so the binary still starts
+            let mut fallback_cfg = app_config.media_vault.clone();
+            fallback_cfg.root_path = std::env::temp_dir().join("horaizon_vault").to_string_lossy().to_string();
+            Arc::new(MediaVault::new(fallback_cfg, Path::new(&vault_db_path))
+                .expect("Vault fallback init must succeed"))
+        }
+    };
+
+    // Spawn vault HTTP static file server on port 7702
+    let vault_http_clone = Arc::clone(&media_vault);
+    let vault_http_port = app_config.media_vault.http_port;
+    tokio::spawn(async move {
+        media_vault::http_server::serve(vault_http_clone, vault_http_port).await;
+    });
+
     let dispatcher = Arc::new(Dispatcher::new(
         log_tx.clone(),
         Arc::clone(&log_broadcaster),
@@ -188,6 +217,7 @@ async fn main() -> anyhow::Result<()> {
         Arc::clone(&ollama_lifecycle),
         Arc::clone(&shared_config),
         Arc::clone(&ai_runtime),
+        Arc::clone(&media_vault),
     ));
     let broker = BrokerServer::new(Arc::clone(&dispatcher));
 
@@ -200,7 +230,10 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // 12. Initialize & Spawn Dedicated Submodule JSON IPC Listener (Port 7701)
-    let ipc_server = broker::ipc_server::IpcServer::new(Arc::clone(&process_manager));
+    let ipc_server = broker::ipc_server::IpcServer::new(
+        Arc::clone(&process_manager),
+        Arc::clone(&media_vault),
+    );
     let ipc_addr_str = "0.0.0.0:7701";
     let ipc_addr: SocketAddr = ipc_addr_str.parse()?;
     tokio::spawn(async move {
