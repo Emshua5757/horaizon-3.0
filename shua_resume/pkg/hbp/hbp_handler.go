@@ -281,13 +281,15 @@ func encodeError(id, mod, op, errMsg string) []byte {
 }
 
 // decodeMsgpackOrJSON tries msgpack first, falls back to JSON.
+// decodeMsgpackOrJSON tries msgpack (Base64 or Int Array) first, falls back to JSON.
 func decodeMsgpackOrJSON(raw json.RawMessage, dst interface{}) error {
 	if len(raw) == 0 {
 		return nil
 	}
-	// Attempt base64 + msgpack first (HBP v2 canonical)
+
+	// 1. Attempt Base64 + msgpack (HBP v2 canonical)
 	var b64str string
-	if json.Unmarshal(raw, &b64str) == nil {
+	if err := json.Unmarshal(raw, &b64str); err == nil {
 		decoded, err := base64.StdEncoding.DecodeString(b64str)
 		if err == nil {
 			if err := msgpack.Unmarshal(decoded, dst); err == nil {
@@ -295,6 +297,27 @@ func decodeMsgpackOrJSON(raw json.RawMessage, dst interface{}) error {
 			}
 		}
 	}
-	// Fallback: plain JSON (useful for testing)
-	return json.Unmarshal(raw, dst)
+
+	// 2. Attempt JSON array of integers (if Dart sent List<int> directly)
+	var intArr []int
+	if err := json.Unmarshal(raw, &intArr); err == nil {
+		bytes := make([]byte, len(intArr))
+		for i, v := range intArr {
+			bytes[i] = byte(v)
+		}
+		if err := msgpack.Unmarshal(bytes, dst); err == nil {
+			return nil
+		}
+	}
+
+	// 3. Fallback: plain JSON object decoding
+	err := json.Unmarshal(raw, dst)
+	if err != nil {
+		// Stop failing silently! Log the exact reason decoding failed.
+		logger.Error("hbp_handler", "all payload decoders failed", err, map[string]interface{}{
+			"raw_payload": string(raw),
+		})
+	}
+
+	return err
 }
