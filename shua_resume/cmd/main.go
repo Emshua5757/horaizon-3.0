@@ -43,12 +43,15 @@ func main() {
 
 	// 4. Wire: IPC frames forwarded from Governor dispatcher -> HBP handler
 	mcpSrv.OnHBPFrame = func(raw []byte) {
-		response := hbpHandler.Handle(raw)
-		if response != nil {
-			if err := mcpSrv.SendHBPReply(response); err != nil {
-				logger.Error("main", "failed to send HBP reply over IPC", err, nil)
+		// Wrap the handler in a goroutine to prevent IPC deadlocks
+		go func(payload []byte) {
+			response := hbpHandler.Handle(payload)
+			if response != nil {
+				if err := mcpSrv.SendHBPReply(response); err != nil {
+					logger.Error("main", "failed to send HBP reply over IPC", err, nil)
+				}
 			}
-		}
+		}(raw)
 	}
 
 	// 5. Start IPC connection in background (reconnects automatically)

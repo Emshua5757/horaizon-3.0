@@ -2,7 +2,9 @@
 // Ported from horAIzon 2.0 with updated path resolution for the horAIzon 3.0 layout.
 //
 // Time Complexity:  O(n) for JSON marshalling (n = matrix fields);
-//                   O(pdf_size) for reading stdout.
+//
+//	O(pdf_size) for reading stdout.
+//
 // Space Complexity: O(json_size + pdf_size) transient during compilation.
 package compiler
 
@@ -24,23 +26,25 @@ import (
 // findModuleRoot traverses upward from the working directory to find the directory
 // containing go.mod (= the shua_resume module root). Needed because typst templates
 // live at {module_root}/templates/*.typ.
+// findModuleRoot checks known environment paths to locate the templates folder,
+// ensuring cross-platform compatibility between the Windows dev environment and the Pi 5.
 func findModuleRoot() string {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "."
+	candidates := []string{
+		".",                                   // Standard local execution
+		"C:\\horaizon-3.0\\shua_resume",       // Windows laptop
+		"/home/shua/horaizon-3.0/shua_resume", // Raspberry Pi 5
 	}
-	dir := cwd
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+
+	for _, dir := range candidates {
+		// Check if the "templates" directory exists inside this candidate path
+		if stat, err := os.Stat(filepath.Join(dir, "templates")); err == nil && stat.IsDir() {
 			return dir
 		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
 	}
-	return "."
+
+	// Fallback to the current working directory
+	cwd, _ := os.Getwd()
+	return cwd
 }
 
 // resolveTypstPath locates the typst binary in:
@@ -119,9 +123,9 @@ func CompileTypst(matrix *models.ResumeMatrix, templateName string) ([]byte, err
 			return nil, fmt.Errorf("ERR_TYPST_UNAVAILABLE: compile timeout")
 		}
 		logger.Warn("compiler", "typst compilation failed — markdown fallback will activate", map[string]interface{}{
-			"template":    templateName,
-			"latency_ms":  latencyMs,
-			"stderr":      stderrBuf.String(),
+			"template":   templateName,
+			"latency_ms": latencyMs,
+			"stderr":     stderrBuf.String(),
 		})
 		return nil, fmt.Errorf("ERR_TYPST_UNAVAILABLE: %w (stderr: %s)", err, stderrBuf.String())
 	}
