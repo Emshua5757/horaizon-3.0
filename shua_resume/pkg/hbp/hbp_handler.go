@@ -124,11 +124,11 @@ func (h *Handler) handleMatrixUpdate(frame Frame) []byte {
 // 7. Return ResumeCompileResponse
 func (h *Handler) handleCompile(frame Frame) []byte {
 	var req struct {
-		MatrixID  string `json:"matrix_id" msgpack:"1"`
-		Template  string `json:"template" msgpack:"2"`
-		JobDesc   string `json:"job_desc" msgpack:"3"`
-		Tailor    bool   `json:"tailor" msgpack:"4"`
-		AIEnhance bool   `json:"ai_enhance" msgpack:"5"`
+		MatrixID  string `json:"matrix_id" msgpack:"matrix_id"`
+		Template  string `json:"template" msgpack:"template"`
+		JobDesc   string `json:"job_desc" msgpack:"job_desc"`
+		Tailor    bool   `json:"tailor" msgpack:"tailor"`
+		AIEnhance bool   `json:"ai_enhance" msgpack:"ai_enhance"`
 	}
 	if err := decodeMsgpackOrJSON(frame.P, &req); err != nil {
 		return encodeError(frame.ID, frame.Mod, frame.Op, "ERR_MALFORMED_PAYLOAD")
