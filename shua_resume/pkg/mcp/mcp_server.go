@@ -223,13 +223,11 @@ type AiRouteRequest struct {
 func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string, error) {
 	id := uuid.New().String()
 
-	// Ensure prompt is safely populated
 	prompt, _ := payload["prompt"].(string)
 	if prompt == "" {
 		prompt = "SYSTEM: You are a JSON transformation engine. Return ONLY valid JSON matching the exact ResumeMatrix schema."
 	}
 
-	// Build the exact structured payload expected by Rust AiRouteRequest struct
 	payloadObj := map[string]interface{}{
 		"prompt": prompt,
 	}
@@ -246,18 +244,15 @@ func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string,
 		payloadObj["session_id"] = sid
 	}
 
-	// Pack payload into msgpack bytes, then Base64 encode it so it fits the HBP v2 'p' string field
-	pBytes, _ := msgpack.Marshal(payloadObj)
-	pBase64 := base64.StdEncoding.EncodeToString(pBytes)
+	pBytes, _ := json.Marshal(payloadObj)
 
-	// Construct outer frame wrapper
 	frame := map[string]interface{}{
 		"v":   2,
-		"t":   1, // MessageTypeRequest
+		"t":   1,
 		"op":  op,
 		"id":  id,
 		"mod": "shua.governor",
-		"p":   pBase64,
+		"p":   json.RawMessage(pBytes),
 	}
 
 	ch := make(chan string, 1)
