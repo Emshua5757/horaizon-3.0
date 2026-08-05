@@ -18,6 +18,7 @@ package logger
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -32,12 +33,12 @@ import (
 )
 
 const (
-	hbpMagic0   byte = 0x48 // 'H'
-	hbpMagic1   byte = 0x42 // 'B'
-	hbpVersion  byte = 0x02
-	hbpTypeLog  byte = 0x12
+	hbpMagic0    byte  = 0x48 // 'H'
+	hbpMagic1    byte  = 0x42 // 'B'
+	hbpVersion   byte  = 0x02
+	hbpTypeLog   byte  = 0x12
 	moduleResume uint8 = 20 // shua.resume module ID
-	moduleName   = "shua.resume"
+	moduleName         = "shua.resume"
 )
 
 var stdLogger = log.New(os.Stdout, "", 0)
@@ -98,7 +99,19 @@ func emit(level uint8, subsystem, msg string, extra map[string]interface{}) {
 
 	// Always emit human-readable line to stdout (visible via SSH / gov logs).
 	levelStr := levelToStr(level)
-	stdLogger.Printf("[%s] [%s] [%s] %s", time.Now().UTC().Format(time.RFC3339), levelStr, subsystem, msg)
+	if len(extra) > 0 {
+		extraJSON, err := json.Marshal(extra)
+		if err != nil {
+			stdLogger.Printf("[%s] [%s] [%s] %s (extra fields failed to marshal: %v)",
+				time.Now().UTC().Format(time.RFC3339), levelStr, subsystem, msg, err)
+		} else {
+			stdLogger.Printf("[%s] [%s] [%s] %s %s",
+				time.Now().UTC().Format(time.RFC3339), levelStr, subsystem, msg, string(extraJSON))
+		}
+	} else {
+		stdLogger.Printf("[%s] [%s] [%s] %s",
+			time.Now().UTC().Format(time.RFC3339), levelStr, subsystem, msg)
+	}
 
 	// Serialize and send HBP binary frame to Governor telemetry socket.
 	socketMu.Lock()

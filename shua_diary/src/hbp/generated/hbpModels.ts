@@ -265,6 +265,10 @@ export interface LogEntryDto {
   msg: string;
   /** Tag bitmask */
   tags: number;
+  /** Optional structured telemetry key-value pairs */
+  telemetry?: map;
+  /** Human-readable module identifier (e.g. shua.resume). Canonical string for Flutter attribution. */
+  module_name?: string;
   /** Optional transaction trace ID */
   trace_id?: string;
 }
