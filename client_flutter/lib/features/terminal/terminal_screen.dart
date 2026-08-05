@@ -100,10 +100,24 @@ class TelemetryLogsNotifier extends StateNotifier<List<TelemetryLogItem>> {
             final map = u.unpackMap();
 
             final msg = (map['msg'] ?? map['message'] ?? '').toString();
-            final subsystem = (map['subsystem'] ?? frame.module.replaceAll('shua.', '')).toString().toUpperCase();
             final rawLevel = map['level'];
+            final rawMod = map['module'];
+            final rawSub = (map['subsystem'] ?? 'GENERAL').toString().toUpperCase();
+            
+            String modLabel = 'SHUA_GOVERNOR';
+            if (rawMod == 20 || frame.module == 'shua.resume') {
+              modLabel = 'SHUA_RESUME';
+            } else if (rawMod == 30 || frame.module == 'shua.diary') {
+              modLabel = 'SHUA_DIARY';
+            } else if (rawMod == 40 || frame.module == 'shua.code_visualizer') {
+              modLabel = 'SHUA_CODE_VIZ';
+            } else if (frame.module.isNotEmpty && frame.module != 'shua.governor') {
+              modLabel = frame.module.replaceAll('shua.', '').toUpperCase();
+            }
 
-            if (subsystem == 'GOVERNOR_HEARTBEAT') return; // Filter out 10s heartbeat noise
+            final displaySubsystem = '$modLabel :: $rawSub';
+
+            if (rawSub == 'GOVERNOR_HEARTBEAT') return; // Filter out 10s heartbeat noise
 
             String levelStr = 'INFO';
             if (rawLevel == 4 || rawLevel == 'WARN' || rawLevel == 'warn') {
@@ -115,15 +129,21 @@ class TelemetryLogsNotifier extends StateNotifier<List<TelemetryLogItem>> {
             }
 
             if (msg.trim().isNotEmpty) {
-              state = [
-                ...state,
-                TelemetryLogItem(
-                  timestamp: DateTime.now(),
-                  subsystem: subsystem,
-                  level: levelStr,
-                  message: msg,
-                ),
-              ];
+              final newItem = TelemetryLogItem(
+                timestamp: DateTime.now(),
+                subsystem: displaySubsystem,
+                level: levelStr,
+                message: msg,
+              );
+
+              // Prevent hot-restart duplicate tiles
+              if (state.isNotEmpty &&
+                  state.last.message == msg &&
+                  state.last.subsystem == displaySubsystem) {
+                return;
+              }
+
+              state = [...state, newItem];
               return;
             }
           }
