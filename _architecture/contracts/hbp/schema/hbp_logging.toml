@@ -62,6 +62,16 @@ type        = "u32"
 description = "Tag bitmask"
 [[structs.fields]]
 index       = 7
+name        = "telemetry"
+type        = "map?"
+description = "Optional structured telemetry key-value pairs"
+[[structs.fields]]
+index       = 8
+name        = "module_name"
+type        = "str?"
+description = "Human-readable module identifier (e.g. shua.resume). Canonical string for Flutter attribution."
+[[structs.fields]]
+index       = 9
 name        = "trace_id"
 type        = "uuid?"
 description = "Optional transaction trace ID"

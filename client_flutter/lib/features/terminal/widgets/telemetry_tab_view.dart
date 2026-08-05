@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../shared/widgets/app_card.dart';
@@ -86,11 +87,14 @@ class _TelemetryTabViewState extends State<TelemetryTabView> {
   List<String> get _subsystemsList {
     final set = {'ALL', 'SHUA_RESUME', 'SHUA_GOVERNOR', 'SHUA_DIARY', 'SHUA_CODE_VIZ'};
     for (final l in widget.logs) {
-      set.add(l.subsystem);
       if (l.subsystem.contains('::')) {
         final parts = l.subsystem.split('::');
-        set.add(parts[0].trim());
-        set.add(parts[1].trim());
+        final p0 = parts[0].trim();
+        final p1 = parts[1].trim();
+        if (p0.isNotEmpty) set.add(p0);
+        if (p1.isNotEmpty) set.add(p1);
+      } else if (l.subsystem.isNotEmpty) {
+        set.add(l.subsystem);
       }
     }
     final list = set.toList()..sort();
@@ -170,10 +174,16 @@ class _TelemetryTabViewState extends State<TelemetryTabView> {
                   icon: Icon(Icons.copy_all_rounded, size: 18, color: cs.onSurfaceVariant),
                   tooltip: 'Copy logs to clipboard',
                   onPressed: () {
-                    final buf = filtered.map((l) => '[${l.timestamp.toIso8601String()}] [${l.subsystem}] ${l.level}: ${l.message}').join('\n');
+                    final buf = filtered.map((l) {
+                      if (l.metadata != null && l.metadata!.isNotEmpty) {
+                        final prettyJson = const JsonEncoder.withIndent('  ').convert(l.metadata);
+                        return '[${l.timestamp.toIso8601String()}] [${l.subsystem}] [${l.level}]: ${l.message}\n  └─ HBP FRAME DETAILS:\n$prettyJson';
+                      }
+                      return '[${l.timestamp.toIso8601String()}] [${l.subsystem}] [${l.level}]: ${l.message}';
+                    }).join('\n\n');
                     Clipboard.setData(ClipboardData(text: buf));
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Copied ${filtered.length} log entries to clipboard.')),
+                      SnackBar(content: Text('Copied ${filtered.length} log entries with full HBP frame details.')),
                     );
                   },
                 ),
@@ -189,30 +199,34 @@ class _TelemetryTabViewState extends State<TelemetryTabView> {
 
           // Subsystem / Module Tag Filter Chip Bar
           Container(
+            width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             color: cs.surfaceContainerLow.withValues(alpha: 0.4),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  Text(
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 4,
+              runSpacing: 4,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 4.0),
+                  child: Text(
                     'MODULE TAGS:',
-                    style: TextStyle(color: cs.onSurfaceVariant, fontWeight: FontWeight.bold, fontSize: 10),
+                    style: TextStyle(
+                      color: cs.onSurfaceVariant,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10,
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  ..._subsystemsList.map((sub) {
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 4.0),
-                      child: _FilterChip(
-                        label: sub,
-                        isSelected: _filterSubsystem == sub,
-                        color: cs.secondary,
-                        onTap: () => setState(() => _filterSubsystem = sub),
-                      ),
-                    );
-                  }),
-                ],
-              ),
+                ),
+                ..._subsystemsList.map((sub) {
+                  return _FilterChip(
+                    label: sub,
+                    isSelected: _filterSubsystem == sub,
+                    color: cs.secondary,
+                    onTap: () => setState(() => _filterSubsystem = sub),
+                  );
+                }),
+              ],
             ),
           ),
           const Divider(height: 1, thickness: 1),

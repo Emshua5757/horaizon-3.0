@@ -29,6 +29,7 @@ class GoGenerator(BaseGenerator):
         "str":       "string",
         "timestamp": "uint64",
         "uuid":      "string",
+        "map":       "map[string]interface{}",
     }
 
     def wrap_array(self, inner: str) -> str:

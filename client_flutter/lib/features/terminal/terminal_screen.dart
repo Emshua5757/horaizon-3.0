@@ -103,21 +103,22 @@ class TelemetryLogsNotifier extends StateNotifier<List<TelemetryLogItem>> {
             final rawLevel = map['level'];
             final rawMod = map['module'];
             final rawSub = (map['subsystem'] ?? 'GENERAL').toString().toUpperCase();
-            
+            final moduleNameStr = (map['module_name'] ?? frame.module).toString();
+
             String modLabel = 'SHUA_GOVERNOR';
-            if (rawMod == 20 || frame.module == 'shua.resume') {
+            if (moduleNameStr == 'shua.resume' || rawMod == 20) {
               modLabel = 'SHUA_RESUME';
-            } else if (rawMod == 30 || frame.module == 'shua.diary') {
+            } else if (moduleNameStr == 'shua.diary' || rawMod == 30) {
               modLabel = 'SHUA_DIARY';
-            } else if (rawMod == 40 || frame.module == 'shua.code_visualizer') {
+            } else if (moduleNameStr == 'shua.code_visualizer' || rawMod == 40) {
               modLabel = 'SHUA_CODE_VIZ';
-            } else if (frame.module.isNotEmpty && frame.module != 'shua.governor') {
-              modLabel = frame.module.replaceAll('shua.', '').toUpperCase();
+            } else if (moduleNameStr.isNotEmpty && moduleNameStr != 'shua.governor') {
+              modLabel = moduleNameStr.replaceAll('shua.', '').toUpperCase();
             }
 
             final displaySubsystem = '$modLabel :: $rawSub';
 
-            if (rawSub == 'GOVERNOR_HEARTBEAT') return; // Filter out 10s heartbeat noise
+            if (rawSub == 'GOVERNOR_HEARTBEAT' || rawSub == 'HBP_STREAM') return; // Filter out 10s heartbeat and per-token streaming noise
 
             String levelStr = 'INFO';
             if (rawLevel == 4 || rawLevel == 'WARN' || rawLevel == 'warn') {
@@ -134,6 +135,9 @@ class TelemetryLogsNotifier extends StateNotifier<List<TelemetryLogItem>> {
                 subsystem: displaySubsystem,
                 level: levelStr,
                 message: msg,
+                moduleId: rawMod is int ? rawMod : null,
+                moduleName: moduleNameStr.isNotEmpty ? moduleNameStr : null,
+                metadata: map.cast<String, dynamic>(),
               );
 
               // Prevent hot-restart duplicate tiles

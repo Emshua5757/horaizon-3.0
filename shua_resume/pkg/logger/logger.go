@@ -1,20 +1,23 @@
-// Package logger provides structured JSON logging for shua_resume.
+// Package logger provides structured HBP v2 binary frame logging for shua_resume.
 //
 // Startup behaviour:
 //  1. Attempt to connect to the Governor's Unix Domain Socket (Linux/Pi5 only)
-//     at /tmp/horaizon_logs.sock — this pipes logs into the central telemetry DB.
+//     at /tmp/horaizon_logs.sock — this pipes HBP binary log frames into the
+//     central telemetry DB via shua_governor's log IPC listener.
 //  2. If UDS is unavailable, attempt TCP loopback 127.0.0.1:5001.
-//  3. If neither is reachable, fall back to stdout only.
+//  3. If neither is reachable, fall back to stdout only (human-readable text).
 //
-// All sinks receive the same JSON line; stdout is always included so logs are
-// visible via `gov logs` SSH tailing on the Pi5.
+// Wire format emitted per log entry (12-byte HBP header + MsgPack payload):
 //
-// Time Complexity:  O(1) per log entry.
-// Space Complexity: O(1) — single buffered connection, no queuing.
+//	[0x48][0x42][0x02][0x12] [0x00 0x00 0x00 0x00] [payload_len u32 BE] [MsgPack LogEntryDto]
+//	  H     B   ver   LOG        reserved
+//
+// Time Complexity:  O(n) — n = number of fields in telemetry map (usually 0–5).
+// Space Complexity: O(n) — single stack-allocated header + heap MsgPack bytes.
 package logger
 
 import (
-	"encoding/json"
+	"encoding/binary"
 	"fmt"
 	"log"
 	"net"
@@ -22,6 +25,19 @@ import (
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/vmihailenco/msgpack/v5"
+
+	hbp "shua_resume/pkg/hbp/generated"
+)
+
+const (
+	hbpMagic0   byte = 0x48 // 'H'
+	hbpMagic1   byte = 0x42 // 'B'
+	hbpVersion  byte = 0x02
+	hbpTypeLog  byte = 0x12
+	moduleResume uint8 = 20 // shua.resume module ID
+	moduleName   = "shua.resume"
 )
 
 var stdLogger = log.New(os.Stdout, "", 0)
@@ -43,69 +59,111 @@ func initSocket() {
 		if runtime.GOOS == "linux" {
 			if conn, err := net.DialTimeout("unix", "/tmp/horaizon_logs.sock", 500*time.Millisecond); err == nil {
 				socketSink = conn
-				stdLogger.Println(`{"ts":"` + time.Now().UTC().Format(time.RFC3339) + `","level":"INFO","subsystem":"logger","module":"shua.resume","msg":"telemetry sink established","sink":"uds"}`)
+				stdLogger.Printf("[%s] [INFO] [logger] HBP v2 telemetry sink established (uds)", time.Now().UTC().Format(time.RFC3339))
 				return
 			}
 		}
 		// TCP loopback — fallback for non-Linux or when UDS is absent.
 		if conn, err := net.DialTimeout("tcp", "127.0.0.1:5001", 500*time.Millisecond); err == nil {
 			socketSink = conn
-			stdLogger.Println(`{"ts":"` + time.Now().UTC().Format(time.RFC3339) + `","level":"INFO","subsystem":"logger","module":"shua.resume","msg":"telemetry sink established","sink":"tcp_loopback"}`)
+			stdLogger.Printf("[%s] [INFO] [logger] HBP v2 telemetry sink established (tcp_loopback)", time.Now().UTC().Format(time.RFC3339))
 			return
 		}
 		// No socket available — stdout only.
-		stdLogger.Println(`{"ts":"` + time.Now().UTC().Format(time.RFC3339) + `","level":"WARN","subsystem":"logger","module":"shua.resume","msg":"no telemetry socket available — stdout only"}`)
+		stdLogger.Printf("[%s] [WARN] [logger] no telemetry socket available — stdout only", time.Now().UTC().Format(time.RFC3339))
 	})
 }
 
-func emit(level, subsystem, msg string, extra map[string]interface{}) {
+func emit(level uint8, subsystem, msg string, extra map[string]interface{}) {
 	initSocket()
 
-	entry := map[string]interface{}{
-		"ts":        time.Now().UTC().Format(time.RFC3339),
-		"level":     level,
-		"subsystem": subsystem,
-		"module":    "shua.resume",
-		"msg":       msg,
+	modName := moduleName
+	entry := hbp.LogEntryDto{
+		Ts:         uint64(time.Now().UnixMilli()),
+		Level:      level,
+		Module:     moduleResume,
+		Subsystem:  subsystem,
+		Msg:        msg,
+		Tags:       0,
+		ModuleName: &modName,
 	}
-	for k, v := range extra {
-		entry[k] = v
+	if len(extra) > 0 {
+		// Pack extra fields into Telemetry map
+		telemetry := make(map[string]interface{}, len(extra))
+		for k, v := range extra {
+			telemetry[k] = v
+		}
+		entry.Telemetry = &telemetry
 	}
-	b, err := json.Marshal(entry)
-	if err != nil {
-		stdLogger.Printf("[ERROR] failed to marshal log entry: %v", err)
-		return
-	}
-	line := string(b) + "\n"
 
-	// Always emit to stdout (visible via SSH / gov logs).
-	stdLogger.Print(line)
+	// Always emit human-readable line to stdout (visible via SSH / gov logs).
+	levelStr := levelToStr(level)
+	stdLogger.Printf("[%s] [%s] [%s] %s", time.Now().UTC().Format(time.RFC3339), levelStr, subsystem, msg)
 
-	// Forward to Governor telemetry socket if available.
+	// Serialize and send HBP binary frame to Governor telemetry socket.
 	socketMu.Lock()
 	defer socketMu.Unlock()
-	if socketSink != nil {
-		_ = socketSink.SetWriteDeadline(time.Now().Add(200 * time.Millisecond))
-		if _, writeErr := fmt.Fprint(socketSink, line); writeErr != nil {
-			// Socket lost — reset so initSocket can reconnect next call.
-			_ = socketSink.Close()
-			socketSink = nil
-			socketOnce = sync.Once{} // allow re-init on next emit
-		}
+	if socketSink == nil {
+		return
+	}
+
+	payload, err := msgpack.Marshal(entry)
+	if err != nil {
+		stdLogger.Printf("[ERROR] [logger] msgpack marshal failed: %v", err)
+		return
+	}
+
+	// Build 12-byte HBP header.
+	var header [12]byte
+	header[0] = hbpMagic0
+	header[1] = hbpMagic1
+	header[2] = hbpVersion
+	header[3] = hbpTypeLog
+	// bytes 4..7 = reserved (zeros)
+	binary.BigEndian.PutUint32(header[8:12], uint32(len(payload)))
+
+	_ = socketSink.SetWriteDeadline(time.Now().Add(200 * time.Millisecond))
+	if _, writeErr := socketSink.Write(header[:]); writeErr != nil {
+		socketSink.Close()
+		socketSink = nil
+		socketOnce = sync.Once{} // allow re-init on next emit
+		return
+	}
+	if _, writeErr := fmt.Fprint(socketSink, string(payload)); writeErr != nil {
+		socketSink.Close()
+		socketSink = nil
+		socketOnce = sync.Once{}
 	}
 }
 
-// Info emits an INFO-level structured log entry.
+func levelToStr(level uint8) string {
+	switch level {
+	case 1:
+		return "TRACE"
+	case 2:
+		return "DEBUG"
+	case 3:
+		return "INFO"
+	case 4:
+		return "WARN"
+	case 5:
+		return "ERROR"
+	default:
+		return "INFO"
+	}
+}
+
+// Info emits an INFO-level structured HBP log entry.
 func Info(subsystem, msg string, fields map[string]interface{}) {
-	emit("INFO", subsystem, msg, fields)
+	emit(3, subsystem, msg, fields)
 }
 
-// Warn emits a WARN-level structured log entry.
+// Warn emits a WARN-level structured HBP log entry.
 func Warn(subsystem, msg string, fields map[string]interface{}) {
-	emit("WARN", subsystem, msg, fields)
+	emit(4, subsystem, msg, fields)
 }
 
-// Error emits an ERROR-level structured log entry.
+// Error emits an ERROR-level structured HBP log entry.
 func Error(subsystem, msg string, err error, fields map[string]interface{}) {
 	if fields == nil {
 		fields = make(map[string]interface{})
@@ -113,5 +171,5 @@ func Error(subsystem, msg string, err error, fields map[string]interface{}) {
 	if err != nil {
 		fields["error"] = fmt.Sprintf("%v", err)
 	}
-	emit("ERROR", subsystem, msg, fields)
+	emit(5, subsystem, msg, fields)
 }

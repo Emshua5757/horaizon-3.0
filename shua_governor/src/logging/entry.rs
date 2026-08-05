@@ -47,6 +47,20 @@ pub const MODULE_CRYPTO: u8   = 60;
 pub const MODULE_FLUTTER: u8  = 100;
 pub const MODULE_UNKNOWN: u8  = 255;
 
+/// Convert a module u8 ID to its canonical string name.
+pub fn module_name(module: u8) -> &'static str {
+    match module {
+        10  => "shua.governor",
+        20  => "shua.resume",
+        30  => "shua.diary",
+        40  => "shua.code_visualizer",
+        50  => "shua.gym",
+        60  => "shua.crypto",
+        100 => "shua.flutter_client",
+        _   => "unknown",
+    }
+}
+
 pub fn log_min_level() -> u8 {
     std::env::var("LOG_MIN_LEVEL")
         .ok()
@@ -199,14 +213,18 @@ pub struct LogEntry {
     #[serde(default)]
     pub telemetry: Option<serde_json::Value>,
     #[serde(default)]
+    pub module_name_str: Option<String>,
+    #[serde(default)]
     pub trace_id: Option<String>,
 }
 
 impl LogEntry {
-    /// Convert LogEntry into an HBP v2 EVENT frame for WebSocket stream broadcast
+    /// Convert LogEntry into an HBP v2 EVENT frame for WebSocket stream broadcast.
+    /// Uses the true source module name so Flutter's `frame.module` identifies
+    /// the originating shua module, not always shua.governor.
     pub fn to_hbp_frame(&self) -> Result<HbpFrame> {
         let payload = HbpFrame::encode_payload(self)?;
-        Ok(HbpFrame::event("shua.governor", "log_event", payload))
+        Ok(HbpFrame::event(module_name(self.module), "log_event", payload))
     }
 }
 
@@ -221,6 +239,7 @@ impl<'a> From<BorrowedLogEntry<'a>> for LogEntry {
             tags: b.tags,
             custom_tags: b.custom_tags.map(|v| v.into_iter().map(str::to_owned).collect()),
             telemetry: b.telemetry,
+            module_name_str: Some(module_name(b.module).to_owned()),
             trace_id: b.trace_id.map(str::to_owned),
         }
     }

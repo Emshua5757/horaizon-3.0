@@ -720,10 +720,14 @@ class LogEntryDto {
   final String msg;
   /// Tag bitmask
   final int tags;
+  /// Optional structured telemetry key-value pairs
+  final Map<String, dynamic>? telemetry;
+  /// Human-readable module identifier (e.g. shua.resume). Canonical string for Flutter attribution.
+  final String? moduleName;
   /// Optional transaction trace ID
   final String? traceId;
 
-  const LogEntryDto({required this.ts, required this.level, required this.module, required this.subsystem, required this.msg, required this.tags, required this.traceId});
+  const LogEntryDto({required this.ts, required this.level, required this.module, required this.subsystem, required this.msg, required this.tags, required this.telemetry, required this.moduleName, required this.traceId});
 
   factory LogEntryDto.fromMap(Map<String, dynamic> m) {
     return LogEntryDto(
@@ -733,6 +737,8 @@ class LogEntryDto {
       subsystem: m['subsystem'] as String,
       msg: m['msg'] as String,
       tags: m['tags'] as int,
+      telemetry: m['telemetry'] as Map<String, dynamic>?,
+      moduleName: m['module_name'] as String?,
       traceId: m['trace_id'] as String?,
     );
   }
@@ -744,6 +750,8 @@ class LogEntryDto {
     'subsystem': subsystem,
     'msg': msg,
     'tags': tags,
+    'telemetry': telemetry,
+    'module_name': moduleName,
     'trace_id': traceId,
   };
 
