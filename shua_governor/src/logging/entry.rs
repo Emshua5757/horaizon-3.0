@@ -257,6 +257,27 @@ mod tests {
     }
 
     #[test]
+    fn test_log_entry_msgpack_map_encoding() {
+        let entry = LogEntry {
+            ts: 1700000000000,
+            level: LEVEL_INFO,
+            module: MODULE_GOVERNOR,
+            subsystem: "hbp_handler".to_string(),
+            msg: "resume.compile dispatched".to_string(),
+            tags: TAG_SYSTEM,
+            custom_tags: None,
+            telemetry: None,
+            trace_id: None,
+        };
+
+        let frame = entry.to_hbp_frame().expect("hbp frame conversion");
+        println!("Rust LogEntry Frame Payload Bytes: {:?}", frame.p);
+
+        // Verify payload is a MessagePack map (first byte in 0x80..=0x8f for fixmap)
+        assert!(frame.p[0] >= 0x80 && frame.p[0] <= 0x8f, "Payload must be a MsgPack map");
+    }
+
+    #[test]
     fn test_redact_sensitive_data() {
         let raw = "Connect with Bearer secret12345 to host";
         let redacted = redact_sensitive_data(raw);
