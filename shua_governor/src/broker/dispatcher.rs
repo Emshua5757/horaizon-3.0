@@ -897,11 +897,11 @@ impl Dispatcher {
                         let mut seq = 0u64;
                         while let Some(delta_text) = delta_rx.recv().await {
                             seq += 1;
-                            info!(
+                            tracing::debug!(
                                 subsystem = "hbp_stream",
                                 seq = seq,
                                 chunk = %delta_text,
-                                "⚡ Stream token delta frame dispatched"
+                                "Stream token delta frame dispatched"
                             );
                             let stream_payload = serde_json::json!({
                                 "media_type": "LlmToken",
