@@ -946,11 +946,26 @@ impl Dispatcher {
                             res.steps,
                         ),
                         Ok(Err(e)) => {
-                            warn!(subsystem = "dispatcher", error = %e, "MCP agent loop error");
+                            warn!(
+                                subsystem = "dispatcher",
+                                op = %frame.op,
+                                frame_id = %frame.id,
+                                frame_mod = %frame.mod_,
+                                target_url = %target_url,
+                                error = %e,
+                                "MCP agent loop error"
+                            );
                             (format!("[AI Router Error] {}", e), 1, vec![], false, vec![])
                         }
                         Err(_) => {
-                            warn!(subsystem = "dispatcher", "AI runtime task channel canceled");
+                            warn!(
+                                subsystem = "dispatcher",
+                                op = %frame.op,
+                                frame_id = %frame.id,
+                                frame_mod = %frame.mod_,
+                                target_url = %target_url,
+                                "AI runtime task channel canceled"
+                            );
                             (
                                 "ERR_AI_RUNTIME_CANCELED".to_string(),
                                 1,
