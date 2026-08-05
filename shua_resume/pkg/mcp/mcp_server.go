@@ -255,13 +255,26 @@ func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string,
 	}
 
 	// Pass the payload map directly so Rust can decode it straight into AiRouteRequest
+	// Send the payload fields at the top-level root so Rust's AiRouteRequest struct can decode them directly
 	frame := map[string]interface{}{
-		"v":   2,
-		"t":   1,
-		"op":  op,
-		"id":  id,
-		"mod": "shua.governor",
-		"p":   payloadObj,
+		"v":      2,
+		"t":      1,
+		"op":     op,
+		"id":     id,
+		"mod":    "shua.governor",
+		"prompt": prompt,
+	}
+	if hint, ok := payload["context_hint"].(string); ok && hint != "" {
+		frame["context_hint"] = hint
+	}
+	if model, ok := payload["model"].(string); ok && model != "" {
+		frame["model"] = model
+	}
+	if offload, ok := payload["offload_device_url"].(string); ok && offload != "" {
+		frame["offload_device_url"] = offload
+	}
+	if sid, ok := payload["session_id"].(string); ok && sid != "" {
+		frame["session_id"] = sid
 	}
 
 	ch := make(chan string, 1)
