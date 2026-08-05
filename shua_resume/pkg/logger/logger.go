@@ -136,17 +136,15 @@ func emit(level uint8, subsystem, msg string, extra map[string]interface{}) {
 	// bytes 4..7 = reserved (zeros)
 	binary.BigEndian.PutUint32(header[8:12], uint32(len(payload)))
 
+	buf := make([]byte, 12+len(payload))
+	copy(buf[0:12], header[:])
+	copy(buf[12:], payload)
+
 	_ = socketSink.SetWriteDeadline(time.Now().Add(200 * time.Millisecond))
-	if _, writeErr := socketSink.Write(header[:]); writeErr != nil {
+	if _, writeErr := socketSink.Write(buf); writeErr != nil {
 		socketSink.Close()
 		socketSink = nil
 		socketOnce = sync.Once{} // allow re-init on next emit
-		return
-	}
-	if _, writeErr := socketSink.Write(payload); writeErr != nil {
-		socketSink.Close()
-		socketSink = nil
-		socketOnce = sync.Once{}
 	}
 }
 
