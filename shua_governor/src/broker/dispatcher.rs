@@ -718,16 +718,21 @@ impl Dispatcher {
 
                     let raw_offload = req.offload_device_url.as_deref();
                     let resolved_offload = raw_offload.map(|url| {
+                        let expanded = match url {
+                            "windows" | "host" => "http://192.168.254.110:11434",
+                            "rpi5" | "local" => "http://127.0.0.1:11434",
+                            other => other,
+                        };
                         if let Some(ip) = peer_ip {
-                            if (url.contains("127.0.0.1") || url.contains("localhost"))
+                            if (expanded.contains("127.0.0.1") || expanded.contains("localhost"))
                                 && !ip.is_loopback()
                             {
-                                return url
+                                return expanded
                                     .replace("127.0.0.1", &ip.to_string())
                                     .replace("localhost", &ip.to_string());
                             }
                         }
-                        url.to_string()
+                        expanded.to_string()
                     });
 
                     // ── Thermal-aware model auto-downgrade ────────────────────

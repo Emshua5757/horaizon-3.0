@@ -72,8 +72,14 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
     final template = ref.read(selectedTemplateProvider);
     final aiEnhance = ref.read(aiEnhanceProvider);
     final aiModel = ref.read(selectedAiModelProvider);
-    final aiTarget = ref.read(selectedAiOffloadTargetProvider);
+    final rawTarget = ref.read(selectedAiOffloadTargetProvider);
     final tailor = jd.trim().isNotEmpty;
+
+    final String aiTarget = switch (rawTarget) {
+      'rpi5' => 'http://127.0.0.1:11434',
+      'windows' => 'http://192.168.254.110:11434',
+      _ => '',
+    };
 
     await ref.read(resumeCompileProvider.notifier).compile(
           template: template,
