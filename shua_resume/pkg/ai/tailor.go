@@ -158,7 +158,7 @@ func TailorResumeViaGovernor(
 	config TailorConfig,
 	ipcSend func(op string, payload map[string]interface{}) (string, error),
 ) *models.ResumeMatrix {
-	if !config.UseAI || strings.TrimSpace(jobDescription) == "" || ipcSend == nil {
+	if !config.UseAI || ipcSend == nil {
 		return matrix
 	}
 
@@ -168,10 +168,18 @@ func TailorResumeViaGovernor(
 		return matrix
 	}
 
-	prompt := fmt.Sprintf(
-		"Enhance this resume JSON for the following job. Return ONLY the modified JSON with no markdown fences:\n%s\nJob description:\n%s",
-		string(matrixJSON), jobDescription,
-	)
+	var prompt string
+	if strings.TrimSpace(jobDescription) != "" {
+		prompt = fmt.Sprintf(
+			"Enhance this resume JSON for the following job description. Return ONLY the modified JSON with no markdown fences:\n%s\nJob description:\n%s",
+			string(matrixJSON), jobDescription,
+		)
+	} else {
+		prompt = fmt.Sprintf(
+			"Enhance and polish the action verbs, grammar, and professional impact of this resume JSON. Return ONLY the modified JSON with no markdown fences:\n%s",
+			string(matrixJSON),
+		)
+	}
 
 	payload := map[string]interface{}{
 		"prompt":       prompt,

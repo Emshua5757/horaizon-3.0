@@ -194,6 +194,26 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
                       ),
                       if (aiEnhance) ...[
                         const Divider(height: 20),
+                        if (_jdController.text.trim().isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Row(
+                              children: [
+                                Icon(Icons.info_outline_rounded,
+                                    size: 16, color: cs.primary),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'General Polish Mode — Paste a job description above for target-tailored enhancement.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: cs.primary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         // ── Execution Node Target ─────────────────────────────
                         Text('AI Execution Node',
                             style: theme.textTheme.labelMedium?.copyWith(
