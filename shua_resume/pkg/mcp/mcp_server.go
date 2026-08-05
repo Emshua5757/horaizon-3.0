@@ -384,20 +384,33 @@ func (s *Server) SendVaultUpload(module, fileName, mimeType, dataBase64 string) 
 // Used as the ipcSend callback in ai.TailorResumeViaGovernor.
 func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string, error) {
 	id := uuid.New().String()
-	frame := map[string]interface{}{
-		"op":     op,
-		"id":     id,
-		"mod":    "shua.governor",
+
+	// 1. Build the inner payload object
+	payloadObj := map[string]interface{}{
 		"prompt": payload["prompt"],
 	}
 	if hint, ok := payload["context_hint"].(string); ok {
-		frame["context_hint"] = hint
+		payloadObj["context_hint"] = hint
 	}
 	if model, ok := payload["model"].(string); ok && model != "" {
-		frame["model"] = model
+		payloadObj["model"] = model
 	}
 	if offload, ok := payload["offload_device_url"].(string); ok && offload != "" {
-		frame["offload_device_url"] = offload
+		payloadObj["offload_device_url"] = offload
+	}
+
+	// 2. Encode inner payload as Base64 MsgPack (Strict HBP v2 Spec)
+	pBytes, _ := msgpack.Marshal(payloadObj)
+	pBase64 := base64.StdEncoding.EncodeToString(pBytes)
+
+	// 3. Build the outer HBP frame envelope
+	frame := map[string]interface{}{
+		"v":   2,
+		"t":   1, // MessageTypeRequest
+		"op":  op,
+		"id":  id,
+		"mod": "shua.governor",
+		"p":   pBase64,
 	}
 
 	ch := make(chan string, 1)
