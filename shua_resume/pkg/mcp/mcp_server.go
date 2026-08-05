@@ -224,20 +224,17 @@ func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string,
 	fmt.Println("🚨🚨🚨 SEND_AI_ROUTE CALLED DIRECTLY! op =", op)
 	id := uuid.New().String()
 
-	// Safely extract and validate the prompt from the payload map
 	var prompt string
 	if val, ok := payload["prompt"]; ok {
 		if pStr, ok := val.(string); ok {
 			prompt = pStr
 		}
 	}
-
 	if prompt == "" {
 		prompt = "SYSTEM: You are a JSON transformation engine. Return ONLY valid JSON matching the exact ResumeMatrix schema."
 	}
 
-	fmt.Printf("🔍 SEND_AI_ROUTE DEBUG: Extracted prompt length = %d\n", len(prompt))
-
+	// Construct the inner payload object matching Rust's AiRouteRequest struct
 	payloadObj := map[string]interface{}{
 		"prompt": prompt,
 	}
@@ -254,27 +251,14 @@ func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string,
 		payloadObj["session_id"] = sid
 	}
 
-	// Pass the payload map directly so Rust can decode it straight into AiRouteRequest
-	// Send the payload fields at the top-level root so Rust's AiRouteRequest struct can decode them directly
+	// Standard HBP envelope with payload wrapped in "p"
 	frame := map[string]interface{}{
-		"v":      2,
-		"t":      1,
-		"op":     op,
-		"id":     id,
-		"mod":    "shua.governor",
-		"prompt": prompt,
-	}
-	if hint, ok := payload["context_hint"].(string); ok && hint != "" {
-		frame["context_hint"] = hint
-	}
-	if model, ok := payload["model"].(string); ok && model != "" {
-		frame["model"] = model
-	}
-	if offload, ok := payload["offload_device_url"].(string); ok && offload != "" {
-		frame["offload_device_url"] = offload
-	}
-	if sid, ok := payload["session_id"].(string); ok && sid != "" {
-		frame["session_id"] = sid
+		"v":   2,
+		"t":   1,
+		"op":  op,
+		"id":  id,
+		"mod": "shua.governor",
+		"p":   payloadObj,
 	}
 
 	ch := make(chan string, 1)
