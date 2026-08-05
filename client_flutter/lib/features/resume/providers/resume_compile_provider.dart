@@ -98,7 +98,7 @@ class ResumeCompileNotifier extends StateNotifier<ResumeCompileState> {
       final frame = HbpFrame.request('shua.resume', 'compile', payload);
       final resp = await hbp.send(
         frame,
-        timeout: const Duration(seconds: 600),
+        timeout: const Duration(seconds: 1000),
       );
 
       if (resp.isError) {
