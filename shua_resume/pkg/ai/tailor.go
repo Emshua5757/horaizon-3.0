@@ -240,7 +240,11 @@ func TailorResumeViaGovernor(
 		"model":        config.Model,
 		"offload_url":  config.OffloadTarget,
 	})
-
+	logger.Info("ai_tailor", "🔍 DEBUG FINAL PROMPT CHECK", map[string]interface{}{
+		"prompt_length":  len(prompt),
+		"prompt_preview": prompt[:min(100, len(prompt))],
+		"payload_map":    payload,
+	})
 	reply, err := ipcSend("ai.route", payload)
 	if err != nil {
 		logger.Warn("ai_tailor", "Governor AI route failed — using original matrix", map[string]interface{}{"error": err.Error()})
