@@ -505,8 +505,6 @@ impl Dispatcher {
                 ))
             }
 
-
-
             "config.update" | "governor.config.update" => {
                 if let Ok(dto) = frame.decode_payload::<GovernorConfigDto>() {
                     let mut cfg = self.config.write().await;
@@ -712,6 +710,15 @@ impl Dispatcher {
             },
 
             "ai.route" | "governor.ai.route" => {
+                let decoded = frame.decode_payload::<AiRouteRequest>();
+                if let Err(ref e) = decoded {
+                    warn!(
+                        subsystem = "dispatcher",
+                        op = %frame.op,
+                        error = %e,
+                        "❌ CRITICAL: ai.route payload decoding failed!"
+                    );
+                }
                 if let Ok(req) = frame.decode_payload::<AiRouteRequest>() {
                     let start = std::time::Instant::now();
                     let (intent, matched_rule, confidence) =
@@ -720,7 +727,9 @@ impl Dispatcher {
 
                     let raw_offload = req.offload_device_url.as_deref();
                     let resolved_offload: Option<String> = match raw_offload {
-                        Some("windows") | Some("host") => Some("http://100.90.83.12:11434".to_string()),
+                        Some("windows") | Some("host") => {
+                            Some("http://100.90.83.12:11434".to_string())
+                        }
                         Some("rpi5") | Some("local") => Some("http://127.0.0.1:11434".to_string()),
                         Some(other) if !other.is_empty() => Some(other.to_string()),
                         _ => Some("http://100.90.83.12:11434".to_string()),
