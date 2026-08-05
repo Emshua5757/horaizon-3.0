@@ -286,20 +286,47 @@ async fn handle_ipc_connection(
                             .and_then(|v| v.as_str())
                             .unwrap_or("")
                             .to_string();
-                        let prompt = val.get("prompt").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                        let context_hint = val.get("context_hint").and_then(|v| v.as_str()).map(|s| s.to_string());
-                        let model = val.get("model").and_then(|v| v.as_str()).map(|s| s.to_string());
-                        let offload_url = val.get("offload_device_url").and_then(|v| v.as_str()).map(|s| s.to_string());
+                        let prompt = val
+                            .get("prompt")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let context_hint = val
+                            .get("context_hint")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+                        let model = val
+                            .get("model")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+                        let offload_url = val
+                            .get("offload_device_url")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+                        let session_id = val
+                            .get("session_id")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
 
                         let ai_payload = serde_json::json!({
                             "prompt": prompt,
                             "context_hint": context_hint,
                             "model": model,
                             "offload_device_url": offload_url,
+                            "session_id": session_id,
                         });
 
-                        let payload_bytes = serde_json::to_vec(&ai_payload).unwrap_or_default();
-                        let mut req_frame = HbpFrame::request("shua.governor", "ai.route", payload_bytes);
+                        // FIX: must be MessagePack-encoded (rmp_serde), not serde_json,
+                        // because Dispatcher::handle_governor's "ai.route" arm calls
+                        // frame.decode_payload::<AiRouteRequest>(), which is a strict
+                        // rmp_serde::from_slice decode. Feeding it raw JSON bytes made
+                        // the decoder read the leading '{' (0x7B = 123) as a MessagePack
+                        // positive-fixint instead of a struct, causing:
+                        // "invalid type: integer `123`, expected struct AiRouteRequest"
+                        let payload_bytes =
+                            HbpFrame::encode_payload(&ai_payload).unwrap_or_default();
+                        let mut req_frame =
+                            HbpFrame::request("shua.governor", "ai.route", payload_bytes);
                         req_frame.id = call_id.clone();
 
                         let (dummy_tx, _) = tokio::sync::mpsc::unbounded_channel();
@@ -308,23 +335,36 @@ async fn handle_ipc_connection(
                         let tx_reply = tx.clone();
 
                         tokio::spawn(async move {
-                            if let Some(resp_frame) = disp_clone.dispatch_with_peer(req_frame, dummy_tx, Some(peer_ip)).await {
-                                let reply_str = match serde_json::from_slice::<Value>(&resp_frame.p) {
-                                    Ok(v) => v.get("reply").and_then(|r| r.as_str()).unwrap_or("").to_string(),
+                            if let Some(resp_frame) = disp_clone
+                                .dispatch_with_peer(req_frame, dummy_tx, Some(peer_ip))
+                                .await
+                            {
+                                // Response payload from Dispatcher is ALSO MessagePack-encoded
+                                // (via HbpFrame::encode_payload in dispatcher.rs), so decode it
+                                // with rmp_serde here rather than serde_json.
+                                let reply_str = match rmp_serde::from_slice::<Value>(&resp_frame.p)
+                                {
+                                    Ok(v) => v
+                                        .get("reply")
+                                        .and_then(|r| r.as_str())
+                                        .unwrap_or("")
+                                        .to_string(),
                                     Err(_) => String::from_utf8_lossy(&resp_frame.p).to_string(),
                                 };
                                 let resp_json = serde_json::json!({
                                     "id": call_id,
                                     "status": "ok",
                                     "reply": reply_str,
-                                }).to_string();
+                                })
+                                .to_string();
                                 let _ = tx_reply.send(resp_json);
                             } else {
                                 let resp_json = serde_json::json!({
                                     "id": call_id,
                                     "status": "error",
                                     "error": "ERR_AI_ROUTE_FAILED"
-                                }).to_string();
+                                })
+                                .to_string();
                                 let _ = tx_reply.send(resp_json);
                             }
                         });
