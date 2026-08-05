@@ -244,7 +244,14 @@ func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string,
 		payloadObj["session_id"] = sid
 	}
 
-	pBytes, _ := json.Marshal(payloadObj)
+	innerBytes, _ := json.Marshal(payloadObj)
+
+	// ── ADDED LOG TO INSPECT OUTBOUND PAYLOAD ──
+	logger.Info("mcp_server", "SENDING AI ROUTE PAYLOAD", map[string]interface{}{
+		"op":      op,
+		"payload": string(innerBytes),
+	})
+	// ───────────────────────────────────────────
 
 	frame := map[string]interface{}{
 		"v":   2,
@@ -252,7 +259,7 @@ func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string,
 		"op":  op,
 		"id":  id,
 		"mod": "shua.governor",
-		"p":   json.RawMessage(pBytes),
+		"p":   json.RawMessage(innerBytes),
 	}
 
 	ch := make(chan string, 1)
