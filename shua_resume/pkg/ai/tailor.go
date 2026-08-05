@@ -243,7 +243,10 @@ func TailorResumeViaGovernor(
 
 	var enhanced models.ResumeMatrix
 	if err := json.Unmarshal([]byte(jsonString), &enhanced); err != nil {
-		logger.Warn("ai_tailor", "AI response was not valid JSON — using original matrix", map[string]interface{}{"raw": jsonString[:min(200, len(jsonString))]})
+		logger.Warn("ai_tailor", "AI response was not valid JSON — using original matrix", map[string]interface{}{
+			"error": err.Error(),
+			"raw":   jsonString[:min(200, len(jsonString))],
+		})
 		return matrix
 	}
 
