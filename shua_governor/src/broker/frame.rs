@@ -178,7 +178,7 @@ impl HbpFrame {
 
     /// Encode a typed struct into the payload field bytes
     pub fn encode_payload<T: serde::Serialize>(value: &T) -> Result<Vec<u8>> {
-        rmp_serde::to_vec(value).map_err(|e| anyhow::anyhow!("Payload encode error: {e}"))
+        rmp_serde::to_vec_named(value).map_err(|e| anyhow::anyhow!("Payload encode error: {e}"))
     }
 }
 
