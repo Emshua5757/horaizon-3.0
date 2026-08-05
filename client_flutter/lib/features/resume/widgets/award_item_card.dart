@@ -157,8 +157,7 @@ class _AwardItemCardState extends ConsumerState<AwardItemCard> {
 
   Widget _deleteBg(ColorScheme cs) => Container(
         decoration: BoxDecoration(
-            color: cs.errorContainer,
-            borderRadius: BorderRadius.circular(12)),
+            color: cs.errorContainer, borderRadius: BorderRadius.circular(12)),
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         child: Icon(Icons.delete_rounded, color: cs.onErrorContainer),
@@ -167,15 +166,15 @@ class _AwardItemCardState extends ConsumerState<AwardItemCard> {
   Future<bool> _confirmDelete(BuildContext context) async =>
       await showDialog<bool>(
         context: context,
-        builder: (_) => AlertDialog(
+        builder: (dialogContext) => AlertDialog(
           title: const Text('Delete award?'),
           content: Text('"${widget.item.title}" will be permanently removed.'),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context, false),
+                onPressed: () => Navigator.pop(dialogContext, false),
                 child: const Text('Cancel')),
             FilledButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: () => Navigator.pop(dialogContext, true),
                 child: const Text('Delete')),
           ],
         ),

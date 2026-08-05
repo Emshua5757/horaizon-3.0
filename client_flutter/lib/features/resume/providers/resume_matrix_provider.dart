@@ -43,8 +43,7 @@ class ResumeMatrixNotifier extends AsyncNotifier<ResumeMatrixDto> {
   ///
   /// Immediately updates local state, then fires background RPC.
   /// On RPC error, invalidates self to revert to last good server state.
-  Future<void> upsertSection(
-      String section, Map<String, dynamic> item) async {
+  Future<void> upsertSection(String section, Map<String, dynamic> item) async {
     // Optimistic update
     final current = state.requireValue;
     state = AsyncData(_applyUpsert(current, section, item));
@@ -91,8 +90,7 @@ class ResumeMatrixNotifier extends AsyncNotifier<ResumeMatrixDto> {
     final id = item['id'] as String? ?? '';
     switch (section) {
       case 'basics':
-        return matrix.copyWith(
-            basics: BasicsDto.fromMap(item));
+        return matrix.copyWith(basics: BasicsDto.fromMap(item));
       case 'work':
         final list = List<WorkItemDto>.from(matrix.work);
         final idx = list.indexWhere((e) => e.id == id);
@@ -153,6 +151,16 @@ class ResumeMatrixNotifier extends AsyncNotifier<ResumeMatrixDto> {
           list.insert(0, dto);
         }
         return matrix.copyWith(awards: list);
+      case 'organizations':
+        final list = List<OrgItemDto>.from(matrix.organizations);
+        final idx = list.indexWhere((e) => e.id == id);
+        final dto = OrgItemDto.fromMap(item);
+        if (idx >= 0) {
+          list[idx] = dto;
+        } else {
+          list.insert(0, dto);
+        }
+        return matrix.copyWith(organizations: list);
       default:
         return matrix;
     }
@@ -180,6 +188,10 @@ class ResumeMatrixNotifier extends AsyncNotifier<ResumeMatrixDto> {
       case 'awards':
         return matrix.copyWith(
             awards: matrix.awards.where((e) => e.id != id).toList());
+      case 'organizations':
+        return matrix.copyWith(
+            organizations:
+                matrix.organizations.where((e) => e.id != id).toList());
       default:
         return matrix;
     }

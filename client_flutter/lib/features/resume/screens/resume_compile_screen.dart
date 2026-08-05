@@ -68,7 +68,8 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
   }
 
   Future<void> _compile() async {
-    final jd = ref.read(jdTextProvider);
+    final jd = _jdController.text;
+    ref.read(jdTextProvider.notifier).state = jd;
     final template = ref.read(selectedTemplateProvider);
     final aiEnhance = ref.read(aiEnhanceProvider);
     final aiModel = ref.read(selectedAiModelProvider);

@@ -58,7 +58,9 @@ class _CertificateItemCardState extends ConsumerState<CertificateItemCard> {
   }
 
   Future<void> _save() async {
-    await ref.read(resumeMatrixProvider.notifier).upsertSection('certificates', {
+    await ref
+        .read(resumeMatrixProvider.notifier)
+        .upsertSection('certificates', {
       'id': widget.item.id,
       'name': _nameCtrl.text,
       'issuer': _issuerCtrl.text,
@@ -168,8 +170,7 @@ class _CertificateItemCardState extends ConsumerState<CertificateItemCard> {
 
   Widget _deleteBg(ColorScheme cs) => Container(
         decoration: BoxDecoration(
-            color: cs.errorContainer,
-            borderRadius: BorderRadius.circular(12)),
+            color: cs.errorContainer, borderRadius: BorderRadius.circular(12)),
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         child: Icon(Icons.delete_rounded, color: cs.onErrorContainer),
@@ -178,15 +179,15 @@ class _CertificateItemCardState extends ConsumerState<CertificateItemCard> {
   Future<bool> _confirmDelete(BuildContext context) async =>
       await showDialog<bool>(
         context: context,
-        builder: (_) => AlertDialog(
+        builder: (dialogContext) => AlertDialog(
           title: const Text('Delete certificate?'),
           content: Text('"${widget.item.name}" will be permanently removed.'),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context, false),
+                onPressed: () => Navigator.pop(dialogContext, false),
                 child: const Text('Cancel')),
             FilledButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: () => Navigator.pop(dialogContext, true),
                 child: const Text('Delete')),
           ],
         ),

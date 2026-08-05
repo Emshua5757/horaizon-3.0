@@ -99,11 +99,12 @@ class TelemetryLogsNotifier extends StateNotifier<List<TelemetryLogItem>> {
             final u = Unpacker(Uint8List.fromList(frame.payload));
             final map = u.unpackMap();
 
-            final msg = (map['msg'] ?? map['message'] ?? '').toString();
-            final rawLevel = map['level'];
-            final rawMod = map['module'];
-            final rawSub = (map['subsystem'] ?? 'GENERAL').toString().toUpperCase();
-            final moduleNameStr = (map['module_name'] ?? frame.module).toString();
+            // Extract fields handling both String keys and integer LogEntryDto index keys
+            final msg = (map['msg'] ?? map['message'] ?? map[4] ?? '').toString();
+            final rawLevel = map['level'] ?? map[1];
+            final rawMod = map['module'] ?? map[2];
+            final rawSub = (map['subsystem'] ?? map[3] ?? 'GENERAL').toString().toUpperCase();
+            final moduleNameStr = (map['module_name'] ?? map[8] ?? frame.module).toString();
 
             String modLabel = 'SHUA_GOVERNOR';
             if (moduleNameStr == 'shua.resume' || rawMod == 20) {

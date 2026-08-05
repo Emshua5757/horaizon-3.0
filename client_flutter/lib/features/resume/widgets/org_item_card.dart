@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/resume_matrix_provider.dart';
 import '../resume_matrix_dto.dart';
+import 'package:uuid/uuid.dart';
+
+const _uuid = Uuid();
 
 /// Inline expand-to-edit card for an organizational/leadership experience entry.
 ///
@@ -49,7 +52,12 @@ class _OrgItemCardState extends ConsumerState<OrgItemCard> {
         TextEditingController(text: widget.item.highlights.join('\n'));
 
     for (final ctrl in [
-      _orgCtrl, _roleCtrl, _startCtrl, _endCtrl, _summaryCtrl, _highlightsCtrl,
+      _orgCtrl,
+      _roleCtrl,
+      _startCtrl,
+      _endCtrl,
+      _summaryCtrl,
+      _highlightsCtrl,
     ]) {
       ctrl.addListener(_onChanged);
     }
@@ -59,7 +67,12 @@ class _OrgItemCardState extends ConsumerState<OrgItemCard> {
   void dispose() {
     _debounce?.cancel();
     for (final ctrl in [
-      _orgCtrl, _roleCtrl, _startCtrl, _endCtrl, _summaryCtrl, _highlightsCtrl,
+      _orgCtrl,
+      _roleCtrl,
+      _startCtrl,
+      _endCtrl,
+      _summaryCtrl,
+      _highlightsCtrl,
     ]) {
       ctrl.dispose();
     }
@@ -182,11 +195,13 @@ class _OrgItemCardState extends ConsumerState<OrgItemCard> {
                         hint: 'e.g. Secretary, Vice President'),
                     Row(
                       children: [
-                        Expanded(child: _field('Start Date', _startCtrl,
-                            hint: 'e.g. Aug 2023 or Present')),
+                        Expanded(
+                            child: _field('Start Date', _startCtrl,
+                                hint: 'e.g. Aug 2023 or Present')),
                         const SizedBox(width: 8),
-                        Expanded(child: _field('End Date', _endCtrl,
-                            hint: 'e.g. May 2025 or Present')),
+                        Expanded(
+                            child: _field('End Date', _endCtrl,
+                                hint: 'e.g. May 2025 or Present')),
                       ],
                     ),
                     _field(
@@ -199,8 +214,10 @@ class _OrgItemCardState extends ConsumerState<OrgItemCard> {
                       'Highlights (one per line — auto-bulleted)',
                       _highlightsCtrl,
                       maxLines: 4,
-                      hint: 'e.g. Organized Annual Tech Summit with 200+ attendees',
-                      helper: 'Each line becomes a bullet point (•) on the resume',
+                      hint:
+                          'e.g. Organized Annual Tech Summit with 200+ attendees',
+                      helper:
+                          'Each line becomes a bullet point (•) on the resume',
                     ),
                   ],
                 ],
@@ -249,17 +266,17 @@ class _OrgItemCardState extends ConsumerState<OrgItemCard> {
   Future<bool> _confirmDelete(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete org experience?'),
         content: Text(
           '"${widget.item.organization}" will be permanently removed.',
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('Cancel')),
           FilledButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () => Navigator.pop(dialogContext, true),
               child: const Text('Delete')),
         ],
       ),
@@ -269,8 +286,8 @@ class _OrgItemCardState extends ConsumerState<OrgItemCard> {
 }
 
 /// Factory helper — creates a new blank [OrgItemDto] for the FAB add action.
-OrgItemDto newBlankOrgItem() => const OrgItemDto(
-      id: '',
+OrgItemDto newBlankOrgItem() => OrgItemDto(
+      id: _uuid.v4(),
       organization: '',
       role: '',
       startDate: '',

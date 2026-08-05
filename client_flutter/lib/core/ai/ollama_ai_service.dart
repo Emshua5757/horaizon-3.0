@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:messagepack/messagepack.dart';
@@ -69,9 +68,8 @@ class OllamaAiService {
 
       if (_hbpClient.currentState == HbpConnectionState.connected) {
         final userPrompt = messages.lastWhere((m) => m.role == ChatRole.user, orElse: () => messages.last).content;
-        final isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
         final offloadUrl = effectiveNode == AiOffloadTarget.windowsHost
-            ? (isMobile ? 'http://100.90.83.12:11434' : 'http://127.0.0.1:11434')
+            ? 'windows'
             : '';
 
         _log('[HBP v2] Dispatching governor.ai.route (scope: "$contextHint", target: ${effectiveNode.shortLabel}, offload: "$offloadUrl", prompt: "$userPrompt")');
@@ -256,15 +254,27 @@ class OllamaAiService {
     // 1. Try plain UTF-8 JSON first (defensive fallback)
     try {
       final str = utf8.decode(bytes);
-      return jsonDecode(str) as Map<String, dynamic>;
+      final decoded = jsonDecode(str);
+      if (decoded is Map) {
+        return decoded.map((k, v) => MapEntry(k.toString(), v));
+      }
     } catch (_) {}
 
-    // 2. MessagePack — recursive typed decode matching rmp_serde named-field output
+    // 2. MessagePack via msgpack_dart Unpacker
+    try {
+      final u = Unpacker(Uint8List.fromList(bytes));
+      final map = u.unpackMap();
+      return map.map((k, v) => MapEntry(k.toString(), v));
+    } catch (_) {}
+
+    // 3. Fallback recursive decoder
     try {
       final raw = Uint8List.fromList(bytes);
       final cursor = _Cursor(0);
       final result = _unpackValue(raw, cursor);
-      if (result is Map<String, dynamic>) return result;
+      if (result is Map) {
+        return result.map((k, v) => MapEntry(k.toString(), v));
+      }
     } catch (_) {}
 
     return {};

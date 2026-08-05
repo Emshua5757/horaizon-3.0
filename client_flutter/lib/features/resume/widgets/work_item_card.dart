@@ -34,7 +34,6 @@ class _WorkItemCardState extends ConsumerState<WorkItemCard> {
   late TextEditingController _highlightsCtrl;
   late TextEditingController _keywordsCtrl;
 
-
   Timer? _debounce;
   bool _saved = false;
 
@@ -51,14 +50,17 @@ class _WorkItemCardState extends ConsumerState<WorkItemCard> {
     _startCtrl = TextEditingController(text: item.startDate);
     _endCtrl = TextEditingController(text: item.endDate);
     _summaryCtrl = TextEditingController(text: item.summary);
-    _highlightsCtrl =
-        TextEditingController(text: item.highlights.join('\n'));
-    _keywordsCtrl =
-        TextEditingController(text: item.keywords.join(', '));
+    _highlightsCtrl = TextEditingController(text: item.highlights.join('\n'));
+    _keywordsCtrl = TextEditingController(text: item.keywords.join(', '));
 
     for (final ctrl in [
-      _nameCtrl, _posCtrl, _startCtrl, _endCtrl, _summaryCtrl,
-      _highlightsCtrl, _keywordsCtrl,
+      _nameCtrl,
+      _posCtrl,
+      _startCtrl,
+      _endCtrl,
+      _summaryCtrl,
+      _highlightsCtrl,
+      _keywordsCtrl,
     ]) {
       ctrl.addListener(_onChanged);
     }
@@ -68,8 +70,13 @@ class _WorkItemCardState extends ConsumerState<WorkItemCard> {
   void dispose() {
     _debounce?.cancel();
     for (final ctrl in [
-      _nameCtrl, _posCtrl, _startCtrl, _endCtrl, _summaryCtrl,
-      _highlightsCtrl, _keywordsCtrl,
+      _nameCtrl,
+      _posCtrl,
+      _startCtrl,
+      _endCtrl,
+      _summaryCtrl,
+      _highlightsCtrl,
+      _keywordsCtrl,
     ]) {
       ctrl.dispose();
     }
@@ -198,11 +205,13 @@ class _WorkItemCardState extends ConsumerState<WorkItemCard> {
                     _field('Position / Title', _posCtrl),
                     Row(
                       children: [
-                        Expanded(child: _field('Start Date', _startCtrl,
-                            hint: 'e.g. Aug 2024 or Present')),
+                        Expanded(
+                            child: _field('Start Date', _startCtrl,
+                                hint: 'e.g. Aug 2024 or Present')),
                         const SizedBox(width: 8),
-                        Expanded(child: _field('End Date', _endCtrl,
-                            hint: 'e.g. May 2026 or Present')),
+                        Expanded(
+                            child: _field('End Date', _endCtrl,
+                                hint: 'e.g. May 2026 or Present')),
                       ],
                     ),
                     _field(
@@ -215,8 +224,10 @@ class _WorkItemCardState extends ConsumerState<WorkItemCard> {
                       'Highlights (one per line — auto-bulleted)',
                       _highlightsCtrl,
                       maxLines: 5,
-                      hint: 'e.g. Led migration of legacy monolith, reducing p99 latency by 40%',
-                      helper: 'Each line becomes a bullet point (•) on the resume',
+                      hint:
+                          'e.g. Led migration of legacy monolith, reducing p99 latency by 40%',
+                      helper:
+                          'Each line becomes a bullet point (•) on the resume',
                     ),
                     _field(
                       'Keywords (comma-separated)',
@@ -258,7 +269,6 @@ class _WorkItemCardState extends ConsumerState<WorkItemCard> {
     );
   }
 
-
   Widget _deleteBg(ColorScheme cs) => Container(
         decoration: BoxDecoration(
           color: cs.errorContainer,
@@ -272,17 +282,17 @@ class _WorkItemCardState extends ConsumerState<WorkItemCard> {
   Future<bool> _confirmDelete(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete experience?'),
         content: Text(
           '"${widget.item.name}" will be permanently removed.',
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => Navigator.pop(dialogContext, false),
               child: const Text('Cancel')),
           FilledButton(
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () => Navigator.pop(dialogContext, true),
               child: const Text('Delete')),
         ],
       ),

@@ -41,7 +41,13 @@ class _ProjectItemCardState extends ConsumerState<ProjectItemCard> {
         TextEditingController(text: widget.item.highlights.join('\n'));
     _keywordsCtrl =
         TextEditingController(text: widget.item.keywords.join(', '));
-    for (final c in [_nameCtrl, _descCtrl, _urlCtrl, _highlightsCtrl, _keywordsCtrl]) {
+    for (final c in [
+      _nameCtrl,
+      _descCtrl,
+      _urlCtrl,
+      _highlightsCtrl,
+      _keywordsCtrl
+    ]) {
       c.addListener(_onChanged);
     }
   }
@@ -49,7 +55,13 @@ class _ProjectItemCardState extends ConsumerState<ProjectItemCard> {
   @override
   void dispose() {
     _debounce?.cancel();
-    for (final c in [_nameCtrl, _descCtrl, _urlCtrl, _highlightsCtrl, _keywordsCtrl]) {
+    for (final c in [
+      _nameCtrl,
+      _descCtrl,
+      _urlCtrl,
+      _highlightsCtrl,
+      _keywordsCtrl
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -118,7 +130,9 @@ class _ProjectItemCardState extends ConsumerState<ProjectItemCard> {
                     children: [
                       Expanded(
                         child: Text(
-                          widget.item.name.isEmpty ? 'New Project' : widget.item.name,
+                          widget.item.name.isEmpty
+                              ? 'New Project'
+                              : widget.item.name,
                           style: theme.textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.w600),
                         ),
@@ -160,8 +174,10 @@ class _ProjectItemCardState extends ConsumerState<ProjectItemCard> {
                       'Highlights (one per line — auto-bulleted)',
                       _highlightsCtrl,
                       maxLines: 4,
-                      hint: 'e.g. Reduced build time by 60% via parallelized CI pipeline',
-                      helper: 'Each line becomes a bullet point (•) on the resume',
+                      hint:
+                          'e.g. Reduced build time by 60% via parallelized CI pipeline',
+                      helper:
+                          'Each line becomes a bullet point (•) on the resume',
                     ),
                     _field(
                       'Keywords (comma-separated)',
@@ -202,11 +218,9 @@ class _ProjectItemCardState extends ConsumerState<ProjectItemCard> {
         ),
       );
 
-
   Widget _deleteBg(ColorScheme cs) => Container(
         decoration: BoxDecoration(
-            color: cs.errorContainer,
-            borderRadius: BorderRadius.circular(12)),
+            color: cs.errorContainer, borderRadius: BorderRadius.circular(12)),
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         child: Icon(Icons.delete_rounded, color: cs.onErrorContainer),
@@ -215,15 +229,15 @@ class _ProjectItemCardState extends ConsumerState<ProjectItemCard> {
   Future<bool> _confirmDelete(BuildContext context) async =>
       await showDialog<bool>(
         context: context,
-        builder: (_) => AlertDialog(
+        builder: (dialogContext) => AlertDialog(
           title: const Text('Delete project?'),
           content: Text('"${widget.item.name}" will be permanently removed.'),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context, false),
+                onPressed: () => Navigator.pop(dialogContext, false),
                 child: const Text('Cancel')),
             FilledButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: () => Navigator.pop(dialogContext, true),
                 child: const Text('Delete')),
           ],
         ),

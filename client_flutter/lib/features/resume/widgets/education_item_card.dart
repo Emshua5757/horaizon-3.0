@@ -41,7 +41,14 @@ class _EducationItemCardState extends ConsumerState<EducationItemCard> {
     _startCtrl = TextEditingController(text: widget.item.startDate);
     _endCtrl = TextEditingController(text: widget.item.endDate);
     _scoreCtrl = TextEditingController(text: widget.item.score);
-    for (final c in [_instCtrl, _areaCtrl, _typeCtrl, _startCtrl, _endCtrl, _scoreCtrl]) {
+    for (final c in [
+      _instCtrl,
+      _areaCtrl,
+      _typeCtrl,
+      _startCtrl,
+      _endCtrl,
+      _scoreCtrl
+    ]) {
       c.addListener(_onChanged);
     }
   }
@@ -49,7 +56,14 @@ class _EducationItemCardState extends ConsumerState<EducationItemCard> {
   @override
   void dispose() {
     _debounce?.cancel();
-    for (final c in [_instCtrl, _areaCtrl, _typeCtrl, _startCtrl, _endCtrl, _scoreCtrl]) {
+    for (final c in [
+      _instCtrl,
+      _areaCtrl,
+      _typeCtrl,
+      _startCtrl,
+      _endCtrl,
+      _scoreCtrl
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -177,8 +191,7 @@ class _EducationItemCardState extends ConsumerState<EducationItemCard> {
 
   Widget _deleteBg(ColorScheme cs) => Container(
         decoration: BoxDecoration(
-            color: cs.errorContainer,
-            borderRadius: BorderRadius.circular(12)),
+            color: cs.errorContainer, borderRadius: BorderRadius.circular(12)),
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         child: Icon(Icons.delete_rounded, color: cs.onErrorContainer),
@@ -187,15 +200,16 @@ class _EducationItemCardState extends ConsumerState<EducationItemCard> {
   Future<bool> _confirmDelete(BuildContext context) async =>
       await showDialog<bool>(
         context: context,
-        builder: (_) => AlertDialog(
+        builder: (dialogContext) => AlertDialog(
           title: const Text('Delete education entry?'),
-          content: Text('"${widget.item.institution}" will be permanently removed.'),
+          content:
+              Text('"${widget.item.institution}" will be permanently removed.'),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context, false),
+                onPressed: () => Navigator.pop(dialogContext, false),
                 child: const Text('Cancel')),
             FilledButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: () => Navigator.pop(dialogContext, true),
                 child: const Text('Delete')),
           ],
         ),

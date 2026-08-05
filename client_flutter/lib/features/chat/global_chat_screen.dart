@@ -19,23 +19,40 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> {
   final TextEditingController _promptController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _showSettingsPanel = false;
+  bool _isUserAtBottom = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
     _promptController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  void _scrollToBottom() {
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final currentScroll = _scrollController.position.pixels;
+    // Consider "at bottom" if within 60 logical pixels of the max scroll extent
+    final atBottom = (maxScroll - currentScroll) <= 60;
+    if (atBottom != _isUserAtBottom) {
+      setState(() {
+        _isUserAtBottom = atBottom;
+      });
+    }
+  }
+
+  void _scrollToBottom({bool force = false}) {
+    if (!force && !_isUserAtBottom) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scrollController.hasClients) {
-            _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-          }
-        });
       }
     });
   }
@@ -44,8 +61,9 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> {
     final text = _promptController.text.trim();
     if (text.isNotEmpty) {
       _promptController.clear();
+      _isUserAtBottom = true;
       ref.read(globalChatProvider.notifier).sendMessage(text);
-      _scrollToBottom();
+      _scrollToBottom(force: true);
     }
   }
 
@@ -56,7 +74,7 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> {
     final chatState = ref.watch(globalChatProvider);
     final chatNotifier = ref.read(globalChatProvider.notifier);
 
-    // Scroll to bottom when messages list updates
+    // Scroll to bottom when messages list updates (only if user is already at bottom)
     ref.listen(globalChatProvider, (_, __) => _scrollToBottom());
 
     return Scaffold(
@@ -330,13 +348,58 @@ class _GlobalChatScreenState extends ConsumerState<GlobalChatScreen> {
                           ],
                         ),
                       )
-                    : ListView.builder(
-                        controller: _scrollController,
-                        itemCount: chatState.messages.length,
-                        itemBuilder: (context, index) {
-                          final msg = chatState.messages[index];
-                          return _ChatMessageBubble(message: msg);
-                        },
+                    : Stack(
+                        children: [
+                          ListView.builder(
+                            controller: _scrollController,
+                            itemCount: chatState.messages.length,
+                            itemBuilder: (context, index) {
+                              final msg = chatState.messages[index];
+                              return _ChatMessageBubble(message: msg);
+                            },
+                          ),
+
+                          // Floating 'Skip to Bottom' button
+                          if (!_isUserAtBottom)
+                            Positioned(
+                              bottom: 12,
+                              right: 12,
+                              child: AnimatedOpacity(
+                                duration: const Duration(milliseconds: 200),
+                                opacity: _isUserAtBottom ? 0.0 : 1.0,
+                                child: Material(
+                                  color: cs.primaryContainer,
+                                  borderRadius: BorderRadius.circular(20),
+                                  elevation: 4,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(20),
+                                    onTap: () {
+                                      _isUserAtBottom = true;
+                                      _scrollToBottom(force: true);
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.arrow_downward_rounded, size: 16, color: cs.onPrimaryContainer),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Scroll to bottom',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: cs.onPrimaryContainer,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
               ),
             ),

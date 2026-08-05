@@ -242,7 +242,7 @@ async fn main() -> anyhow::Result<()> {
 
     // 12. Initialize & Spawn Dedicated Submodule JSON IPC Listener (Port 7701)
     let ipc_server =
-        broker::ipc_server::IpcServer::new(Arc::clone(&process_manager), Arc::clone(&media_vault));
+        broker::ipc_server::IpcServer::new(Arc::clone(&process_manager), Arc::clone(&media_vault), Arc::clone(&dispatcher));
     let ipc_addr_str = "0.0.0.0:7701";
     let ipc_addr: SocketAddr = ipc_addr_str.parse()?;
     tokio::spawn(async move {

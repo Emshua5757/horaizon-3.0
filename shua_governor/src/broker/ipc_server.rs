@@ -10,6 +10,8 @@ use tokio::sync::mpsc;
 use tokio_tungstenite::{accept_async, tungstenite::Message};
 use tracing::{error, info, warn};
 
+use crate::broker::dispatcher::Dispatcher;
+use crate::broker::frame::HbpFrame;
 use crate::mcp::McpToolSchema;
 use crate::media_vault::vault::MediaVault;
 use crate::registry::module_entry::ModuleState;
@@ -18,13 +20,19 @@ use crate::registry::process_manager::ProcessManager;
 pub struct IpcServer {
     process_manager: Arc<ProcessManager>,
     media_vault: Arc<MediaVault>,
+    dispatcher: Arc<Dispatcher>,
 }
 
 impl IpcServer {
-    pub fn new(process_manager: Arc<ProcessManager>, media_vault: Arc<MediaVault>) -> Self {
+    pub fn new(
+        process_manager: Arc<ProcessManager>,
+        media_vault: Arc<MediaVault>,
+        dispatcher: Arc<Dispatcher>,
+    ) -> Self {
         Self {
             process_manager,
             media_vault,
+            dispatcher,
         }
     }
 
@@ -57,7 +65,8 @@ impl IpcServer {
                     );
                     let pm = Arc::clone(&self.process_manager);
                     let vault = Arc::clone(&self.media_vault);
-                    tokio::spawn(handle_ipc_connection(stream, peer_addr, pm, vault));
+                    let disp = Arc::clone(&self.dispatcher);
+                    tokio::spawn(handle_ipc_connection(stream, peer_addr, pm, vault, disp));
                 }
                 Err(e) => {
                     error!(
@@ -104,6 +113,7 @@ async fn handle_ipc_connection(
     peer_addr: SocketAddr,
     process_manager: Arc<ProcessManager>,
     media_vault: Arc<MediaVault>,
+    dispatcher: Arc<Dispatcher>,
 ) {
     let peer_pid_opt = get_peer_pid(&stream);
 
@@ -269,6 +279,55 @@ async fn handle_ipc_connection(
                         };
 
                         let _ = tx.send(response_json);
+                    } else if op == "governor.ai.route" || op == "ai.route" {
+                        // Submodule requesting AI route over IPC WebSocket
+                        let call_id = val
+                            .get("id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let prompt = val.get("prompt").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                        let context_hint = val.get("context_hint").and_then(|v| v.as_str()).map(|s| s.to_string());
+                        let model = val.get("model").and_then(|v| v.as_str()).map(|s| s.to_string());
+                        let offload_url = val.get("offload_device_url").and_then(|v| v.as_str()).map(|s| s.to_string());
+
+                        let ai_payload = serde_json::json!({
+                            "prompt": prompt,
+                            "context_hint": context_hint,
+                            "model": model,
+                            "offload_device_url": offload_url,
+                        });
+
+                        let payload_bytes = serde_json::to_vec(&ai_payload).unwrap_or_default();
+                        let mut req_frame = HbpFrame::request("shua.governor", "ai.route", payload_bytes);
+                        req_frame.id = call_id.clone();
+
+                        let (dummy_tx, _) = tokio::sync::mpsc::unbounded_channel();
+                        let disp_clone = Arc::clone(&dispatcher);
+                        let peer_ip = peer_addr.ip();
+                        let tx_reply = tx.clone();
+
+                        tokio::spawn(async move {
+                            if let Some(resp_frame) = disp_clone.dispatch_with_peer(req_frame, dummy_tx, Some(peer_ip)).await {
+                                let reply_str = match serde_json::from_slice::<Value>(&resp_frame.p) {
+                                    Ok(v) => v.get("reply").and_then(|r| r.as_str()).unwrap_or("").to_string(),
+                                    Err(_) => String::from_utf8_lossy(&resp_frame.p).to_string(),
+                                };
+                                let resp_json = serde_json::json!({
+                                    "id": call_id,
+                                    "status": "ok",
+                                    "reply": reply_str,
+                                }).to_string();
+                                let _ = tx_reply.send(resp_json);
+                            } else {
+                                let resp_json = serde_json::json!({
+                                    "id": call_id,
+                                    "status": "error",
+                                    "error": "ERR_AI_ROUTE_FAILED"
+                                }).to_string();
+                                let _ = tx_reply.send(resp_json);
+                            }
+                        });
                     } else if let Some(id_str) = val.get("id").and_then(|v| v.as_str()) {
                         let id_str = id_str.to_string();
 

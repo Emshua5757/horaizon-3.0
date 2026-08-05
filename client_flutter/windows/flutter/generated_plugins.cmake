@@ -5,8 +5,8 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   dynamic_color
   local_auth_windows
-  pdfx
   share_plus
+  syncfusion_pdfviewer_windows
   url_launcher_windows
 )
 
