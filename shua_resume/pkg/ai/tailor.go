@@ -241,7 +241,7 @@ func TailorResumeViaGovernor(
 		"offload_url":  config.OffloadTarget,
 	})
 
-	reply, err := ipcSend("governor.ai.route", payload)
+	reply, err := ipcSend("ai.route", payload)
 	if err != nil {
 		logger.Warn("ai_tailor", "Governor AI route failed — using original matrix", map[string]interface{}{"error": err.Error()})
 		return matrix
