@@ -725,9 +725,14 @@ impl Dispatcher {
                             let cfg_url = self.config.read().await.governor.offload_device_url.clone();
                             cfg_url.or_else(|| Some("http://100.90.83.12:11434".to_string()))
                         }
-                        Some(url) if url.contains("127.0.0.1") || url.contains("localhost") => None,
-                        Some(url) if !url.is_empty() => Some(url.to_string()),
-                        _ => None,
+                        Some(url) if !url.is_empty() && !url.contains("127.0.0.1") && !url.contains("localhost") => Some(url.to_string()),
+                        _ => {
+                            if raw_offload.map_or(false, |u| !u.is_empty()) {
+                                Some("http://100.90.83.12:11434".to_string())
+                            } else {
+                                None
+                            }
+                        }
                     };
 
                     // ── Thermal-aware model auto-downgrade ────────────────────
