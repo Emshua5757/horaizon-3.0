@@ -174,12 +174,58 @@ fn send_log_entry(log_tx: &mpsc::Sender<LogEntry>, entry: LogEntry) {
 }
 
 fn wrap_socket_raw_line(line: &str) -> LogEntry {
+    let trimmed = line.trim_end();
+    if trimmed.starts_with('{') && trimmed.ends_with('}') {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(trimmed) {
+            let msg = v
+                .get("msg")
+                .and_then(|s| s.as_str())
+                .unwrap_or(trimmed)
+                .to_string();
+            let subsystem = v
+                .get("subsystem")
+                .and_then(|s| s.as_str())
+                .unwrap_or("submodule")
+                .to_string();
+            let mod_str = v.get("module").and_then(|s| s.as_str()).unwrap_or("");
+            let module = match mod_str {
+                "shua.governor" => 10,
+                "shua.resume" => 20,
+                "shua.diary" => 30,
+                "shua.code_visualizer" => 40,
+                "shua.gym" => 50,
+                "shua.crypto" => 60,
+                _ => 255,
+            };
+            let level_str = v.get("level").and_then(|s| s.as_str()).unwrap_or("INFO");
+            let level = match level_str.to_uppercase().as_str() {
+                "TRACE" => 1,
+                "DEBUG" | "DBG" => 2,
+                "INFO" => 3,
+                "WARN" | "WARNING" => 4,
+                "ERROR" | "ERR" => 5,
+                _ => 3,
+            };
+            return LogEntry {
+                ts: chrono::Utc::now().timestamp_millis() as u64,
+                level,
+                module,
+                subsystem,
+                msg,
+                tags: 0,
+                custom_tags: None,
+                telemetry: Some(v),
+                trace_id: None,
+            };
+        }
+    }
+
     LogEntry {
         ts:          chrono::Utc::now().timestamp_millis() as u64,
         level:       3, // INFO
         module:      255, // UNKNOWN
         subsystem:   "socket_raw".to_string(),
-        msg:         line.trim_end().to_string(),
+        msg:         trimmed.to_string(),
         tags:        0,
         custom_tags: None,
         telemetry:   None,
