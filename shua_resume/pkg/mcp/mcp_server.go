@@ -335,6 +335,12 @@ func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string,
 	if hint, ok := payload["context_hint"].(string); ok {
 		frame["context_hint"] = hint
 	}
+	if model, ok := payload["model"].(string); ok && model != "" {
+		frame["model"] = model
+	}
+	if offload, ok := payload["offload_device_url"].(string); ok && offload != "" {
+		frame["offload_device_url"] = offload
+	}
 
 	ch := make(chan string, 1)
 	s.mu.Lock()

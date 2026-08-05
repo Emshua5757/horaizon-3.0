@@ -178,11 +178,13 @@ func (h *Handler) handleMatrixUpdate(frame Frame) []byte {
 // 7. Return ResumeCompileResponse
 func (h *Handler) handleCompile(frame Frame) []byte {
 	var req struct {
-		MatrixID  string `json:"matrix_id" msgpack:"matrix_id"`
-		Template  string `json:"template" msgpack:"template"`
-		JobDesc   string `json:"job_desc" msgpack:"job_desc"`
-		Tailor    bool   `json:"tailor" msgpack:"tailor"`
-		AIEnhance bool   `json:"ai_enhance" msgpack:"ai_enhance"`
+		MatrixID        string `json:"matrix_id" msgpack:"matrix_id"`
+		Template        string `json:"template" msgpack:"template"`
+		JobDesc         string `json:"job_desc" msgpack:"job_desc"`
+		Tailor          bool   `json:"tailor" msgpack:"tailor"`
+		AIEnhance       bool   `json:"ai_enhance" msgpack:"ai_enhance"`
+		AIModel         string `json:"ai_model" msgpack:"ai_model"`
+		AIOffloadTarget string `json:"ai_offload_target" msgpack:"ai_offload_target"`
 	}
 	if err := decodeMsgpackOrJSON(frame.P, &req); err != nil {
 		return encodeError(frame.ID, frame.Mod, frame.Op, "ERR_MALFORMED_PAYLOAD")
@@ -193,6 +195,7 @@ func (h *Handler) handleCompile(frame Frame) []byte {
 
 	logger.Info("hbp_handler", "resume.compile dispatched", map[string]interface{}{
 		"template": req.Template, "tailor": req.Tailor, "ai_enhance": req.AIEnhance,
+		"ai_model": req.AIModel, "ai_offload_target": req.AIOffloadTarget,
 	})
 
 	start := time.Now()
@@ -219,6 +222,8 @@ func (h *Handler) handleCompile(frame Frame) []byte {
 	if req.AIEnhance && req.JobDesc != "" {
 		cfg := ai.DefaultTailorConfig()
 		cfg.UseAI = true
+		cfg.Model = req.AIModel
+		cfg.OffloadTarget = req.AIOffloadTarget
 		matrix = ai.TailorResumeViaGovernor(matrix, req.JobDesc, cfg, h.mcp.SendAIRoute)
 	}
 

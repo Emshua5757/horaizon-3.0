@@ -57,10 +57,12 @@ func JaccardSimilarity(setA, setB map[string]bool) float64 {
 
 // TailorConfig contains options for relevance filtering and AI tailoring.
 type TailorConfig struct {
-	WorkLimit    int     `json:"work_limit"`
-	ProjectLimit int     `json:"project_limit"`
-	MinScore     float64 `json:"min_score"`
-	UseAI        bool    `json:"use_ai"`
+	WorkLimit     int     `json:"work_limit"`
+	ProjectLimit  int     `json:"project_limit"`
+	MinScore      float64 `json:"min_score"`
+	UseAI         bool    `json:"use_ai"`
+	Model         string  `json:"model,omitempty"`
+	OffloadTarget string  `json:"offload_target,omitempty"`
 }
 
 // DefaultTailorConfig returns conservative defaults suitable for Pi 5 workloads.
@@ -171,10 +173,18 @@ func TailorResumeViaGovernor(
 		string(matrixJSON), jobDescription,
 	)
 
-	reply, err := ipcSend("governor.ai.route", map[string]interface{}{
+	payload := map[string]interface{}{
 		"prompt":       prompt,
 		"context_hint": "resume",
-	})
+	}
+	if config.Model != "" {
+		payload["model"] = config.Model
+	}
+	if config.OffloadTarget != "" {
+		payload["offload_device_url"] = config.OffloadTarget
+	}
+
+	reply, err := ipcSend("governor.ai.route", payload)
 	if err != nil {
 		logger.Warn("ai_tailor", "Governor AI route failed — using original matrix", map[string]interface{}{"error": err.Error()})
 		return matrix
