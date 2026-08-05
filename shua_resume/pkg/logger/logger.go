@@ -72,7 +72,6 @@ func initSocket() {
 		}
 		// No socket available — stdout only.
 		stdLogger.Printf("[%s] [WARN] [logger] no telemetry socket available — stdout only", time.Now().UTC().Format(time.RFC3339))
-		socketOnce = sync.Once{} // Allow retry on next emit attempt
 	})
 }
 

@@ -221,6 +221,7 @@ type AiRouteRequest struct {
 }
 
 func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string, error) {
+	fmt.Println("🚨🚨🚨 SEND_AI_ROUTE CALLED DIRECTLY! op =", op)
 	id := uuid.New().String()
 
 	prompt, _ := payload["prompt"].(string)

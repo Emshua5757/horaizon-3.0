@@ -76,7 +76,6 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
     final aiModel = ref.read(selectedAiModelProvider);
     final rawTarget = ref.read(selectedAiOffloadTargetProvider);
     final tailor = jd.trim().isNotEmpty;
-
     final String aiTarget = rawTarget == 'auto' ? '' : rawTarget;
 
     await ref.read(resumeCompileProvider.notifier).compile(

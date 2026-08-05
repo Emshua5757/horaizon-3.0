@@ -133,7 +133,7 @@ class ResumeCompileNotifier extends StateNotifier<ResumeCompileState> {
     String aiOffloadTarget = '',
   }) {
     final p = Packer();
-    p.packMapLength(7);
+    p.packMapLength(6);
     p.packString('matrix_id');
     p.packString('shua');
     p.packString('template');
