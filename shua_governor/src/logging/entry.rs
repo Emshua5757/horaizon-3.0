@@ -9,55 +9,55 @@
 //  Stage 2 — BUFFER: Clone strings into owned `LogEntry` and push to MPSC channel.
 //             Only entries that passed the filter gate allocate on the heap.
 
+use crate::broker::frame::HbpFrame;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
-use crate::broker::frame::HbpFrame;
 
 // HBP Log Level integer constants
 pub const LEVEL_TRACE: u8 = 1;
 pub const LEVEL_DEBUG: u8 = 2;
-pub const LEVEL_INFO: u8  = 3;
-pub const LEVEL_WARN: u8  = 4;
+pub const LEVEL_INFO: u8 = 3;
+pub const LEVEL_WARN: u8 = 4;
 pub const LEVEL_ERROR: u8 = 5;
 
 // Tag Bitmask flags
 #[allow(dead_code)]
-pub const TAG_SYSTEM: u32       = 0x01;
-pub const TAG_IMPORTANT: u32    = 0x02;
+pub const TAG_SYSTEM: u32 = 0x01;
+pub const TAG_IMPORTANT: u32 = 0x02;
 #[allow(dead_code)]
 pub const TAG_AI_INFERENCE: u32 = 0x04;
 #[allow(dead_code)]
-pub const TAG_CLIENT_UI: u32    = 0x08;
-pub const TAG_SECURITY: u32     = 0x10;
+pub const TAG_CLIENT_UI: u32 = 0x08;
+pub const TAG_SECURITY: u32 = 0x10;
 
 // Module IDs
 #[allow(dead_code)]
 pub const MODULE_GOVERNOR: u8 = 10;
 #[allow(dead_code)]
-pub const MODULE_RESUME: u8   = 20;
+pub const MODULE_RESUME: u8 = 20;
 #[allow(dead_code)]
-pub const MODULE_DIARY: u8    = 30;
+pub const MODULE_DIARY: u8 = 30;
 #[allow(dead_code)]
 pub const MODULE_CODE_VIZ: u8 = 40;
 #[allow(dead_code)]
-pub const MODULE_GYM: u8      = 50;
+pub const MODULE_GYM: u8 = 50;
 #[allow(dead_code)]
-pub const MODULE_CRYPTO: u8   = 60;
-pub const MODULE_FLUTTER: u8  = 100;
-pub const MODULE_UNKNOWN: u8  = 255;
+pub const MODULE_CRYPTO: u8 = 60;
+pub const MODULE_FLUTTER: u8 = 100;
+pub const MODULE_UNKNOWN: u8 = 255;
 
 /// Convert a module u8 ID to its canonical string name.
 pub fn module_name(module: u8) -> &'static str {
     match module {
-        10  => "shua.governor",
-        20  => "shua.resume",
-        30  => "shua.diary",
-        40  => "shua.code_visualizer",
-        50  => "shua.gym",
-        60  => "shua.crypto",
+        10 => "shua.governor",
+        20 => "shua.resume",
+        30 => "shua.diary",
+        40 => "shua.code_visualizer",
+        50 => "shua.gym",
+        60 => "shua.crypto",
         100 => "shua.flutter_client",
-        _   => "unknown",
+        _ => "unknown",
     }
 }
 
@@ -224,7 +224,11 @@ impl LogEntry {
     /// the originating shua module, not always shua.governor.
     pub fn to_hbp_frame(&self) -> Result<HbpFrame> {
         let payload = HbpFrame::encode_payload(self)?;
-        Ok(HbpFrame::event(module_name(self.module), "log_event", payload))
+        Ok(HbpFrame::event(
+            module_name(self.module),
+            "log_event",
+            payload,
+        ))
     }
 }
 
@@ -237,7 +241,9 @@ impl<'a> From<BorrowedLogEntry<'a>> for LogEntry {
             subsystem: b.subsystem.to_owned(),
             msg: redact_sensitive_data(b.msg),
             tags: b.tags,
-            custom_tags: b.custom_tags.map(|v| v.into_iter().map(str::to_owned).collect()),
+            custom_tags: b
+                .custom_tags
+                .map(|v| v.into_iter().map(str::to_owned).collect()),
             telemetry: b.telemetry,
             module_name_str: Some(module_name(b.module).to_owned()),
             trace_id: b.trace_id.map(str::to_owned),
@@ -263,13 +269,14 @@ mod tests {
             tags: TAG_SYSTEM,
             custom_tags: None,
             telemetry: None,
+            module_name_str: Some("shua.governor".to_string()),
             trace_id: Some("tx-999".to_string()),
         };
 
         let frame = entry.to_hbp_frame().expect("hbp frame conversion");
         assert_eq!(frame.mod_, "shua.governor");
         assert_eq!(frame.op, "log_event");
-        
+
         let decoded: LogEntry = frame.decode_payload().expect("decode payload");
         assert_eq!(decoded.subsystem, "broker");
         assert_eq!(decoded.trace_id.as_deref(), Some("tx-999"));
@@ -286,6 +293,7 @@ mod tests {
             tags: TAG_SYSTEM,
             custom_tags: None,
             telemetry: None,
+            module_name_str: Some("shua.governor".to_string()),
             trace_id: None,
         };
 
@@ -293,7 +301,10 @@ mod tests {
         println!("Rust LogEntry Frame Payload Bytes: {:?}", frame.p);
 
         // Verify payload is a MessagePack map (first byte in 0x80..=0x8f for fixmap)
-        assert!(frame.p[0] >= 0x80 && frame.p[0] <= 0x8f, "Payload must be a MsgPack map");
+        assert!(
+            frame.p[0] >= 0x80 && frame.p[0] <= 0x8f,
+            "Payload must be a MsgPack map"
+        );
     }
 
     #[test]
@@ -319,10 +330,14 @@ mod tests {
             tags: TAG_SYSTEM,
             custom_tags: None,
             telemetry: None,
+            module_name_str: Some("shua.governor".to_string()),
             trace_id: None,
         };
 
         // Milliseconds since epoch in 2026 should be > 1,700,000,000,000 (13 digits)
-        assert!(entry.ts > 1_000_000_000_000, "Timestamp must be in milliseconds");
+        assert!(
+            entry.ts > 1_000_000_000_000,
+            "Timestamp must be in milliseconds"
+        );
     }
 }

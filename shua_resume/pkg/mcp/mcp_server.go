@@ -10,6 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/vmihailenco/msgpack/v5"
+
 
 	"shua_resume/pkg/ai"
 	"shua_resume/pkg/logger"
@@ -144,47 +146,85 @@ func (s *Server) readLoop() {
 			return
 		}
 
-		// Try to parse as JSON to check if it's a tool call or RPC response
+		// 1. Try JSON unmarshal first (for legacy text frames and tool calls)
 		var frame map[string]interface{}
-		if err := json.Unmarshal(msg, &frame); err != nil {
-			// Binary frame — forward to HBP handler
+		if err := json.Unmarshal(msg, &frame); err == nil {
+			// Check for pending RPC reply (text JSON response)
+			id, _ := frame["id"].(string)
+			if id != "" {
+				s.mu.Lock()
+				ch, ok := s.pending[id]
+				s.mu.Unlock()
+				if ok {
+					reply, _ := frame["reply"].(string)
+					if reply == "" {
+						if r, ok := frame["result"]; ok {
+							b, _ := json.Marshal(r)
+							reply = string(b)
+						}
+					}
+					ch <- reply
+					s.mu.Lock()
+					delete(s.pending, id)
+					s.mu.Unlock()
+					continue
+				}
+			}
+
+			// MCP tool call dispatch
+			op, _ := frame["op"].(string)
+			if op == "mcp.tool.call" || op == "tool_call" {
+				s.handleToolCall(frame)
+				continue
+			}
+
+			// Forward HBP JSON frame to the HBP handler
 			if s.OnHBPFrame != nil {
 				s.OnHBPFrame(msg)
 			}
 			continue
 		}
 
-		// Check for pending RPC reply (governor.ai.route response)
-		id, _ := frame["id"].(string)
-		if id != "" {
+		// 2. Binary frame (HBP v2 MsgPack frame)
+		var hbpFrame struct {
+			V   uint8                  `msgpack:"v"`
+			T   uint8                  `msgpack:"t"`
+			ID  string                 `msgpack:"id"`
+			Mod string                 `msgpack:"mod"`
+			Op  string                 `msgpack:"op"`
+			Ts  uint64                 `msgpack:"ts"`
+			P   []byte                 `msgpack:"p"`
+			Err map[string]interface{} `msgpack:"err"`
+		}
+		if err := msgpack.Unmarshal(msg, &hbpFrame); err == nil && hbpFrame.ID != "" {
 			s.mu.Lock()
-			ch, ok := s.pending[id]
+			ch, ok := s.pending[hbpFrame.ID]
 			s.mu.Unlock()
 			if ok {
-				reply, _ := frame["reply"].(string)
-				if reply == "" {
-					// Fallback: stringify the entire result
-					if r, ok := frame["result"]; ok {
-						b, _ := json.Marshal(r)
-						reply = string(b)
+				var reply string
+				if len(hbpFrame.P) > 0 {
+					var payload map[string]interface{}
+					if err := msgpack.Unmarshal(hbpFrame.P, &payload); err == nil {
+						if r, ok := payload["reply"].(string); ok {
+							reply = r
+						} else {
+							b, _ := json.Marshal(payload)
+							reply = string(b)
+						}
+					} else {
+						// Fallback: raw UTF-8 string
+						reply = string(hbpFrame.P)
 					}
 				}
 				ch <- reply
 				s.mu.Lock()
-				delete(s.pending, id)
+				delete(s.pending, hbpFrame.ID)
 				s.mu.Unlock()
 				continue
 			}
 		}
 
-		// MCP tool call dispatch
-		op, _ := frame["op"].(string)
-		if op == "mcp.tool.call" || op == "tool_call" {
-			s.handleToolCall(frame)
-			continue
-		}
-
-		// Forward HBP JSON frame to the HBP handler
+		// Forward unhandled HBP binary frame to handler
 		if s.OnHBPFrame != nil {
 			s.OnHBPFrame(msg)
 		}

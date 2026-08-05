@@ -27,7 +27,7 @@ fn is_module_match(file: &str, qualified_name: &str, target: &str) -> bool {
         if s == target_clean || s == target_underscore || s == target_dot {
             return true;
         }
-        if s.contains(&target_clean) || s.contains(&target_underscore) || s.contains(&target_dot) {
+        if s.contains(target_clean) || s.contains(&target_underscore) || s.contains(&target_dot) {
             return true;
         }
         false

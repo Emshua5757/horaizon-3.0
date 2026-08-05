@@ -92,6 +92,12 @@ pub struct HbpLogLayer {
     tx: Mutex<mpsc::SyncSender<PendingEntry>>,
 }
 
+impl Default for HbpLogLayer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HbpLogLayer {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::sync_channel::<PendingEntry>(512);

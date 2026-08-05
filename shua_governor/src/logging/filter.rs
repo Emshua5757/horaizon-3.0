@@ -91,6 +91,7 @@ mod tests {
             tags: TAG_SYSTEM,
             custom_tags: None,
             telemetry: None,
+            module_name_str: Some("shua.governor".to_string()),
             trace_id: None,
         };
 
@@ -103,6 +104,7 @@ mod tests {
             tags: TAG_SYSTEM,
             custom_tags: None,
             telemetry: None,
+            module_name_str: Some("shua.governor".to_string()),
             trace_id: None,
         };
 
@@ -128,6 +130,7 @@ mod tests {
             tags: TAG_SYSTEM,
             custom_tags: None,
             telemetry: None,
+            module_name_str: Some("shua.governor".to_string()),
             trace_id: None,
         };
 
@@ -140,6 +143,7 @@ mod tests {
             tags: TAG_SYSTEM,
             custom_tags: None,
             telemetry: None,
+            module_name_str: Some("shua.resume".to_string()),
             trace_id: None,
         };
 
