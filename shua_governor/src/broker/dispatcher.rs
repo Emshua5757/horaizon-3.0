@@ -378,7 +378,7 @@ impl Dispatcher {
         &self,
         frame: HbpFrame,
         client_tx: UnboundedSender<Vec<u8>>,
-        peer_ip: Option<std::net::IpAddr>,
+        _peer_ip: Option<std::net::IpAddr>,
     ) -> Option<HbpFrame> {
         match frame.op.as_str() {
             "ping" => Some(HbpFrame::pong()),
@@ -722,7 +722,8 @@ impl Dispatcher {
                     let resolved_offload = match raw_offload {
                         Some("rpi5") | Some("local") => None,
                         Some("windows") | Some("host") => {
-                            peer_ip.map(|ip| format!("http://{}:11434", ip))
+                            let cfg_url = self.config.read().await.governor.offload_device_url.clone();
+                            cfg_url.or_else(|| Some("http://192.168.254.110:11434".to_string()))
                         }
                         Some(url) if url.contains("127.0.0.1") || url.contains("localhost") => None,
                         Some(url) if !url.is_empty() => Some(url.to_string()),
