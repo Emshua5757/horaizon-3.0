@@ -3,6 +3,7 @@
 package mcp
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -11,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/vmihailenco/msgpack/v5"
-
 
 	"shua_resume/pkg/ai"
 	"shua_resume/pkg/logger"
@@ -156,13 +156,31 @@ func (s *Server) readLoop() {
 				ch, ok := s.pending[id]
 				s.mu.Unlock()
 				if ok {
-					reply, _ := frame["reply"].(string)
-					if reply == "" {
-						if r, ok := frame["result"]; ok {
-							b, _ := json.Marshal(r)
-							reply = string(b)
+					var reply string
+					if r, ok := frame["reply"].(string); ok && r != "" {
+						reply = r
+					} else if r, ok := frame["result"]; ok {
+						b, _ := json.Marshal(r)
+						reply = string(b)
+					} else if pStr, ok := frame["p"].(string); ok && pStr != "" {
+						// Decode HBP v2 base64 payload
+						if decoded, err := base64.StdEncoding.DecodeString(pStr); err == nil {
+							var payload map[string]interface{}
+							if err := msgpack.Unmarshal(decoded, &payload); err == nil {
+								if r, ok := payload["reply"].(string); ok {
+									reply = r
+								} else {
+									b, _ := json.Marshal(payload)
+									reply = string(b)
+								}
+							} else {
+								reply = string(decoded)
+							}
+						} else {
+							reply = pStr
 						}
 					}
+
 					ch <- reply
 					s.mu.Lock()
 					delete(s.pending, id)

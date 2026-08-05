@@ -66,6 +66,7 @@ func resolveTypstPath() string {
 
 	// Linux / Pi 5 fallback paths
 	for _, path := range []string{
+		"/home/shua/.local/bin/typst",
 		"/home/shua/.cargo/bin/typst",
 		"/usr/local/bin/typst",
 		"/usr/bin/typst",
@@ -253,4 +254,3 @@ func MatrixToMarkdown(matrix *models.ResumeMatrix) string {
 
 	return sb.String()
 }
-
