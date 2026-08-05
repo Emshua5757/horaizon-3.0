@@ -244,22 +244,14 @@ func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string,
 		payloadObj["session_id"] = sid
 	}
 
-	innerBytes, _ := json.Marshal(payloadObj)
-
-	// ── ADDED LOG TO INSPECT OUTBOUND PAYLOAD ──
-	logger.Info("mcp_server", "SENDING AI ROUTE PAYLOAD", map[string]interface{}{
-		"op":      op,
-		"payload": string(innerBytes),
-	})
-	// ───────────────────────────────────────────
-
+	// Pass the payload map directly so Rust can decode it straight into AiRouteRequest
 	frame := map[string]interface{}{
 		"v":   2,
 		"t":   1,
 		"op":  op,
 		"id":  id,
 		"mod": "shua.governor",
-		"p":   json.RawMessage(innerBytes),
+		"p":   payloadObj,
 	}
 
 	ch := make(chan string, 1)
