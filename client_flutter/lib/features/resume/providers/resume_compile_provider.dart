@@ -47,6 +47,9 @@ final jdTextProvider = StateProvider<String>((ref) => '');
 final liveJaccardScoreProvider = StateProvider<double>((ref) => 0.0);
 final selectedTemplateProvider = StateProvider<String>((ref) => 'default');
 final aiEnhanceProvider = StateProvider<bool>((ref) => false);
+final selectedAiModelProvider = StateProvider<String>((ref) => 'qwen3.5:4b');
+final selectedAiOffloadTargetProvider =
+    StateProvider<String>((ref) => 'auto');
 
 // ---------------------------------------------------------------------------
 // Notifier
@@ -72,6 +75,8 @@ class ResumeCompileNotifier extends StateNotifier<ResumeCompileState> {
     String jobDesc = '',
     bool tailor = false,
     bool aiEnhance = false,
+    String aiModel = '',
+    String aiOffloadTarget = '',
   }) async {
     state = CompileInProgress(aiEnhance: aiEnhance);
 
@@ -82,6 +87,8 @@ class ResumeCompileNotifier extends StateNotifier<ResumeCompileState> {
         jobDesc: jobDesc,
         tailor: tailor,
         aiEnhance: aiEnhance,
+        aiModel: aiModel,
+        aiOffloadTarget: aiOffloadTarget,
       );
       final frame =
           HbpFrame.request('shua.resume', 'compile', payload);
@@ -118,14 +125,18 @@ class ResumeCompileNotifier extends StateNotifier<ResumeCompileState> {
     required String jobDesc,
     required bool tailor,
     required bool aiEnhance,
+    String aiModel = '',
+    String aiOffloadTarget = '',
   }) {
     final p = Packer();
-    p.packMapLength(5);
+    p.packMapLength(7);
     p.packString('matrix_id'); p.packString('shua');
     p.packString('template');  p.packString(template);
     p.packString('job_desc');  p.packString(jobDesc);
     p.packString('tailor');    p.packBool(tailor);
     p.packString('ai_enhance'); p.packBool(aiEnhance);
+    p.packString('ai_model');   p.packString(aiModel);
+    p.packString('ai_offload_target'); p.packString(aiOffloadTarget);
     return p.takeBytes();
   }
 }

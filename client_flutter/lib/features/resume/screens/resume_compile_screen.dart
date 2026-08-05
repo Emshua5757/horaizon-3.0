@@ -71,6 +71,8 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
     final jd = ref.read(jdTextProvider);
     final template = ref.read(selectedTemplateProvider);
     final aiEnhance = ref.read(aiEnhanceProvider);
+    final aiModel = ref.read(selectedAiModelProvider);
+    final aiTarget = ref.read(selectedAiOffloadTargetProvider);
     final tailor = jd.trim().isNotEmpty;
 
     await ref.read(resumeCompileProvider.notifier).compile(
@@ -78,6 +80,8 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
           jobDesc: jd,
           tailor: tailor,
           aiEnhance: aiEnhance,
+          aiModel: aiModel,
+          aiOffloadTarget: aiTarget,
         );
   }
 
@@ -94,6 +98,8 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
     final jaccardScore = ref.watch(liveJaccardScoreProvider);
     final template = ref.watch(selectedTemplateProvider);
     final aiEnhance = ref.watch(aiEnhanceProvider);
+    final selectedModel = ref.watch(selectedAiModelProvider);
+    final selectedTarget = ref.watch(selectedAiOffloadTargetProvider);
 
     // Navigate to history on success
     ref.listen(resumeCompileProvider, (_, next) {
@@ -154,28 +160,147 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
                     ref.read(selectedTemplateProvider.notifier).state = t,
               ),
 
-              // 4. AI enhancement toggle
+              // 4. AI enhancement toggle & panel
               const SizedBox(height: 16),
-              SwitchListTile(
-                title: const Text('Enable Ollama AI Enhancement'),
-                subtitle: const Text(
-                    'Uses Pi 5 Ollama to rewrite bullet points for this job.'),
-                value: aiEnhance,
-                onChanged: isOffline
-                    ? null
-                    : (v) =>
-                        ref.read(aiEnhanceProvider.notifier).state = v,
-                contentPadding: EdgeInsets.zero,
+              Card(
+                margin: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: aiEnhance ? cs.primary : cs.outlineVariant,
+                    width: aiEnhance ? 1.5 : 1,
+                  ),
+                ),
+                color: aiEnhance
+                    ? cs.primaryContainer.withValues(alpha: 0.15)
+                    : cs.surfaceContainerLow,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SwitchListTile(
+                        title: const Text('Enable AI Enhancement',
+                            style: TextStyle(fontWeight: FontWeight.w600)),
+                        subtitle: const Text(
+                            'Rewrites bullet points & optimizes keywords for the job description.'),
+                        value: aiEnhance,
+                        onChanged: isOffline
+                            ? null
+                            : (v) => ref
+                                .read(aiEnhanceProvider.notifier)
+                                .state = v,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      if (aiEnhance) ...[
+                        const Divider(height: 20),
+                        // ── Execution Node Target ─────────────────────────────
+                        Text('AI Execution Node',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: cs.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            )),
+                        const SizedBox(height: 6),
+                        SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment(
+                              value: 'auto',
+                              label: Text('Auto'),
+                              icon: Icon(Icons.auto_awesome_rounded, size: 16),
+                            ),
+                            ButtonSegment(
+                              value: 'rpi5',
+                              label: Text('RPi 5'),
+                              icon: Icon(Icons.developer_board_rounded, size: 16),
+                            ),
+                            ButtonSegment(
+                              value: 'windows',
+                              label: Text('Windows Host'),
+                              icon: Icon(Icons.laptop_mac_rounded, size: 16),
+                            ),
+                          ],
+                          selected: {selectedTarget},
+                          onSelectionChanged: (set) {
+                            if (set.isNotEmpty) {
+                              ref
+                                  .read(selectedAiOffloadTargetProvider.notifier)
+                                  .state = set.first;
+                            }
+                          },
+                          showSelectedIcon: false,
+                        ),
+                        const SizedBox(height: 12),
+                        // ── Model Selection ─────────────────────────────────────
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Ollama Model',
+                                      style: theme.textTheme.labelMedium
+                                          ?.copyWith(
+                                        color: cs.onSurfaceVariant,
+                                        fontWeight: FontWeight.w600,
+                                      )),
+                                  const SizedBox(height: 4),
+                                  DropdownButtonFormField<String>(
+                                    initialValue: selectedModel,
+                                    isExpanded: true,
+                                    decoration: const InputDecoration(
+                                      isDense: true,
+                                      border: OutlineInputBorder(),
+                                      contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 8),
+                                    ),
+                                    items: const [
+                                      DropdownMenuItem(
+                                        value: 'qwen3.5:4b',
+                                        child: Text('qwen3.5:4b (Recommended)'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'qwen3.5:2b',
+                                        child: Text('qwen3.5:2b (Fast / Pi 5)'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'qwen2.5-coder:7b',
+                                        child: Text('qwen2.5-coder:7b (Detailed)'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'llama3.1:8b',
+                                        child: Text('llama3.1:8b (High quality)'),
+                                      ),
+                                    ],
+                                    onChanged: (m) {
+                                      if (m != null) {
+                                        ref
+                                            .read(selectedAiModelProvider
+                                                .notifier)
+                                            .state = m;
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
 
               // 5. Compile button
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
               Tooltip(
                 message: isOffline ? 'Connect to Pi 5 to compile' : '',
                 child: FilledButton.icon(
                   onPressed: isOffline || isCompiling ? null : _compile,
                   icon: const Icon(Icons.picture_as_pdf_rounded),
-                  label: const Text('Compile PDF'),
+                  label: Text(aiEnhance
+                      ? 'Compile PDF with AI ($selectedModel)'
+                      : 'Compile PDF'),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     textStyle: theme.textTheme.titleMedium,
