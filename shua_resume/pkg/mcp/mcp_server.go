@@ -224,10 +224,19 @@ func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string,
 	fmt.Println("🚨🚨🚨 SEND_AI_ROUTE CALLED DIRECTLY! op =", op)
 	id := uuid.New().String()
 
-	prompt, _ := payload["prompt"].(string)
+	// Safely extract and validate the prompt from the payload map
+	var prompt string
+	if val, ok := payload["prompt"]; ok {
+		if pStr, ok := val.(string); ok {
+			prompt = pStr
+		}
+	}
+
 	if prompt == "" {
 		prompt = "SYSTEM: You are a JSON transformation engine. Return ONLY valid JSON matching the exact ResumeMatrix schema."
 	}
+
+	fmt.Printf("🔍 SEND_AI_ROUTE DEBUG: Extracted prompt length = %d\n", len(prompt))
 
 	payloadObj := map[string]interface{}{
 		"prompt": prompt,
