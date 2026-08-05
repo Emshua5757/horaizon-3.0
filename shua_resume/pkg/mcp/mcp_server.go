@@ -250,6 +250,9 @@ func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string,
 	if model, ok := payload["model"].(string); ok && model != "" {
 		frame["model"] = model
 	}
+
+	frame["format"] = "json"
+
 	if offload, ok := payload["offload_device_url"].(string); ok && offload != "" {
 		frame["offload_device_url"] = offload
 	}
