@@ -22,6 +22,7 @@ class RustGenerator(BaseGenerator):
         "str":       "String",
         "timestamp": "u64",
         "uuid":      "String",
+        "map":       "serde_json::Value",
     }
 
     def wrap_array(self, inner: str) -> str:

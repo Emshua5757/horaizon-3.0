@@ -265,6 +265,10 @@ type LogEntryDto struct {
 	Msg string `msgpack:"msg"`
 	// Tag bitmask
 	Tags uint32 `msgpack:"tags"`
+	// Optional structured telemetry key-value pairs
+	Telemetry *map[string]interface{} `msgpack:"telemetry"`
+	// Human-readable module identifier (e.g. shua.resume). Canonical string for Flutter attribution.
+	ModuleName *string `msgpack:"module_name"`
 	// Optional transaction trace ID
 	TraceId *string `msgpack:"trace_id"`
 }

@@ -27,6 +27,7 @@ class DartGenerator(BaseGenerator):
         "str":       "String",
         "timestamp": "int",
         "uuid":      "String",
+        "map":       "Map<String, dynamic>",
     }
 
     def wrap_array(self, inner: str) -> str:

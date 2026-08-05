@@ -16,7 +16,7 @@ use std::path::Path;
 use tokio::sync::mpsc;
 use tokio::time::{timeout, Duration, Instant};
 
-use crate::logging::entry::{LogEntry, LEVEL_ERROR, TAG_IMPORTANT, TAG_SECURITY};
+use crate::logging::entry::{LogEntry, module_name, LEVEL_ERROR, TAG_IMPORTANT, TAG_SECURITY};
 
 const BATCH_HIGH_WATER_MARK: usize = 1024;
 const FLUSH_INTERVAL_MS: u64 = 500;
@@ -183,6 +183,7 @@ pub fn query_logs_from_db(params: LogQueryParams<'_>) -> Result<(usize, Vec<LogE
             tags: tags as u32,
             custom_tags,
             telemetry,
+            module_name_str: Some(module_name(module as u8).to_owned()),
             trace_id,
         })
     })?;

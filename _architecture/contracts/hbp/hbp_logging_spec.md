@@ -196,7 +196,31 @@ Same structure as individual item in `governor.logs.query` response entries.
 
 ---
 
-## 6. References
+## 7. Submodule IPC Log Attribution
+
+All horAIzon submodules (`shua.resume`, `shua.code_visualizer`, `shua.diary`, etc.) MUST route their telemetry log events through `shua_governor` before reaching Flutter.
+
+### Strict HBP v2 Binary Frame Ingress Requirement
+- **Transport**: Unix Domain Socket (`/tmp/horaizon_logs.sock`) or TCP Loopback (`127.0.0.1:5001`).
+- **Wire Format**: 12-byte HBP Binary Header + MessagePack-encoded `LogEntryDto`.
+  - Byte 0..1: Magic `0x48 ('H')`, `0x42 ('B')`
+  - Byte 2: Version `0x02`
+  - Byte 3: Type `0x12` (LOG)
+  - Byte 4..7: Reserved (`0x00`)
+  - Byte 8..11: Payload Length `u32 BE`
+  - Payload: MessagePack map containing `ts`, `level`, `module`, `module_name`, `subsystem`, `msg`, `tags`, `telemetry`, `trace_id`.
+- Plain-text JSON lines and `println!` stdout streams are non-compliant and strictly forbidden for inter-process telemetry logging.
+
+### Server Routing & Broadcast Attribution
+1. `shua_governor`'s `listener.rs` receives the HBP binary frame and deserializes zero-copy into `BorrowedLogEntry`.
+2. Stamped with `module_name` string (e.g., `"shua.resume"`, `"shua.code_visualizer"`).
+3. Evaluates client subscription filters (`LogFilter`) and broadcasts `governor.log_event` WebSocket frames using the source module name as the `mod_` header field.
+4. Flutter clients display submodule log events as `MODULE_NAME :: SUBSYSTEM` (e.g. `SHUA_RESUME :: HBP_HANDLER`, `SHUA_CODE_VIZ :: WATCHER`).
+
+---
+
+## 8. References
 
 - `_architecture/contracts/hbp/hbp_v2_spec.md` — Wire envelope spec
 - `_architecture/specs/shua_governor/shua_governor_spec.md` — Governor architecture spec
+

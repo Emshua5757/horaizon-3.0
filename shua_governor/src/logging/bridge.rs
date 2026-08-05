@@ -1,7 +1,7 @@
 // shua_governor — Tracing bridge to MPSC logging pipeline
 // Phase 12: Layer to forward tracing events to central database and SSE stream
 
-use crate::logging::entry::{LogEntry, LEVEL_DEBUG, LEVEL_ERROR, LEVEL_INFO, LEVEL_TRACE, LEVEL_WARN};
+use crate::logging::entry::{LogEntry, MODULE_GOVERNOR, TAG_SYSTEM, LEVEL_DEBUG, LEVEL_ERROR, LEVEL_INFO, LEVEL_TRACE, LEVEL_WARN};
 use tokio::sync::mpsc;
 use tracing::Subscriber;
 use tracing_subscriber::layer::Context;
@@ -84,18 +84,20 @@ where
                 .unwrap_or_default()
                 .as_millis() as u64,
             level,
-            module: 10, // SHUA_GOVERNOR
+            module: MODULE_GOVERNOR,
             subsystem: visitor.subsystem,
             msg: visitor.msg,
-            tags: 1, // SYSTEM
+            tags: TAG_SYSTEM,
             custom_tags: None,
             telemetry: if visitor.telemetry.is_empty() {
                 None
             } else {
                 Some(serde_json::Value::Object(visitor.telemetry))
             },
+            module_name_str: Some("shua.governor".to_string()),
             trace_id: None,
         };
+
 
         if self.tx.try_send(entry).is_err() {
             crate::logging::record_log_drop();

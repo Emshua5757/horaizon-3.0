@@ -1115,6 +1115,7 @@ impl Dispatcher {
                         tags: req.tags.unwrap_or(0),
                         custom_tags: None,
                         telemetry: req.telemetry,
+                        module_name_str: Some("shua.flutter_client".to_string()),
                         trace_id: req.trace_id.or_else(|| Some(frame.id.clone())),
                     };
                     if self.log_tx.try_send(entry).is_err() {

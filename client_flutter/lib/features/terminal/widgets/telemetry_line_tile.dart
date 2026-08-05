@@ -29,6 +29,10 @@ class _TelemetryLineTileState extends State<TelemetryLineTile> {
     final tsStr =
         '${item.timestamp.hour.toString().padLeft(2, '0')}:${item.timestamp.minute.toString().padLeft(2, '0')}:${item.timestamp.second.toString().padLeft(2, '0')}';
 
+    final jsonStr = item.metadata != null
+        ? const JsonEncoder.withIndent('  ').convert(item.metadata)
+        : null;
+
     return InkWell(
       onTap: () => setState(() => _isExpanded = !_isExpanded),
       borderRadius: BorderRadius.circular(4),
@@ -106,7 +110,7 @@ class _TelemetryLineTileState extends State<TelemetryLineTile> {
                 ],
               ],
             ),
-            if (_isExpanded && item.metadata != null) ...[
+            if (_isExpanded) ...[
               const SizedBox(height: 6),
               Container(
                 width: double.infinity,
@@ -117,11 +121,11 @@ class _TelemetryLineTileState extends State<TelemetryLineTile> {
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.3)),
                 ),
-                child: Text(
-                  const JsonEncoder.withIndent('  ').convert(item.metadata),
+                child: SelectableText(
+                  jsonStr ?? item.message,
                   style: TextStyle(
                     color: cs.onSurfaceVariant,
-                    fontSize: 10,
+                    fontSize: 11,
                     fontFamily: 'monospace',
                   ),
                 ),
