@@ -145,6 +145,47 @@ func FilterResume(matrix *models.ResumeMatrix, jobDescription string, config Tai
 	return matrix, bestScore
 }
 
+// extractJSON locates the first '{' and matching last '}' in the string,
+// stripping any conversational preamble or markdown code fence blocks.
+func extractJSON(s string) string {
+	start := strings.Index(s, "{")
+	end := strings.LastIndex(s, "}")
+	if start != -1 && end != -1 && end > start {
+		return s[start : end+1]
+	}
+	return strings.TrimSpace(s)
+}
+
+// mergeMatrix ensures that any section accidentally omitted by the LLM
+// is preserved from the original matrix.
+func mergeMatrix(orig, enhanced *models.ResumeMatrix) *models.ResumeMatrix {
+	if enhanced.Basics.Name == "" {
+		enhanced.Basics = orig.Basics
+	}
+	if len(enhanced.Work) == 0 {
+		enhanced.Work = orig.Work
+	}
+	if len(enhanced.Education) == 0 {
+		enhanced.Education = orig.Education
+	}
+	if len(enhanced.Projects) == 0 {
+		enhanced.Projects = orig.Projects
+	}
+	if len(enhanced.Skills) == 0 {
+		enhanced.Skills = orig.Skills
+	}
+	if len(enhanced.Certificates) == 0 {
+		enhanced.Certificates = orig.Certificates
+	}
+	if len(enhanced.Awards) == 0 {
+		enhanced.Awards = orig.Awards
+	}
+	if len(enhanced.Organizations) == 0 {
+		enhanced.Organizations = orig.Organizations
+	}
+	return enhanced
+}
+
 // TailorResumeViaGovernor sends an AI enhance request to the Governor via
 // governor.ai.route HBP v2 RPC. On any failure it gracefully falls back to
 // the unmodified matrix and logs a warning — never blocks the compile pipeline.
@@ -171,12 +212,12 @@ func TailorResumeViaGovernor(
 	var prompt string
 	if strings.TrimSpace(jobDescription) != "" {
 		prompt = fmt.Sprintf(
-			"Enhance this resume JSON for the following job description. Return ONLY the modified JSON with no markdown fences:\n%s\nJob description:\n%s",
+			"SYSTEM: You are a JSON transformation engine. Return ONLY valid JSON matching the exact ResumeMatrix schema. Do NOT include markdown blocks, preamble, explanation, or notes.\n\nResume JSON:\n%s\n\nJob Description:\n%s",
 			string(matrixJSON), jobDescription,
 		)
 	} else {
 		prompt = fmt.Sprintf(
-			"Enhance and polish the action verbs, grammar, and professional impact of this resume JSON. Return ONLY the modified JSON with no markdown fences:\n%s",
+			"SYSTEM: You are a JSON transformation engine. Return ONLY valid JSON matching the exact ResumeMatrix schema with polished action verbs and impact. Do NOT include markdown blocks, preamble, explanation, or notes.\n\nResume JSON:\n%s",
 			string(matrixJSON),
 		)
 	}
@@ -198,21 +239,20 @@ func TailorResumeViaGovernor(
 		return matrix
 	}
 
-	// Strip markdown fences if model wrapped the response
-	reply = strings.TrimSpace(reply)
-	reply = strings.TrimPrefix(reply, "```json")
-	reply = strings.TrimPrefix(reply, "```")
-	reply = strings.TrimSuffix(reply, "```")
-	reply = strings.TrimSpace(reply)
+	jsonString := extractJSON(reply)
 
 	var enhanced models.ResumeMatrix
-	if err := json.Unmarshal([]byte(reply), &enhanced); err != nil {
-		logger.Warn("ai_tailor", "AI response was not valid JSON — using original matrix", map[string]interface{}{"raw": reply[:min(200, len(reply))]})
+	if err := json.Unmarshal([]byte(jsonString), &enhanced); err != nil {
+		logger.Warn("ai_tailor", "AI response was not valid JSON — using original matrix", map[string]interface{}{"raw": jsonString[:min(200, len(jsonString))]})
 		return matrix
 	}
 
-	logger.Info("ai_tailor", "AI tailoring applied successfully", nil)
-	return &enhanced
+	merged := mergeMatrix(matrix, &enhanced)
+	logger.Info("ai_tailor", "AI tailoring applied successfully", map[string]interface{}{
+		"work_items": len(merged.Work),
+		"projects":   len(merged.Projects),
+	})
+	return merged
 }
 
 func min(a, b int) int {
