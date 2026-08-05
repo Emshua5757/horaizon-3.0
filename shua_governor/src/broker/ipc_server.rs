@@ -417,14 +417,13 @@ async fn handle_ipc_connection(
             entry.ipc_tx = None;
             entry.tools.clear();
             entry.module_scope = None;
-            if entry.state == ModuleState::IpcConnected {
-                entry.state = ModuleState::Running;
-            }
             warn!(
                 subsystem = "ipc_server",
                 module = %mod_id,
                 peer = %peer_addr,
                 "IPC connection closed — tools unregistered, state reverted to Running"
+            );
+        }
     }
 }
 
