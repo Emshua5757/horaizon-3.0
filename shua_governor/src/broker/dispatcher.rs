@@ -712,11 +712,13 @@ impl Dispatcher {
             "ai.route" | "governor.ai.route" => {
                 let decoded = frame.decode_payload::<AiRouteRequest>();
                 if let Err(ref e) = decoded {
+                    let raw_payload_str = String::from_utf8_lossy(&frame.p);
                     warn!(
                         subsystem = "dispatcher",
                         op = %frame.op,
                         error = %e,
-                        "❌ CRITICAL: ai.route payload decoding failed!"
+                        raw_payload = %raw_payload_str,
+                        "❌ CRITICAL: ai.route payload decoding failed! Dumping raw payload above."
                     );
                 }
                 if let Ok(req) = frame.decode_payload::<AiRouteRequest>() {
