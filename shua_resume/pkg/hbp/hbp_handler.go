@@ -219,7 +219,7 @@ func (h *Handler) handleCompile(frame Frame) []byte {
 	}
 
 	// 3. AI enhance
-	if req.AIEnhance && req.JobDesc != "" {
+	if req.AIEnhance {
 		cfg := ai.DefaultTailorConfig()
 		cfg.UseAI = true
 		cfg.Model = req.AIModel
