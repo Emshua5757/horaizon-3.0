@@ -719,21 +719,28 @@ impl Dispatcher {
                     let prompt_chars = req.prompt.len();
 
                     let raw_offload = req.offload_device_url.as_deref();
-                    let resolved_offload = match raw_offload {
-                        Some("rpi5") | Some("local") => None,
-                        Some("windows") | Some("host") => {
-                            let cfg_url = self.config.read().await.governor.offload_device_url.clone();
-                            cfg_url.or_else(|| Some("http://100.90.83.12:11434".to_string()))
+                    let resolved_offload = raw_offload.and_then(|url| {
+                        if url.is_empty() {
+                            return None;
                         }
-                        Some(url) if !url.is_empty() && !url.contains("127.0.0.1") && !url.contains("localhost") => Some(url.to_string()),
-                        _ => {
-                            if raw_offload.map_or(false, |u| !u.is_empty()) {
-                                Some("http://100.90.83.12:11434".to_string())
-                            } else {
-                                None
+                        let expanded = match url {
+                            "windows" | "host" => "http://100.90.83.12:11434",
+                            "rpi5" | "local" => "http://127.0.0.1:11434",
+                            other => other,
+                        };
+                        if let Some(ip) = _peer_ip {
+                            if (expanded.contains("127.0.0.1") || expanded.contains("localhost"))
+                                && !ip.is_loopback()
+                            {
+                                return Some(
+                                    expanded
+                                        .replace("127.0.0.1", &ip.to_string())
+                                        .replace("localhost", &ip.to_string()),
+                                );
                             }
                         }
-                    };
+                        Some(expanded.to_string())
+                    });
 
                     // ── Thermal-aware model auto-downgrade ────────────────────
                     // Read RPi5 SoC temperature. If > 68°C, override the
