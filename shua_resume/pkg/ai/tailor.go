@@ -233,6 +233,14 @@ func TailorResumeViaGovernor(
 		payload["offload_device_url"] = config.OffloadTarget
 	}
 
+	logger.Info("ai_tailor", "⚡ FEEDING RESUME TAILORING PROMPT TO GOVERNOR AI ROUTE", map[string]interface{}{
+		"prompt":       prompt,
+		"jd_bytes":     len(jobDescription),
+		"matrix_bytes": len(matrixJSON),
+		"model":        config.Model,
+		"offload_url":  config.OffloadTarget,
+	})
+
 	reply, err := ipcSend("governor.ai.route", payload)
 	if err != nil {
 		logger.Warn("ai_tailor", "Governor AI route failed — using original matrix", map[string]interface{}{"error": err.Error()})

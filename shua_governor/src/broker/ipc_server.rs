@@ -425,7 +425,34 @@ async fn handle_ipc_connection(
                 module = %mod_id,
                 peer = %peer_addr,
                 "IPC connection closed — tools unregistered, state reverted to Running"
-            );
-        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_governor_ai_route_json_frame_parsing() {
+        let raw_json = serde_json::json!({
+            "id": "test-tx-123",
+            "op": "governor.ai.route",
+            "prompt": "SYSTEM: You are a JSON transformation engine...",
+            "context_hint": "resume",
+            "model": "qwen3.5:2b",
+            "offload_device_url": "windows"
+        });
+
+        let op = raw_json["op"].as_str().unwrap();
+        assert_eq!(op, "governor.ai.route");
+
+        let call_id = raw_json["id"].as_str().unwrap();
+        assert_eq!(call_id, "test-tx-123");
+
+        let context_hint = raw_json["context_hint"].as_str().unwrap();
+        assert_eq!(context_hint, "resume");
+
+        let model = raw_json["model"].as_str().unwrap();
+        assert_eq!(model, "qwen3.5:2b");
     }
 }
