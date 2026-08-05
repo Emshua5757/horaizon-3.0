@@ -366,7 +366,7 @@ func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string,
 	select {
 	case reply := <-ch:
 		return reply, nil
-	case <-time.After(60 * time.Second):
+	case <-time.After(120 * time.Second):
 		s.mu.Lock()
 		delete(s.pending, id)
 		s.mu.Unlock()
