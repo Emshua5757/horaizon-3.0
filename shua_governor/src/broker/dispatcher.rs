@@ -723,7 +723,7 @@ impl Dispatcher {
                         Some("rpi5") | Some("local") => None,
                         Some("windows") | Some("host") => {
                             let cfg_url = self.config.read().await.governor.offload_device_url.clone();
-                            cfg_url.or_else(|| Some("http://192.168.254.110:11434".to_string()))
+                            cfg_url.or_else(|| Some("http://100.90.83.12:11434".to_string()))
                         }
                         Some(url) if url.contains("127.0.0.1") || url.contains("localhost") => None,
                         Some(url) if !url.is_empty() => Some(url.to_string()),
