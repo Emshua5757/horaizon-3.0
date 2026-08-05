@@ -111,9 +111,10 @@ Subscribes or updates the client's WebSocket live log stream filter.
 #### Payload Schema
 ```msgpack
 {
-  "min_level":      uint8,        // Minimum level (1=TRACE .. 5=ERROR)
-  "modules":        [str]|nil,    // Filter by module names (e.g. ["shua.resume"])
-  "tag_mask":       uint32|nil    // Bitmask filter for tags
+  "min_level":          uint8,        // Minimum level (1=TRACE .. 5=ERROR)
+  "modules":            [str]|nil,    // Filter by module names (e.g. ["shua.resume"])
+  "tag_mask":           uint32|nil,   // Bitmask filter for tags
+  "exclude_subsystems": [str]|nil    // Exclude subsystems by name (e.g. ["governor_heartbeat"])
 }
 ```
 

@@ -21,6 +21,11 @@ index       = 3
 name        = "tag_mask"
 type        = "u32?"
 description = "Tag bitmask filter"
+[[structs.fields]]
+index       = 4
+name        = "exclude_subsystems"
+type        = "str[]?"
+description = "List of subsystem names to exclude (e.g. governor_heartbeat)"
 
 [[structs]]
 name        = "LogEntryDto"

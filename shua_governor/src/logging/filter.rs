@@ -14,6 +14,8 @@ pub struct LogFilter {
     pub modules: Option<Vec<String>>,
     /// Bitmask filter for tags (e.g. TAG_AI_INFERENCE). If None/0, allows all tags.
     pub tag_mask: Option<u32>,
+    /// Exclude subsystems by name (e.g. ["governor_heartbeat"]).
+    pub exclude_subsystems: Option<Vec<String>>,
 }
 
 impl LogFilter {
@@ -39,6 +41,13 @@ impl LogFilter {
                 if !mods.iter().any(|m| m.as_str() == mod_name) {
                     return false;
                 }
+            }
+        }
+
+        // 4. Exclude subsystems filter (if specified)
+        if let Some(ref excludes) = self.exclude_subsystems {
+            if excludes.iter().any(|s| s.eq_ignore_ascii_case(&entry.subsystem)) {
+                return false;
             }
         }
 
@@ -70,6 +79,7 @@ mod tests {
             min_level: Some(LEVEL_INFO),
             modules: None,
             tag_mask: None,
+            exclude_subsystems: None,
         };
 
         let debug_entry = LogEntry {
@@ -106,6 +116,7 @@ mod tests {
             min_level: Some(LEVEL_INFO),
             modules: Some(vec!["shua.resume".to_string()]),
             tag_mask: None,
+            exclude_subsystems: None,
         };
 
         let gov_entry = LogEntry {
