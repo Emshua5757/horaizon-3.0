@@ -234,27 +234,31 @@ func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string,
 		prompt = "SYSTEM: You are a JSON transformation engine. Return ONLY valid JSON matching the exact ResumeMatrix schema."
 	}
 
-	// Build a flat request structure so Rust's AiRouteRequest can decode it directly
-	frame := map[string]interface{}{
-		"v":      2,
-		"t":      1,
-		"op":     op,
-		"id":     id,
-		"mod":    "shua.governor",
+	// Construct the inner payload matching what Rust's dispatcher expects inside "p"
+	payloadObj := map[string]interface{}{
 		"prompt": prompt,
 	}
-
 	if hint, ok := payload["context_hint"].(string); ok && hint != "" {
-		frame["context_hint"] = hint
+		payloadObj["context_hint"] = hint
 	}
 	if model, ok := payload["model"].(string); ok && model != "" {
-		frame["model"] = model
+		payloadObj["model"] = model
 	}
 	if offload, ok := payload["offload_device_url"].(string); ok && offload != "" {
-		frame["offload_device_url"] = offload
+		payloadObj["offload_device_url"] = offload
 	}
 	if sid, ok := payload["session_id"].(string); ok && sid != "" {
-		frame["session_id"] = sid
+		payloadObj["session_id"] = sid
+	}
+
+	// Standard HBP Frame with the payload nested cleanly inside "p"
+	frame := map[string]interface{}{
+		"v":   2,
+		"t":   1,
+		"op":  op,
+		"id":  id,
+		"mod": "shua.governor",
+		"p":   payloadObj,
 	}
 
 	ch := make(chan string, 1)
