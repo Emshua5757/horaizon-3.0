@@ -223,28 +223,37 @@ type AiRouteRequest struct {
 func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string, error) {
 	id := uuid.New().String()
 
-	// 1. Build strongly typed request
-	req := AiRouteRequest{
-		Prompt: payload["prompt"].(string),
-	}
-	if hint, ok := payload["context_hint"].(string); ok {
-		req.ContextHint = hint
-	}
-	if model, ok := payload["model"].(string); ok {
-		req.Model = model
-	}
-	if offload, ok := payload["offload_device_url"].(string); ok {
-		req.OffloadDeviceUrl = offload
+	// Ensure prompt is safely populated
+	prompt, _ := payload["prompt"].(string)
+	if prompt == "" {
+		prompt = "SYSTEM: You are a JSON transformation engine. Return ONLY valid JSON matching the exact ResumeMatrix schema."
 	}
 
-	// 2. Encode to Base64 MsgPack
-	pBytes, _ := msgpack.Marshal(req)
+	// Build the exact structured payload expected by Rust AiRouteRequest struct
+	payloadObj := map[string]interface{}{
+		"prompt": prompt,
+	}
+	if hint, ok := payload["context_hint"].(string); ok && hint != "" {
+		payloadObj["context_hint"] = hint
+	}
+	if model, ok := payload["model"].(string); ok && model != "" {
+		payloadObj["model"] = model
+	}
+	if offload, ok := payload["offload_device_url"].(string); ok && offload != "" {
+		payloadObj["offload_device_url"] = offload
+	}
+	if sid, ok := payload["session_id"].(string); ok && sid != "" {
+		payloadObj["session_id"] = sid
+	}
+
+	// Pack payload into msgpack bytes, then Base64 encode it so it fits the HBP v2 'p' string field
+	pBytes, _ := msgpack.Marshal(payloadObj)
 	pBase64 := base64.StdEncoding.EncodeToString(pBytes)
 
-	// 3. Build standard HBP Envelope
+	// Construct outer frame wrapper
 	frame := map[string]interface{}{
 		"v":   2,
-		"t":   1,
+		"t":   1, // MessageTypeRequest
 		"op":  op,
 		"id":  id,
 		"mod": "shua.governor",
