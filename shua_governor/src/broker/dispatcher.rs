@@ -767,11 +767,15 @@ impl Dispatcher {
                         req.model.as_deref()
                     };
 
-                    let budget = PromptBudget::for_intent(
+                    let mut budget = PromptBudget::for_intent(
                         &intent,
                         resolved_offload.as_deref(),
                         effective_model_req,
                     );
+                    if req.context_hint.as_deref() == Some("resume") {
+                        budget.max_prompt_chars = 0; // Unlimited for resume JSON payloads
+                        budget.max_tokens = 4096;
+                    }
 
                     let target_node = if budget.offload_url.is_some() {
                         "offload_windows"
