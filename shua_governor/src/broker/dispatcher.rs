@@ -503,6 +503,27 @@ impl Dispatcher {
                     &frame.op,
                     payload,
                 ))
+            "logs.subscribe" | "governor.logs.subscribe" => {
+                if let Some(tx) = client_tx {
+                    let filter = LogFilter::default();
+                    self.broadcaster.subscribe(tx, filter).await;
+                    info!(subsystem = "dispatcher", "Client subscribed to live telemetry log stream");
+                    let res = serde_json::json!({ "subscribed": true });
+                    let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
+                    Some(HbpFrame::response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        payload,
+                    ))
+                } else {
+                    Some(HbpFrame::error_response(
+                        &frame.id,
+                        &frame.mod_,
+                        &frame.op,
+                        "ERR_NO_CLIENT_TX",
+                    ))
+                }
             }
 
             "config.update" | "governor.config.update" => {
@@ -717,23 +738,15 @@ impl Dispatcher {
                     let prompt_chars = req.prompt.len();
 
                     let raw_offload = req.offload_device_url.as_deref();
-                    let resolved_offload = raw_offload.map(|url| {
-                        let expanded = match url {
-                            "windows" | "host" => "http://192.168.254.110:11434",
-                            "rpi5" | "local" => "http://127.0.0.1:11434",
-                            other => other,
-                        };
-                        if let Some(ip) = peer_ip {
-                            if (expanded.contains("127.0.0.1") || expanded.contains("localhost"))
-                                && !ip.is_loopback()
-                            {
-                                return expanded
-                                    .replace("127.0.0.1", &ip.to_string())
-                                    .replace("localhost", &ip.to_string());
-                            }
+                    let resolved_offload = match raw_offload {
+                        Some("rpi5") | Some("local") => None,
+                        Some("windows") | Some("host") => {
+                            peer_ip.map(|ip| format!("http://{}:11434", ip))
                         }
-                        expanded.to_string()
-                    });
+                        Some(url) if url.contains("127.0.0.1") || url.contains("localhost") => None,
+                        Some(url) if !url.is_empty() => Some(url.to_string()),
+                        _ => None,
+                    };
 
                     // ── Thermal-aware model auto-downgrade ────────────────────
                     // Read RPi5 SoC temperature. If > 68°C, override the

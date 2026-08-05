@@ -86,6 +86,9 @@ class TelemetryLogsNotifier extends StateNotifier<List<TelemetryLogItem>> {
 
 
     if (hbpClient != null) {
+      // Dispatch logs.subscribe to start live telemetry stream from shua_governor & submodules
+      hbpClient.sendRequest(mod: 'shua.governor', op: 'logs.subscribe', payload: {});
+
       _hbpSub = hbpClient.events.listen((frame) {
         if (!mounted) return;
         if (frame.op == 'ping' || frame.op == 'pong' || frame.op == 'status') return;
@@ -98,6 +101,8 @@ class TelemetryLogsNotifier extends StateNotifier<List<TelemetryLogItem>> {
             final msg = (map['msg'] ?? map['message'] ?? '').toString();
             final subsystem = (map['subsystem'] ?? frame.module.replaceAll('shua.', '')).toString().toUpperCase();
             final rawLevel = map['level'];
+
+            if (subsystem == 'GOVERNOR_HEARTBEAT') return; // Filter out 10s heartbeat noise
 
             String levelStr = 'INFO';
             if (rawLevel == 4 || rawLevel == 'WARN' || rawLevel == 'warn') {
