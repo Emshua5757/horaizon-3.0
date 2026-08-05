@@ -719,28 +719,12 @@ impl Dispatcher {
                     let prompt_chars = req.prompt.len();
 
                     let raw_offload = req.offload_device_url.as_deref();
-                    let resolved_offload = raw_offload.and_then(|url| {
-                        if url.is_empty() {
-                            return None;
-                        }
-                        let expanded = match url {
-                            "windows" | "host" => "http://100.90.83.12:11434",
-                            "rpi5" | "local" => "http://127.0.0.1:11434",
-                            other => other,
-                        };
-                        if let Some(ip) = _peer_ip {
-                            if (expanded.contains("127.0.0.1") || expanded.contains("localhost"))
-                                && !ip.is_loopback()
-                            {
-                                return Some(
-                                    expanded
-                                        .replace("127.0.0.1", &ip.to_string())
-                                        .replace("localhost", &ip.to_string()),
-                                );
-                            }
-                        }
-                        Some(expanded.to_string())
-                    });
+                    let resolved_offload: Option<String> = match raw_offload {
+                        Some("windows") | Some("host") => Some("http://100.90.83.12:11434".to_string()),
+                        Some("rpi5") | Some("local") => Some("http://127.0.0.1:11434".to_string()),
+                        Some(other) if !other.is_empty() => Some(other.to_string()),
+                        _ => Some("http://100.90.83.12:11434".to_string()),
+                    };
 
                     // ── Thermal-aware model auto-downgrade ────────────────────
                     // Read RPi5 SoC temperature. If > 68°C, override the
