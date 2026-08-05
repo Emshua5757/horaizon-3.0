@@ -84,9 +84,14 @@ class _TelemetryTabViewState extends State<TelemetryTabView> {
   }
 
   List<String> get _subsystemsList {
-    final set = {'ALL'};
+    final set = {'ALL', 'SHUA_RESUME', 'SHUA_GOVERNOR', 'SHUA_DIARY', 'SHUA_CODE_VIZ'};
     for (final l in widget.logs) {
       set.add(l.subsystem);
+      if (l.subsystem.contains('::')) {
+        final parts = l.subsystem.split('::');
+        set.add(parts[0].trim());
+        set.add(parts[1].trim());
+      }
     }
     final list = set.toList()..sort();
     list.remove('ALL');
@@ -101,7 +106,10 @@ class _TelemetryTabViewState extends State<TelemetryTabView> {
       if (_filterSeverity == 3 && item.level != 'WARN') return false;
       if (_filterSeverity == 4 && item.level != 'ERROR') return false;
 
-      if (_filterSubsystem != 'ALL' && item.subsystem != _filterSubsystem) return false;
+      if (_filterSubsystem != 'ALL' &&
+          !item.subsystem.toUpperCase().contains(_filterSubsystem.toUpperCase())) {
+        return false;
+      }
       return true;
     }).toList();
   }
