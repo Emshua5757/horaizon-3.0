@@ -143,7 +143,7 @@ func emit(level uint8, subsystem, msg string, extra map[string]interface{}) {
 		socketOnce = sync.Once{} // allow re-init on next emit
 		return
 	}
-	if _, writeErr := fmt.Fprint(socketSink, string(payload)); writeErr != nil {
+	if _, writeErr := socketSink.Write(payload); writeErr != nil {
 		socketSink.Close()
 		socketSink = nil
 		socketOnce = sync.Once{}
