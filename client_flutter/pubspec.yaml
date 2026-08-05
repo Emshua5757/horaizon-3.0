@@ -25,8 +25,6 @@ dependencies:
   http: ^1.2.1
 
   # PDF rendering from HTTP URI (range-request capable) — TASK-021
-  pdfx: ^2.7.0
-
   # Platform share sheet (Android/iOS) + open-in-browser fallback (Windows) — TASK-021
   share_plus: ^10.0.0
 
@@ -71,6 +69,7 @@ dependencies:
 
   # Icons & SVG
   flutter_svg: ^2.0.10+1
+  syncfusion_flutter_pdfviewer: ^33.2.13
 
 dev_dependencies:
   flutter_test:
@@ -115,3 +114,4 @@ flutter:
     - assets/
     - assets/fonts/
     - assets/icon/
+    - assets/resume_templates/

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
-/// Horizontal chip selector for Typst template choice.
+/// Horizontal card-based template selector showing a preview thumbnail + name.
 ///
-/// Shows three [ChoiceChip]s: Default / Modern / Minimalist.
-/// The selected chip uses solid fill; others are outlined.
+/// Shows three cards: Default / Modern / Minimalist.
+/// Selected card has a primary-colored border; others are outlined.
+/// Tapping a card calls [onSelected].
 class TemplatePicker extends StatelessWidget {
   final String selected;
   final ValueChanged<String> onSelected;
@@ -15,14 +16,15 @@ class TemplatePicker extends StatelessWidget {
   });
 
   static const _templates = [
-    (id: 'default',    label: 'Default',    icon: Icons.article_outlined),
-    (id: 'modern',     label: 'Modern',     icon: Icons.view_sidebar_outlined),
-    (id: 'minimalist', label: 'Minimalist', icon: Icons.density_small_rounded),
+    (id: 'default',    label: 'Default',    preview: 'assets/resume_templates/default.png'),
+    (id: 'modern',     label: 'Modern',     preview: 'assets/resume_templates/modern.png'),
+    (id: 'minimalist', label: 'Minimalist', preview: 'assets/resume_templates/minimalist.png'),
   ];
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -30,19 +32,75 @@ class TemplatePicker extends StatelessWidget {
         children: _templates.map((t) {
           final isSelected = t.id == selected;
           return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              avatar: Icon(t.icon,
-                  size: 16,
-                  color: isSelected ? cs.onPrimary : cs.onSurfaceVariant),
-              label: Text(t.label),
-              selected: isSelected,
-              onSelected: (_) => onSelected(t.id),
-              selectedColor: cs.primary,
-              labelStyle: TextStyle(
-                color: isSelected ? cs.onPrimary : cs.onSurfaceVariant,
-                fontWeight:
-                    isSelected ? FontWeight.w600 : FontWeight.normal,
+            padding: const EdgeInsets.only(right: 12),
+            child: GestureDetector(
+              onTap: () => onSelected(t.id),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeInOut,
+                width: 110,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected ? cs.primary : cs.outlineVariant,
+                    width: isSelected ? 2.5 : 1,
+                  ),
+                  color: isSelected
+                      ? cs.primaryContainer.withValues(alpha: 0.3)
+                      : cs.surfaceContainerLow,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Preview thumbnail
+                    ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(10)),
+                      child: Image.asset(
+                        t.preview,
+                        height: 80,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          height: 80,
+                          color: cs.surfaceContainerHighest,
+                          child: Icon(Icons.article_outlined,
+                              color: cs.outline, size: 28),
+                        ),
+                      ),
+                    ),
+                    // Label row
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (isSelected)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: Icon(Icons.check_circle_rounded,
+                                  size: 14, color: cs.primary),
+                            ),
+                          Flexible(
+                            child: Text(
+                              t.label,
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: isSelected
+                                    ? cs.primary
+                                    : cs.onSurface,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
