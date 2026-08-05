@@ -503,28 +503,9 @@ impl Dispatcher {
                     &frame.op,
                     payload,
                 ))
-            "logs.subscribe" | "governor.logs.subscribe" => {
-                if let Some(tx) = client_tx {
-                    let filter = LogFilter::default();
-                    self.broadcaster.subscribe(tx, filter).await;
-                    info!(subsystem = "dispatcher", "Client subscribed to live telemetry log stream");
-                    let res = serde_json::json!({ "subscribed": true });
-                    let payload = HbpFrame::encode_payload(&res).unwrap_or_default();
-                    Some(HbpFrame::response(
-                        &frame.id,
-                        &frame.mod_,
-                        &frame.op,
-                        payload,
-                    ))
-                } else {
-                    Some(HbpFrame::error_response(
-                        &frame.id,
-                        &frame.mod_,
-                        &frame.op,
-                        "ERR_NO_CLIENT_TX",
-                    ))
-                }
             }
+
+
 
             "config.update" | "governor.config.update" => {
                 if let Ok(dto) = frame.decode_payload::<GovernorConfigDto>() {
