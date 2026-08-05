@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:messagepack/messagepack.dart';
 import '../../core/hbp/hbp_client.dart';
 import '../../core/hbp/hbp_client_provider.dart';
+import '../../core/hbp/hbp_frame.dart';
 import '../../core/ssh/rpi5_ssh_service.dart';
 import '../../core/logging/governor_logger.dart';
 import 'models/telemetry_log_item.dart';
@@ -87,7 +88,7 @@ class TelemetryLogsNotifier extends StateNotifier<List<TelemetryLogItem>> {
 
     if (hbpClient != null) {
       // Dispatch logs.subscribe to start live telemetry stream from shua_governor & submodules
-      hbpClient.sendRequest(mod: 'shua.governor', op: 'logs.subscribe', payload: {});
+      hbpClient.sink(HbpFrame.request('shua.governor', 'logs.subscribe', []));
 
       _hbpSub = hbpClient.events.listen((frame) {
         if (!mounted) return;
