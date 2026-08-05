@@ -247,6 +247,8 @@ export interface LogFilter {
   modules?: string[];
   /** Tag bitmask filter */
   tag_mask?: number;
+  /** List of subsystem names to exclude (e.g. governor_heartbeat) */
+  exclude_subsystems?: string[];
 }
 
 /** Centralized log event entry payload */
@@ -309,4 +311,16 @@ export interface ResumeCompileResponse {
   duration_ms: number;
   /** Jaccard similarity score if tailored */
   tailor_score?: number;
+}
+
+/** Request payload for resume.export.markdown */
+export interface ResumeExportMarkdownRequest {
+  /** ID of resume matrix to export */
+  matrix_id: string;
+}
+
+/** Response payload for resume.export.markdown */
+export interface ResumeExportMarkdownResponse {
+  /** Rendered Markdown content of the resume */
+  markdown: string;
 }

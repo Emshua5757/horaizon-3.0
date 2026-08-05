@@ -247,6 +247,8 @@ type LogFilter struct {
 	Modules *[]string `msgpack:"modules"`
 	// Tag bitmask filter
 	TagMask *uint32 `msgpack:"tag_mask"`
+	// List of subsystem names to exclude (e.g. governor_heartbeat)
+	ExcludeSubsystems *[]string `msgpack:"exclude_subsystems"`
 }
 
 // Centralized log event entry payload

@@ -77,6 +77,8 @@ export const HbpOps = {
   shuaResumeHistoryList: 'shua.resume.history.list',
   /** List available Typst templates */
   shuaResumeTemplatesList: 'shua.resume.templates.list',
+  /** Export the resume matrix as Markdown */
+  shuaResumeExportMarkdown: 'shua.resume.export.markdown',
 } as const;
 
 export type HbpOp = typeof HbpOps[keyof typeof HbpOps];

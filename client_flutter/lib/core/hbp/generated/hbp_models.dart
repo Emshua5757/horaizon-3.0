@@ -683,14 +683,17 @@ class LogFilter {
   final List<String>? modules;
   /// Tag bitmask filter
   final int? tagMask;
+  /// List of subsystem names to exclude (e.g. governor_heartbeat)
+  final List<String>? excludeSubsystems;
 
-  const LogFilter({required this.minLevel, required this.modules, required this.tagMask});
+  const LogFilter({required this.minLevel, required this.modules, required this.tagMask, required this.excludeSubsystems});
 
   factory LogFilter.fromMap(Map<String, dynamic> m) {
     return LogFilter(
       minLevel: m['min_level'] as int?,
       modules: m['modules'] as List<String>,
       tagMask: m['tag_mask'] as int?,
+      excludeSubsystems: m['exclude_subsystems'] as List<String>,
     );
   }
 
@@ -698,6 +701,7 @@ class LogFilter {
     'min_level': minLevel,
     'modules': modules,
     'tag_mask': tagMask,
+    'exclude_subsystems': excludeSubsystems,
   };
 
 }
