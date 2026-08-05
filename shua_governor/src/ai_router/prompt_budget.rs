@@ -55,10 +55,10 @@ impl PromptBudget {
             IntentClass::FactualPrecision => Self {
                 model: selected_model,
                 temperature: 0.0,
-                max_tokens: 512,
+                max_tokens: 4096,
                 offload_url,
                 force_tool_choice: false,
-                max_prompt_chars: 1200,
+                max_prompt_chars: 16000,
                 min_inference_gap_ms: 250,
             },
             IntentClass::ReflectiveDialogue => Self {
