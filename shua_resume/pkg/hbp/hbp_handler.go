@@ -104,6 +104,39 @@ func normalizeDatesInItem(item map[string]interface{}) {
 	}
 }
 
+// normalizeDatesInMatrix normalizes all date fields inside a ResumeMatrix
+// in-place. Called before Typst compilation to ensure Typst templates always
+// receive canonical "Mon YYYY" / "YYYY" / "Present" date strings regardless
+// of what was originally stored in SQLite.
+//
+// Time Complexity:  O(w + e + p + o + c + a) — linear in total section items.
+// Space Complexity: O(1) — mutates in place, no allocations.
+func normalizeDatesInMatrix(m *models.ResumeMatrix) {
+	for i := range m.Work {
+		dateutil.NormalizeDateField(&m.Work[i].StartDate)
+		dateutil.NormalizeDateField(&m.Work[i].EndDate)
+	}
+	for i := range m.Education {
+		dateutil.NormalizeDateField(&m.Education[i].StartDate)
+		dateutil.NormalizeDateField(&m.Education[i].EndDate)
+	}
+	for i := range m.Organizations {
+		dateutil.NormalizeDateField(&m.Organizations[i].StartDate)
+		dateutil.NormalizeDateField(&m.Organizations[i].EndDate)
+	}
+	for i := range m.Certificates {
+		dateutil.NormalizeDateField(&m.Certificates[i].Date)
+	}
+	for i := range m.Awards {
+		dateutil.NormalizeDateField(&m.Awards[i].Date)
+	}
+	logger.Info("hbp_handler", "compile-time date normalization complete", map[string]interface{}{
+		"work":          len(m.Work),
+		"education":     len(m.Education),
+		"organizations": len(m.Organizations),
+	})
+}
+
 // handleMatrixUpdate processes upsert/delete/reorder actions on a resume section.
 func (h *Handler) handleMatrixUpdate(frame Frame) []byte {
 	var req struct {
@@ -164,11 +197,13 @@ func (h *Handler) handleCompile(frame Frame) []byte {
 
 	start := time.Now()
 
-	// 1. Load matrix
+	// 1. Load matrix + normalize dates (compile-time guard — ensures old DB data
+	//    with non-canonical dates cannot crash the Typst template).
 	matrix, err := repository.GetMatrix("shua")
 	if err != nil {
 		return encodeError(frame.ID, frame.Mod, frame.Op, fmt.Sprintf("ERR_DB: %v", err))
 	}
+	normalizeDatesInMatrix(matrix)
 
 	// 2. Jaccard filter
 	var tailorScore *float32
