@@ -3,6 +3,7 @@
 package mcp
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -11,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/vmihailenco/msgpack/v5"
-
 
 	"shua_resume/pkg/ai"
 	"shua_resume/pkg/logger"
@@ -146,23 +146,44 @@ func (s *Server) readLoop() {
 			return
 		}
 
-		// 1. Try JSON unmarshal first (for legacy text frames and tool calls)
+		// 1. Try JSON unmarshal first
 		var frame map[string]interface{}
 		if err := json.Unmarshal(msg, &frame); err == nil {
-			// Check for pending RPC reply (text JSON response)
 			id, _ := frame["id"].(string)
 			if id != "" {
 				s.mu.Lock()
 				ch, ok := s.pending[id]
 				s.mu.Unlock()
 				if ok {
-					reply, _ := frame["reply"].(string)
-					if reply == "" {
-						if r, ok := frame["result"]; ok {
-							b, _ := json.Marshal(r)
-							reply = string(b)
+					var reply string
+
+					// --- FIX: Catch Governor Error Frames ---
+					if errObj, hasErr := frame["err"]; hasErr && errObj != nil {
+						b, _ := json.Marshal(errObj)
+						reply = fmt.Sprintf(`{"error": %s}`, string(b))
+					} else if r, ok := frame["reply"].(string); ok && r != "" {
+						reply = r
+					} else if r, ok := frame["result"]; ok {
+						b, _ := json.Marshal(r)
+						reply = string(b)
+					} else if pStr, ok := frame["p"].(string); ok && pStr != "" {
+						if decoded, err := base64.StdEncoding.DecodeString(pStr); err == nil {
+							var payload map[string]interface{}
+							if err := msgpack.Unmarshal(decoded, &payload); err == nil {
+								if r, ok := payload["reply"].(string); ok {
+									reply = r
+								} else {
+									b, _ := json.Marshal(payload)
+									reply = string(b)
+								}
+							} else {
+								reply = string(decoded)
+							}
+						} else {
+							reply = pStr
 						}
 					}
+
 					ch <- reply
 					s.mu.Lock()
 					delete(s.pending, id)
@@ -171,63 +192,103 @@ func (s *Server) readLoop() {
 				}
 			}
 
-			// MCP tool call dispatch
 			op, _ := frame["op"].(string)
 			if op == "mcp.tool.call" || op == "tool_call" {
 				s.handleToolCall(frame)
 				continue
 			}
 
-			// Forward HBP JSON frame to the HBP handler
 			if s.OnHBPFrame != nil {
 				s.OnHBPFrame(msg)
 			}
 			continue
 		}
 
-		// 2. Binary frame (HBP v2 MsgPack frame)
-		var hbpFrame struct {
-			V   uint8                  `msgpack:"v"`
-			T   uint8                  `msgpack:"t"`
-			ID  string                 `msgpack:"id"`
-			Mod string                 `msgpack:"mod"`
-			Op  string                 `msgpack:"op"`
-			Ts  uint64                 `msgpack:"ts"`
-			P   []byte                 `msgpack:"p"`
-			Err map[string]interface{} `msgpack:"err"`
-		}
-		if err := msgpack.Unmarshal(msg, &hbpFrame); err == nil && hbpFrame.ID != "" {
-			s.mu.Lock()
-			ch, ok := s.pending[hbpFrame.ID]
-			s.mu.Unlock()
-			if ok {
-				var reply string
-				if len(hbpFrame.P) > 0 {
-					var payload map[string]interface{}
-					if err := msgpack.Unmarshal(hbpFrame.P, &payload); err == nil {
-						if r, ok := payload["reply"].(string); ok {
-							reply = r
-						} else {
-							b, _ := json.Marshal(payload)
-							reply = string(b)
-						}
-					} else {
-						// Fallback: raw UTF-8 string
-						reply = string(hbpFrame.P)
-					}
-				}
-				ch <- reply
-				s.mu.Lock()
-				delete(s.pending, hbpFrame.ID)
-				s.mu.Unlock()
-				continue
-			}
-		}
-
-		// Forward unhandled HBP binary frame to handler
+		// Unhandled binary fallback...
 		if s.OnHBPFrame != nil {
 			s.OnHBPFrame(msg)
 		}
+	}
+}
+
+// Strictly typed struct to ensure perfect MsgPack mapping for the Governor
+type AiRouteRequest struct {
+	Prompt           string `msgpack:"prompt"`
+	ContextHint      string `msgpack:"context_hint,omitempty"`
+	OffloadDeviceUrl string `msgpack:"offload_device_url,omitempty"`
+	Model            string `msgpack:"model,omitempty"`
+	SessionId        string `msgpack:"session_id,omitempty"`
+}
+
+func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string, error) {
+	fmt.Println("🚨🚨🚨 SEND_AI_ROUTE CALLED DIRECTLY! op =", op)
+	id := uuid.New().String()
+
+	var prompt string
+	if val, ok := payload["prompt"]; ok {
+		if pStr, ok := val.(string); ok {
+			prompt = pStr
+		}
+	}
+	if prompt == "" {
+		prompt = "SYSTEM: You are a JSON transformation engine. Return ONLY valid JSON matching the exact ResumeMatrix schema."
+	}
+
+	// Build a flat request structure so Rust's AiRouteRequest can decode it directly
+	frame := map[string]interface{}{
+		"v":      2,
+		"t":      1,
+		"op":     op,
+		"id":     id,
+		"mod":    "shua.governor",
+		"prompt": prompt,
+	}
+
+	if hint, ok := payload["context_hint"].(string); ok && hint != "" {
+		frame["context_hint"] = hint
+	}
+	if model, ok := payload["model"].(string); ok && model != "" {
+		frame["model"] = model
+	}
+
+	frame["format"] = "json"
+
+	if offload, ok := payload["offload_device_url"].(string); ok && offload != "" {
+		frame["offload_device_url"] = offload
+	}
+	if sid, ok := payload["session_id"].(string); ok && sid != "" {
+		frame["session_id"] = sid
+	}
+
+	ch := make(chan string, 1)
+	s.mu.Lock()
+	s.pending[id] = ch
+	conn := s.conn
+	s.mu.Unlock()
+
+	if conn == nil {
+		s.mu.Lock()
+		delete(s.pending, id)
+		s.mu.Unlock()
+		return "", fmt.Errorf("IPC not connected")
+	}
+
+	b, _ := json.Marshal(frame)
+	if err := conn.WriteMessage(websocket.TextMessage, b); err != nil {
+		s.mu.Lock()
+		delete(s.pending, id)
+		s.mu.Unlock()
+		return "", fmt.Errorf("send ai.route: %w", err)
+	}
+
+	select {
+	case reply := <-ch:
+		return reply, nil
+	case <-time.After(1000 * time.Second):
+		s.mu.Lock()
+		delete(s.pending, id)
+		s.mu.Unlock()
+		return "", fmt.Errorf("governor.ai.route timeout")
 	}
 }
 
@@ -359,58 +420,6 @@ func (s *Server) SendVaultUpload(module, fileName, mimeType, dataBase64 string) 
 		delete(s.pending, id)
 		s.mu.Unlock()
 		return "", "", fmt.Errorf("vault.upload IPC timeout")
-	}
-}
-
-// SendAIRoute sends a governor.ai.route HBP v2 RPC and returns the text reply.
-// Used as the ipcSend callback in ai.TailorResumeViaGovernor.
-func (s *Server) SendAIRoute(op string, payload map[string]interface{}) (string, error) {
-	id := uuid.New().String()
-	frame := map[string]interface{}{
-		"op":     op,
-		"id":     id,
-		"mod":    "shua.governor",
-		"prompt": payload["prompt"],
-	}
-	if hint, ok := payload["context_hint"].(string); ok {
-		frame["context_hint"] = hint
-	}
-	if model, ok := payload["model"].(string); ok && model != "" {
-		frame["model"] = model
-	}
-	if offload, ok := payload["offload_device_url"].(string); ok && offload != "" {
-		frame["offload_device_url"] = offload
-	}
-
-	ch := make(chan string, 1)
-	s.mu.Lock()
-	s.pending[id] = ch
-	conn := s.conn
-	s.mu.Unlock()
-
-	if conn == nil {
-		s.mu.Lock()
-		delete(s.pending, id)
-		s.mu.Unlock()
-		return "", fmt.Errorf("IPC not connected")
-	}
-
-	b, _ := json.Marshal(frame)
-	if err := conn.WriteMessage(websocket.TextMessage, b); err != nil {
-		s.mu.Lock()
-		delete(s.pending, id)
-		s.mu.Unlock()
-		return "", fmt.Errorf("send ai.route: %w", err)
-	}
-
-	select {
-	case reply := <-ch:
-		return reply, nil
-	case <-time.After(120 * time.Second):
-		s.mu.Lock()
-		delete(s.pending, id)
-		s.mu.Unlock()
-		return "", fmt.Errorf("governor.ai.route timeout")
 	}
 }
 

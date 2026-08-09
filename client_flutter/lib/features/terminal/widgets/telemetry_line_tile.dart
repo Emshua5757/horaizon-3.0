@@ -29,12 +29,16 @@ class _TelemetryLineTileState extends State<TelemetryLineTile> {
     final tsStr =
         '${item.timestamp.hour.toString().padLeft(2, '0')}:${item.timestamp.minute.toString().padLeft(2, '0')}:${item.timestamp.second.toString().padLeft(2, '0')}';
 
-    final jsonStr = item.metadata != null
+    final jsonStr = item.metadata != null && item.metadata!.isNotEmpty
         ? const JsonEncoder.withIndent('  ').convert(item.metadata)
         : null;
 
     return InkWell(
-      onTap: () => setState(() => _isExpanded = !_isExpanded),
+      onTap: () {
+        if (jsonStr != null) {
+          setState(() => _isExpanded = !_isExpanded);
+        }
+      },
       borderRadius: BorderRadius.circular(4),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
@@ -62,7 +66,8 @@ class _TelemetryLineTileState extends State<TelemetryLineTile> {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                   decoration: BoxDecoration(
                     color: widget.severityColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
@@ -90,10 +95,23 @@ class _TelemetryLineTileState extends State<TelemetryLineTile> {
                     overflow: _isExpanded ? null : TextOverflow.ellipsis,
                   ),
                 ),
+                // --- VISUAL INDICATOR FOR METADATA ---
+                if (jsonStr != null) ...[
+                  const SizedBox(width: 6),
+                  Icon(
+                    _isExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    size: 16,
+                    color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                  ),
+                ],
+                // -------------------------------------
                 if (item.occurrenceCount > 1) ...[
                   const SizedBox(width: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                     decoration: BoxDecoration(
                       color: cs.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(8),
@@ -110,7 +128,7 @@ class _TelemetryLineTileState extends State<TelemetryLineTile> {
                 ],
               ],
             ),
-            if (_isExpanded) ...[
+            if (_isExpanded && jsonStr != null) ...[
               const SizedBox(height: 6),
               Container(
                 width: double.infinity,
@@ -119,10 +137,11 @@ class _TelemetryLineTileState extends State<TelemetryLineTile> {
                 decoration: BoxDecoration(
                   color: cs.surfaceContainerLowest,
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.3)),
+                  border: Border.all(
+                      color: cs.outlineVariant.withValues(alpha: 0.3)),
                 ),
                 child: SelectableText(
-                  jsonStr ?? item.message,
+                  jsonStr,
                   style: TextStyle(
                     color: cs.onSurfaceVariant,
                     fontSize: 11,

@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:messagepack/messagepack.dart';
 
@@ -47,9 +48,8 @@ final jdTextProvider = StateProvider<String>((ref) => '');
 final liveJaccardScoreProvider = StateProvider<double>((ref) => 0.0);
 final selectedTemplateProvider = StateProvider<String>((ref) => 'default');
 final aiEnhanceProvider = StateProvider<bool>((ref) => false);
-final selectedAiModelProvider = StateProvider<String>((ref) => 'qwen3.5:4b');
-final selectedAiOffloadTargetProvider =
-    StateProvider<String>((ref) => 'auto');
+final selectedAiModelProvider = StateProvider<String>((ref) => 'qwen3.5:2b');
+final selectedAiOffloadTargetProvider = StateProvider<String>((ref) => 'auto');
 
 // ---------------------------------------------------------------------------
 // Notifier
@@ -81,20 +81,24 @@ class ResumeCompileNotifier extends StateNotifier<ResumeCompileState> {
     state = CompileInProgress(aiEnhance: aiEnhance);
 
     try {
+      // Safety check: if jobDesc parameter is empty, fallback to reading the global jdTextProvider directly
+      final resolvedJobDesc =
+          jobDesc.isNotEmpty ? jobDesc : _ref.read(jdTextProvider);
+      final resolvedTailor = tailor || resolvedJobDesc.isNotEmpty;
+
       final hbp = await _ref.read(hbpClientProvider.future);
       final payload = _buildCompilePayload(
         template: template,
-        jobDesc: jobDesc,
-        tailor: tailor,
+        jobDesc: resolvedJobDesc,
+        tailor: resolvedTailor,
         aiEnhance: aiEnhance,
         aiModel: aiModel,
         aiOffloadTarget: aiOffloadTarget,
       );
-      final frame =
-          HbpFrame.request('shua.resume', 'compile', payload);
+      final frame = HbpFrame.request('shua.resume', 'compile', payload);
       final resp = await hbp.send(
         frame,
-        timeout: const Duration(seconds: 120),
+        timeout: const Duration(seconds: 1000),
       );
 
       if (resp.isError) {
@@ -130,13 +134,20 @@ class ResumeCompileNotifier extends StateNotifier<ResumeCompileState> {
   }) {
     final p = Packer();
     p.packMapLength(7);
-    p.packString('matrix_id'); p.packString('shua');
-    p.packString('template');  p.packString(template);
-    p.packString('job_desc');  p.packString(jobDesc);
-    p.packString('tailor');    p.packBool(tailor);
-    p.packString('ai_enhance'); p.packBool(aiEnhance);
-    p.packString('ai_model');   p.packString(aiModel);
-    p.packString('ai_offload_target'); p.packString(aiOffloadTarget);
+    p.packString('matrix_id');
+    p.packString('shua');
+    p.packString('template');
+    p.packString(template);
+    p.packString('job_desc');
+    p.packString(jobDesc);
+    p.packString('tailor');
+    p.packBool(tailor);
+    p.packString('ai_enhance');
+    p.packBool(aiEnhance);
+    p.packString('ai_model');
+    p.packString(aiModel);
+    p.packString('ai_offload_target');
+    p.packString(aiOffloadTarget);
     return p.takeBytes();
   }
 }

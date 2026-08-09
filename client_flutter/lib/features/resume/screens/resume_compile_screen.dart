@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -75,7 +76,6 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
     final aiModel = ref.read(selectedAiModelProvider);
     final rawTarget = ref.read(selectedAiOffloadTargetProvider);
     final tailor = jd.trim().isNotEmpty;
-
     final String aiTarget = rawTarget == 'auto' ? '' : rawTarget;
 
     await ref.read(resumeCompileProvider.notifier).compile(
@@ -112,9 +112,8 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
       }
     });
 
-    final CompileInProgress? inProgress = compileState is CompileInProgress
-        ? compileState
-        : null;
+    final CompileInProgress? inProgress =
+        compileState is CompileInProgress ? compileState : null;
     final isCompiling = inProgress != null;
     final lastSuccess =
         compileState is CompileSuccess ? compileState.result : null;
@@ -127,8 +126,7 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (isOffline)
-                _offlineBanner(),
+              if (isOffline) _offlineBanner(),
 
               // 1. Job description input
               Text('Job Description',
@@ -190,9 +188,8 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
                         value: aiEnhance,
                         onChanged: isOffline
                             ? null
-                            : (v) => ref
-                                .read(aiEnhanceProvider.notifier)
-                                .state = v,
+                            : (v) =>
+                                ref.read(aiEnhanceProvider.notifier).state = v,
                         contentPadding: EdgeInsets.zero,
                       ),
                       if (aiEnhance) ...[
@@ -234,7 +231,8 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
                             ButtonSegment(
                               value: 'rpi5',
                               label: Text('RPi 5'),
-                              icon: Icon(Icons.developer_board_rounded, size: 16),
+                              icon:
+                                  Icon(Icons.developer_board_rounded, size: 16),
                             ),
                             ButtonSegment(
                               value: 'windows',
@@ -246,7 +244,8 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
                           onSelectionChanged: (set) {
                             if (set.isNotEmpty) {
                               ref
-                                  .read(selectedAiOffloadTargetProvider.notifier)
+                                  .read(
+                                      selectedAiOffloadTargetProvider.notifier)
                                   .state = set.first;
                             }
                           },
@@ -261,8 +260,8 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text('Ollama Model',
-                                      style: theme.textTheme.labelMedium
-                                          ?.copyWith(
+                                      style:
+                                          theme.textTheme.labelMedium?.copyWith(
                                         color: cs.onSurfaceVariant,
                                         fontWeight: FontWeight.w600,
                                       )),
@@ -287,11 +286,13 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
                                       ),
                                       DropdownMenuItem(
                                         value: 'qwen2.5-coder:7b',
-                                        child: Text('qwen2.5-coder:7b (Detailed)'),
+                                        child:
+                                            Text('qwen2.5-coder:7b (Detailed)'),
                                       ),
                                       DropdownMenuItem(
                                         value: 'llama3.1:8b',
-                                        child: Text('llama3.1:8b (High quality)'),
+                                        child:
+                                            Text('llama3.1:8b (High quality)'),
                                       ),
                                     ],
                                     onChanged: (m) {
@@ -373,8 +374,7 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
         if (isCompiling)
           CompileProgressOverlay(
             aiEnhance: inProgress.aiEnhance,
-            onCancel: () =>
-                ref.read(resumeCompileProvider.notifier).reset(),
+            onCancel: () => ref.read(resumeCompileProvider.notifier).reset(),
           ),
       ],
     );
@@ -383,11 +383,9 @@ class _ResumeCompileScreenState extends ConsumerState<ResumeCompileScreen> {
   Widget _offlineBanner() => Padding(
         padding: const EdgeInsets.only(bottom: 16),
         child: MaterialBanner(
-          content: const Text(
-              'Pi 5 offline — Resume data unavailable'),
+          content: const Text('Pi 5 offline — Resume data unavailable'),
           backgroundColor: const Color(0xFFFFF3E0),
-          leading: const Icon(Icons.wifi_off_rounded,
-              color: Color(0xFFFFA000)),
+          leading: const Icon(Icons.wifi_off_rounded, color: Color(0xFFFFA000)),
           actions: [
             TextButton(onPressed: () {}, child: const Text('Dismiss')),
           ],
@@ -415,9 +413,8 @@ class _LastResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final score = tailorScore != null
-        ? ' — Match: ${(tailorScore! * 100).round()}%'
-        : '';
+    final score =
+        tailorScore != null ? ' — Match: ${(tailorScore! * 100).round()}%' : '';
     final dur = '${(durationMs / 1000).toStringAsFixed(1)}s';
 
     return Card(
@@ -426,8 +423,7 @@ class _LastResultCard extends StatelessWidget {
         leading: Icon(Icons.check_circle_rounded, color: cs.primary),
         title: const Text('PDF compiled successfully'),
         subtitle: Text('Duration: $dur$score'),
-        trailing:
-            Icon(Icons.arrow_forward_rounded, color: cs.primary),
+        trailing: Icon(Icons.arrow_forward_rounded, color: cs.primary),
         onTap: onTap,
       ),
     );
