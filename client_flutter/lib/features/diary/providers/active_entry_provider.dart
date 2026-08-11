@@ -256,4 +256,62 @@ class ActiveEntryNotifier
 
     await hbp.send(HbpFrame.request('shua.diary', 'block.reorder', p.takeBytes()));
   }
+
+  /// Instantly reorder blocks in local State for O(1) drag-and-drop feedback
+  void reorderBlocksLocally(int oldIndex, int newIndex) {
+    final current = state.valueOrNull;
+    if (current == null) return;
+
+    final blocks = [...current.blocks];
+    final moved = blocks.removeAt(oldIndex);
+    blocks.insert(newIndex, moved);
+    state = AsyncData(current.copyWith(blocks: blocks));
+  }
+
+  /// Bulk import blocks from a JSON string payload.
+  /// Supports raw List of block maps or an Object with a "blocks" array.
+  Future<int> importBlocksFromJson(String jsonStr) async {
+    final current = state.valueOrNull;
+    if (current == null) return 0;
+
+    dynamic parsed;
+    try {
+      parsed = jsonDecode(jsonStr);
+    } catch (_) {
+      throw const FormatException('Invalid JSON format');
+    }
+
+    List<dynamic> blockList = [];
+    if (parsed is List) {
+      blockList = parsed;
+    } else if (parsed is Map && parsed['blocks'] is List) {
+      blockList = parsed['blocks'] as List;
+      if (parsed['title'] != null && parsed['title'].toString().isNotEmpty) {
+        await updateTitle(parsed['title'].toString());
+      }
+    } else {
+      throw const FormatException('JSON must be a list of blocks or an object containing a "blocks" array');
+    }
+
+    int count = 0;
+    for (final item in blockList) {
+      if (item is! Map) continue;
+      final type = (item['type'] ?? item['block_type'] ?? 'markdown').toString();
+      final rawContent = item['content'];
+
+      final Map<String, dynamic> contentMap = rawContent is Map
+          ? Map<String, dynamic>.from(rawContent)
+          : rawContent is String
+              ? {'text': rawContent}
+              : {};
+
+      final created = await createBlock(type);
+      if (created != null && contentMap.isNotEmpty) {
+        await updateBlock(created.id, contentMap);
+        count++;
+      }
+    }
+
+    return count;
+  }
 }
