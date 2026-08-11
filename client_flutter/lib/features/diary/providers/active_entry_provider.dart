@@ -175,6 +175,8 @@ class ActiveEntryNotifier
     final resp = await hbp.send(HbpFrame.request('shua.diary', 'block.save', p.takeBytes()));
     if (resp.payload.isEmpty) return null;
 
+    hbp.emitLog(msg: 'Created block $blockType in entry ${current.entry.id}', subsystem: 'diary_ui');
+
     final u = Unpacker(Uint8List.fromList(resp.payload));
     final itemMap = _unpackMap(u);
     if (itemMap.isEmpty) return null;
