@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers/active_entry_provider.dart';
 import 'widgets/diary_block_widget.dart';
 import 'widgets/diary_block_picker_bottom_sheet.dart';
+import 'widgets/ai_assistant_drawer.dart';
 
 class DiaryEditorScreen extends ConsumerStatefulWidget {
   final String entryId;
@@ -155,6 +156,20 @@ class _DiaryEditorScreenState extends ConsumerState<DiaryEditorScreen> {
               },
             ),
             actions: [
+              IconButton(
+                icon: const Icon(Icons.auto_awesome, color: Colors.amber),
+                tooltip: 'JBC AI Copilot',
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                    ),
+                    builder: (_) => AiAssistantDrawer(entryId: widget.entryId),
+                  );
+                },
+              ),
               IconButton(
                 icon: const Icon(Icons.data_object),
                 tooltip: 'Import Blocks from JSON',
