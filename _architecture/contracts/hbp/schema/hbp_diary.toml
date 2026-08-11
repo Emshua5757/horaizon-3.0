@@ -1,42 +1,47 @@
 # =============================================================================
 # HBP v2 — shua.diary Module Schema (TypeScript/Node)
-# Block Editor, JBC Copilot, Sentiment, Global Memory Elevator
+# Diary Block Editor, Certification Roadmap, Sentiment, Global Memory Elevator
+# Updated: TASK-017 + TASK-017B rebuild (native, no SDUI)
 # =============================================================================
+
+# ---------------------------------------------------------------------------
+# Shared event structs
+# ---------------------------------------------------------------------------
 
 [[structs]]
 name        = "SentimentEvent"
 description = "Server-pushed sentiment analysis event"
 [[structs.fields]]
-index       = 1
-name        = "entry_id"
-type        = "str"
+index = 1
+name  = "entry_id"
+type  = "str"
 [[structs.fields]]
-index       = 2
-name        = "score"
-type        = "f32"
+index = 2
+name  = "score"
+type  = "f32"
 [[structs.fields]]
-index       = 3
-name        = "label"
-type        = "str"
+index = 3
+name  = "label"
+type  = "str"
 
 [[structs]]
 name        = "EntryUpdatedEvent"
 description = "Server-pushed real-time entry update event for multi-device optimistic concurrency"
 [[structs.fields]]
-index       = 1
-name        = "entry_id"
-type        = "str"
+index = 1
+name  = "entry_id"
+type  = "str"
 [[structs.fields]]
-index       = 2
-name        = "block_id"
-type        = "str"
+index = 2
+name  = "block_id"
+type  = "str"
 [[structs.fields]]
-index       = 3
-name        = "version"
-type        = "u32"
+index = 3
+name  = "version"
+type  = "u32"
 
 # ---------------------------------------------------------------------------
-# Operations
+# Diary Entry Operations
 # ---------------------------------------------------------------------------
 
 [[operations]]
@@ -44,7 +49,7 @@ module          = "shua.diary"
 name            = "entry.list"
 type            = "rpc"
 requires_auth   = true
-description     = "Paginated diary entry list"
+description     = "Paginated diary entry list ordered by lexo_rank"
 request_struct  = ""
 response_struct = ""
 
@@ -53,7 +58,7 @@ module          = "shua.diary"
 name            = "entry.get"
 type            = "rpc"
 requires_auth   = true
-description     = "Single entry with all blocks"
+description     = "Single entry with all blocks ordered by lexo_rank"
 request_struct  = ""
 response_struct = ""
 
@@ -71,7 +76,7 @@ module          = "shua.diary"
 name            = "entry.save"
 type            = "rpc"
 requires_auth   = true
-description     = "Upsert diary entry metadata or block array with optimistic version check"
+description     = "Upsert diary entry metadata (title, mood, logged_at, privacy)"
 request_struct  = ""
 response_struct = ""
 
@@ -80,7 +85,7 @@ module          = "shua.diary"
 name            = "entry.delete"
 type            = "rpc"
 requires_auth   = true
-description     = "Delete a diary entry"
+description     = "Delete a diary entry and all its blocks (CASCADE)"
 request_struct  = ""
 response_struct = ""
 
@@ -89,34 +94,20 @@ module          = "shua.diary"
 name            = "search"
 type            = "rpc"
 requires_auth   = true
-description     = "Full-text search (FTS5) across diary entry text and block contents"
+description     = "Full-text search (FTS5) across diary entry titles and block contents"
 request_struct  = ""
 response_struct = ""
 
-[[operations]]
-module          = "shua.diary"
-name            = "media.upload"
-type            = "rpc"
-requires_auth   = true
-description     = "Upload binary media file to Pi 5 Content-Addressable Media Vault"
-request_struct  = ""
-response_struct = ""
-
-[[operations]]
-module          = "shua.diary"
-name            = "media.get"
-type            = "rpc"
-requires_auth   = true
-description     = "Retrieve media file metadata and URL from Media Vault"
-request_struct  = ""
-response_struct = ""
+# ---------------------------------------------------------------------------
+# Diary Block Operations
+# ---------------------------------------------------------------------------
 
 [[operations]]
 module          = "shua.diary"
 name            = "block.save"
 type            = "rpc"
 requires_auth   = true
-description     = "Upsert a block (debounced)"
+description     = "Upsert a block with optimistic version locking — returns conflict error if version mismatch"
 request_struct  = ""
 response_struct = ""
 
@@ -125,7 +116,7 @@ module          = "shua.diary"
 name            = "block.reorder"
 type            = "rpc"
 requires_auth   = true
-description     = "Reorder blocks with LexoRank"
+description     = "Reorder a block using LexoRank neighbor IDs"
 request_struct  = ""
 response_struct = ""
 
@@ -138,12 +129,16 @@ description     = "Delete a diary block"
 request_struct  = ""
 response_struct = ""
 
+# ---------------------------------------------------------------------------
+# Diary Events (Server-Pushed)
+# ---------------------------------------------------------------------------
+
 [[operations]]
 module          = "shua.diary"
 name            = "entry.updated"
 type            = "event"
 requires_auth   = true
-description     = "Server-pushed real-time entry update notification"
+description     = "Server-pushed real-time entry update notification for multi-device sync"
 event_struct    = "EntryUpdatedEvent"
 
 [[operations]]
@@ -151,8 +146,12 @@ module          = "shua.diary"
 name            = "sentiment.score"
 type            = "event"
 requires_auth   = true
-description     = "Server-pushed sentiment score after a block save"
+description     = "Server-pushed sentiment score after a block save (AI pipeline, TASK-018)"
 event_struct    = "SentimentEvent"
+
+# ---------------------------------------------------------------------------
+# Memory Elevation
+# ---------------------------------------------------------------------------
 
 [[operations]]
 module          = "shua.diary"
@@ -160,5 +159,163 @@ name            = "memory.elevate"
 type            = "rpc"
 requires_auth   = true
 description     = "Elevate a diary entry to the Global Identity Matrix"
+request_struct  = ""
+response_struct = ""
+
+# ---------------------------------------------------------------------------
+# Certification Roadmap Operations (TASK-017B)
+# All under shua.diary.cert.* namespace
+# ---------------------------------------------------------------------------
+
+[[operations]]
+module          = "shua.diary"
+name            = "cert.list"
+type            = "rpc"
+requires_auth   = true
+description     = "List all certification records, optionally filtered by status"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "cert.get"
+type            = "rpc"
+requires_auth   = true
+description     = "Get a single certification with its resources and progress summary"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "cert.save"
+type            = "rpc"
+requires_auth   = true
+description     = "Upsert a certification record (create or update)"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "cert.delete"
+type            = "rpc"
+requires_auth   = true
+description     = "Delete a certification record"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "cert.reorder"
+type            = "rpc"
+requires_auth   = true
+description     = "Bulk update roadmap_order for all certifications"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "cert.roadmap"
+type            = "rpc"
+requires_auth   = true
+description     = "Get all certifications ordered by roadmap_order for timeline display"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "cert.dashboard"
+type            = "rpc"
+requires_auth   = true
+description     = "Get dashboard stats: next exam, overall progress, total spend, roadmap"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "cert.expiring_soon"
+type            = "rpc"
+requires_auth   = true
+description     = "Get certifications expiring within N days (Dream Loop nightly check)"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "cert.resource.list"
+type            = "rpc"
+requires_auth   = true
+description     = "List study resources for a certification"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "cert.resource.save"
+type            = "rpc"
+requires_auth   = true
+description     = "Upsert a study resource (link, type, platform, estimated hours)"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "cert.resource.delete"
+type            = "rpc"
+requires_auth   = true
+description     = "Delete a study resource"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "cert.progress.save"
+type            = "rpc"
+requires_auth   = true
+description     = "Update study progress for a specific resource (percent_complete, last_studied_at)"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "cert.progress.get"
+type            = "rpc"
+requires_auth   = true
+description     = "Get aggregated study progress summary for a certification"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "cert.investment.list"
+type            = "rpc"
+requires_auth   = true
+description     = "List all financial investment records (exam fees, courses, etc.)"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "cert.investment.save"
+type            = "rpc"
+requires_auth   = true
+description     = "Log a new financial investment (amount in PHP, type, description)"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "cert.investment.delete"
+type            = "rpc"
+requires_auth   = true
+description     = "Delete an investment record"
+request_struct  = ""
+response_struct = ""
+
+[[operations]]
+module          = "shua.diary"
+name            = "cert.investment.summary"
+type            = "rpc"
+requires_auth   = true
+description     = "Get investment summary: total PHP spent, by type, by certification"
 request_struct  = ""
 response_struct = ""

@@ -43,9 +43,11 @@ This roadmap enforces **ADR-001 (Native Flutter over SDUI)**: all UI screens are
 
 | Task ID | Component | Language/Stack | Description | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **TASK-017** | `shua_diary` | **Node.js / TypeScript** (Express + WebSocket + better-sqlite3) | Clean Data API microservice, Pi 5 Deduplicated Media Vault & Governor HBP telemetry | [ ] Planned |
-| **TASK-018** | `shua_diary` | **Node.js / TypeScript** | Ollama AI assistant & entry analysis pipeline (Ollama-first, Gemini fallback) | [ ] Planned |
-| **TASK-019** | `client_flutter` | Dart / Flutter | Native Flutter Diary Screen & 36 Native Block Widgets Library | [ ] Planned |
+| **TASK-017** | `shua_diary` | **Node.js / TypeScript** (Express + WebSocket + better-sqlite3) | Clean Data API microservice (no SDUI, media delegated to governor vault) | [x] Completed |
+| **TASK-017B** | `shua_diary` | **Node.js / TypeScript** | Certification Roadmap Schema & API — exam scheduling, study resources, financial tracking | [x] Completed |
+| **TASK-018** | `shua_diary` | **Node.js / TypeScript** | JBC MCP Server — Ollama/Gemini tool calling engine for diary AI assistant | [ ] Planned |
+| **TASK-019** | `client_flutter` | Dart / Flutter | Native Flutter Diary Screen & 36 Native Block Widgets Library | [x] Completed |
+| **TASK-019B** | `client_flutter` | Dart / Flutter | Certification Roadmap Screen — timeline, exam countdown, study resource tracker, ₱ investment tracker | [x] Completed |
 
 ---
 
@@ -58,12 +60,14 @@ This roadmap enforces **ADR-001 (Native Flutter over SDUI)**: all UI screens are
 
 ---
 
-## Phase 5: Health & Vault Microservices
+## Phase 5: Habit Tracker & Health Microservices
 
 | Task ID | Component | Language/Stack | Description | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **TASK-022** | `shua_gym` | TBD | Workout & Physical Activity Tracking Service + Native Flutter Screen | [ ] Planned |
-| **TASK-023** | `shua_crypto` | TBD | Decentralized Vault & Key Manager Service + Native Flutter Screen | [ ] Planned |
+| **TASK-026** | `shua_habits` | **Node.js / TypeScript** (Express + WebSocket + better-sqlite3) | Standalone Habit Tracker microservice — habit definitions, daily logs, streak computation | [ ] Planned |
+| **TASK-027** | `client_flutter` | Dart / Flutter | Native Flutter Habit Tracker Screen — monthly grid, weekly bar charts, donut rings (Excel-style analytics) | [ ] Planned |
+| **TASK-028** | `shua_gym` | TBD | Workout & Physical Activity Tracking Service + Native Flutter Screen | [ ] Planned |
+| **TASK-029** | `shua_crypto` | TBD | Decentralized Vault & Key Manager Service + Native Flutter Screen | [ ] Planned |
 
 ---
 

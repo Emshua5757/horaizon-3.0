@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:messagepack/messagepack.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../config/app_config.dart';
 import 'hbp_frame.dart';
@@ -171,6 +172,26 @@ class HbpClient {
     _setState(HbpConnectionState.reconnecting);
 
     _reconnectTimer = Timer(delay, () => connect());
+  }
+
+  /// Emits a structured telemetry log to shua_governor central telemetry logger.
+  Future<void> emitLog({
+    required String msg,
+    int level = 3,
+    String subsystem = 'flutter',
+  }) async {
+    if (_state != HbpConnectionState.connected) return;
+    try {
+      final p = Packer()
+        ..packMapLength(3)
+        ..packString('msg')
+        ..packString(msg)
+        ..packString('level')
+        ..packInt(level)
+        ..packString('subsystem')
+        ..packString(subsystem);
+      await send(HbpFrame.request('shua.governor', 'log.emit', p.takeBytes()));
+    } catch (_) {}
   }
 
   void _setState(HbpConnectionState newState) {
