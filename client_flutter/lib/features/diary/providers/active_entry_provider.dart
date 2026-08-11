@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:messagepack/messagepack.dart';
-import '../../core/hbp/hbp_client_provider.dart';
-import '../../core/hbp/hbp_frame.dart';
-import 'models/diary_entry_dto.dart';
-import 'models/diary_block_dto.dart';
+import '../../../core/hbp/hbp_client_provider.dart';
+import '../../../core/hbp/hbp_frame.dart';
+import '../models/diary_entry_dto.dart';
+import '../models/diary_block_dto.dart';
 
-/// Combined state for an open diary entry.
 class ActiveEntryState {
   final DiaryEntryDto entry;
   final List<DiaryBlockDto> blocks;
@@ -32,38 +32,29 @@ class ActiveEntryState {
   }
 }
 
-/// ActiveEntryNotifier — manages the editor state for a single open diary entry.
-///
-/// Key behaviours:
-///   - Fetches entry + blocks on first build via shua.diary.entry.get.
-///   - Listens to shua.diary.entry.updated events for multi-device sync.
-///   - Block saves use optimistic locking (version field).
-///   - On version conflict: refreshes block from server automatically.
-///
-/// Time Complexity: O(B) block list render. O(1) per block save.
-/// Space Complexity: O(B) for B blocks in the open entry.
-@riverpod
-class ActiveEntryNotifier extends _$ActiveEntryNotifier {
+final activeEntryNotifierProvider = AsyncNotifierProvider.family<
+    ActiveEntryNotifier, ActiveEntryState, String>(
+  ActiveEntryNotifier.new,
+);
+
+class ActiveEntryNotifier
+    extends FamilyAsyncNotifier<ActiveEntryState, String> {
   StreamSubscription<HbpFrame>? _eventSub;
 
   @override
-  Future<ActiveEntryState> build(String entryId) async {
+  Future<ActiveEntryState> build(String arg) async {
     final hbp = await ref.watch(hbpClientProvider.future);
 
-    // Subscribe to live entry.updated pushes for this entry
     _eventSub?.cancel();
     _eventSub = hbp.events.listen((frame) {
-      if (frame.op == 'entry.updated') {
-        final raw = frame.payloadDecoded as Map?;
-        if (raw?['entry_id'] == entryId) {
-          _syncBlock(hbp, raw!['block_id'] as String, raw['version'] as int);
-        }
+      if (frame.op == 'shua.diary.entry.updated') {
+        ref.invalidateSelf();
       }
     });
 
     ref.onDispose(() => _eventSub?.cancel());
 
-    return _fetchEntry(hbp, entryId);
+    return _fetchEntry(hbp, arg);
   }
 
   Future<ActiveEntryState> _fetchEntry(dynamic hbp, String id) async {
@@ -72,64 +63,70 @@ class ActiveEntryNotifier extends _$ActiveEntryNotifier {
       ..packString('entry_id')
       ..packString(id)
       ..packString('subscribe_entry_id')
-      ..packString(id); // Ask server to push entry.updated events to this client
+      ..packString(id);
 
     final resp = await hbp.send(HbpFrame.request('shua.diary', 'entry.get', p.takeBytes()));
-    final raw = resp.payloadDecoded as Map;
+    return _decodeEntryState(resp, id);
+  }
 
-    final entry  = DiaryEntryDto.fromMap(raw['entry'] as Map);
-    final blocks = (raw['blocks'] as List)
-        .map((b) => DiaryBlockDto.fromMap(b as Map))
-        .toList();
+  ActiveEntryState _decodeEntryState(HbpFrame frame, String fallbackId) {
+    if (frame.payload.isEmpty) {
+      throw StateError('Entry not found: $fallbackId');
+    }
+    final u = Unpacker(Uint8List.fromList(frame.payload));
+    final topMap = _unpackMap(u);
+
+    final entryMap = topMap['entry'] as Map? ?? {};
+    final blocksList = topMap['blocks'] as List? ?? [];
+
+    final entry = DiaryEntryDto.fromMap(entryMap);
+    final blocks = blocksList.map((b) => DiaryBlockDto.fromMap(b as Map)).toList();
 
     return ActiveEntryState(entry: entry, blocks: blocks);
   }
 
-  /// Sync a single block from server after an entry.updated push.
-  void _syncBlock(dynamic hbp, String blockId, int serverVersion) {
-    final current = state.valueOrNull;
-    if (current == null) return;
-
-    // If server version is newer, refresh that block
-    final idx = current.blocks.indexWhere((b) => b.id == blockId);
-    if (idx == -1) {
-      // New block added by another device — full refresh
-      ref.invalidateSelf();
-      return;
-    }
-
-    final localBlock = current.blocks[idx];
-    if (localBlock.version < serverVersion) {
-      // Fetch updated block content
-      _fetchSingleBlock(hbp, blockId).then((updated) {
-        if (updated == null) return;
-        final newBlocks = [...current.blocks];
-        newBlocks[idx] = updated;
-        state = AsyncData(current.copyWith(blocks: newBlocks));
-      });
-    }
-  }
-
-  Future<DiaryBlockDto?> _fetchSingleBlock(dynamic hbp, String blockId) async {
-    // Use entry.get to refresh all blocks — simpler than a per-block get op
-    final current = state.valueOrNull;
-    if (current == null) return null;
+  Map<String, dynamic> _unpackMap(Unpacker u) {
     try {
-      final refreshed = await _fetchEntry(hbp, current.entry.id);
-      return refreshed.blocks.firstWhere((b) => b.id == blockId);
+      final len = u.unpackMapLength();
+      final map = <String, dynamic>{};
+      for (var i = 0; i < len; i++) {
+        final k = u.unpackString();
+        if (k == null) continue;
+        if (k == 'entry') {
+          map[k] = _unpackMap(u);
+        } else if (k == 'blocks') {
+          final bLen = u.unpackListLength();
+          final bList = <Map<String, dynamic>>[];
+          for (var j = 0; j < bLen; j++) {
+            bList.add(_unpackMap(u));
+          }
+          map[k] = bList;
+        } else {
+          map[k] = _unpackValue(u);
+        }
+      }
+      return map;
     } catch (_) {
-      return null;
+      return {};
     }
   }
 
-  // ── Entry mutations ────────────────────────────────────────────────────────
+  dynamic _unpackValue(Unpacker u) {
+    try { return u.unpackString(); } catch (_) {
+      try { return u.unpackInt(); } catch (_) {
+        try { return u.unpackBool(); } catch (_) {
+          try { return u.unpackDouble(); } catch (_) {
+            return null;
+          }
+        }
+      }
+    }
+  }
 
-  /// Update entry title — debounced by the UI, called on editing complete.
   Future<void> updateTitle(String title) async {
     final current = state.valueOrNull;
     if (current == null) return;
 
-    // Optimistic
     state = AsyncData(current.copyWith(entry: current.entry.copyWith(title: title)));
 
     final hbp = await ref.read(hbpClientProvider.future);
@@ -142,7 +139,6 @@ class ActiveEntryNotifier extends _$ActiveEntryNotifier {
     await hbp.send(HbpFrame.request('shua.diary', 'entry.save', p.takeBytes()));
   }
 
-  /// Toggle private flag on the entry.
   Future<void> togglePrivate() async {
     final current = state.valueOrNull;
     if (current == null) return;
@@ -159,9 +155,6 @@ class ActiveEntryNotifier extends _$ActiveEntryNotifier {
     await hbp.send(HbpFrame.request('shua.diary', 'entry.save', p.takeBytes()));
   }
 
-  // ── Block mutations ───────────────────────────────────────────────────────
-
-  /// Create a new block at the end or after a given lexoRank.
   Future<DiaryBlockDto?> createBlock(String blockType, {String? afterLexoRank}) async {
     final current = state.valueOrNull;
     if (current == null) return null;
@@ -180,16 +173,17 @@ class ActiveEntryNotifier extends _$ActiveEntryNotifier {
     }
 
     final resp = await hbp.send(HbpFrame.request('shua.diary', 'block.save', p.takeBytes()));
-    final raw = resp.payloadDecoded;
-    if (raw is! Map) return null;
+    if (resp.payload.isEmpty) return null;
 
-    final newBlock = DiaryBlockDto.fromMap(raw);
+    final u = Unpacker(Uint8List.fromList(resp.payload));
+    final itemMap = _unpackMap(u);
+    if (itemMap.isEmpty) return null;
+
+    final newBlock = DiaryBlockDto.fromMap(itemMap);
     state = AsyncData(current.copyWith(blocks: [...current.blocks, newBlock]));
     return newBlock;
   }
 
-  /// Update block content with optimistic locking.
-  /// If a version conflict is returned, the block is refreshed from server.
   Future<void> updateBlock(String blockId, Map<String, dynamic> contentMap) async {
     final current = state.valueOrNull;
     if (current == null) return;
@@ -200,7 +194,6 @@ class ActiveEntryNotifier extends _$ActiveEntryNotifier {
     final block   = current.blocks[idx];
     final content = jsonEncode(contentMap);
 
-    // Optimistic update
     final optimistic = block.copyWith(content: content, version: block.version + 1);
     final newBlocks = [...current.blocks];
     newBlocks[idx] = optimistic;
@@ -216,27 +209,15 @@ class ActiveEntryNotifier extends _$ActiveEntryNotifier {
       ..packString('content')
       ..packString(content)
       ..packString('version')
-      ..packInt(block.version); // Send the ORIGINAL version for conflict check
+      ..packInt(block.version);
 
-    final resp = await hbp.send(HbpFrame.request('shua.diary', 'block.save', p.takeBytes()));
-    final raw = resp.payloadDecoded;
-
-    if (raw is Map && raw['error'] == 'conflict') {
-      // Conflict: server has a newer version — use server's latest
-      final serverBlock = DiaryBlockDto.fromMap(raw['latest'] as Map);
-      final resolved = [...current.blocks];
-      resolved[idx] = serverBlock;
-      state = AsyncData(current.copyWith(blocks: resolved));
-    }
-    // On success: state is already optimistic-updated above
+    await hbp.send(HbpFrame.request('shua.diary', 'block.save', p.takeBytes()));
   }
 
-  /// Delete a block by ID.
   Future<void> deleteBlock(String blockId) async {
     final current = state.valueOrNull;
     if (current == null) return;
 
-    // Optimistic remove
     state = AsyncData(current.copyWith(
       blocks: current.blocks.where((b) => b.id != blockId).toList(),
     ));
@@ -249,12 +230,10 @@ class ActiveEntryNotifier extends _$ActiveEntryNotifier {
         ..packString(blockId);
       await hbp.send(HbpFrame.request('shua.diary', 'block.delete', p.takeBytes()));
     } catch (_) {
-      // On failure: re-fetch the entry
       ref.invalidateSelf();
     }
   }
 
-  /// Reorder a block using neighbor IDs (server computes new LexoRank).
   Future<void> reorderBlock(
     String blockId, {
     String? beforeBlockId,
@@ -262,9 +241,6 @@ class ActiveEntryNotifier extends _$ActiveEntryNotifier {
   }) async {
     final current = state.valueOrNull;
     if (current == null) return;
-
-    // Optimistic reorder: reorder blocks list locally
-    // (Server will confirm with entry.updated push)
 
     final hbp = await ref.read(hbpClientProvider.future);
     final p = Packer()

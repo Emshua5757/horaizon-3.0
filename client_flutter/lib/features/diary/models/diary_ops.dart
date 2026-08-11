@@ -1,3 +1,5 @@
+library;
+
 /// HBP v2 operation name constants for shua.diary module.
 /// Auto-synced from _architecture/contracts/hbp/schema/hbp_diary.toml
 /// DO NOT edit manually — update the TOML and re-run sync_contracts.

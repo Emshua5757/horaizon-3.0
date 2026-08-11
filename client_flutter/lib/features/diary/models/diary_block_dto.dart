@@ -67,9 +67,8 @@ class DiaryBlockDto {
   /// Returns empty map on parse failure — block widget handles gracefully.
   Map<String, dynamic> get contentAsMap {
     try {
-      // ignore: avoid_dynamic_calls
       return Map<String, dynamic>.from(
-        (content.isEmpty ? {} : _jsonDecode(content)) as Map,
+        (content.isEmpty ? {} : jsonDecode(content)) as Map,
       );
     } catch (_) {
       return {};
@@ -81,13 +80,5 @@ class DiaryBlockDto {
     final m = contentAsMap;
     final raw = (m['text'] ?? m['value'] ?? m['title'] ?? '').toString();
     return raw.isEmpty ? content.substring(0, content.length.clamp(0, 80)) : raw.substring(0, raw.length.clamp(0, 80));
-  }
-}
-
-Map<String, dynamic> _jsonDecode(String s) {
-  try {
-    return jsonDecode(s) as Map<String, dynamic>;
-  } catch (_) {
-    return {};
   }
 }

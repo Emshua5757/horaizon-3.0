@@ -1,32 +1,26 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:messagepack/messagepack.dart';
-import '../../core/hbp/hbp_client_provider.dart';
-import '../../core/hbp/hbp_frame.dart';
-import 'models/diary_entry_dto.dart';
-import 'models/diary_ops.dart';
+import '../../../core/hbp/hbp_client_provider.dart';
+import '../../../core/hbp/hbp_frame.dart';
+import '../models/diary_entry_dto.dart';
 
-/// DiaryListNotifier — loads and manages the full diary entry list.
-///
-/// Lifecycle:
-///   1. Fetches all entries via shua.diary.entry.list on first build.
-///   2. Listens for shua.diary.entry.updated events to trigger refresh.
-///   3. Exposes createEntry / deleteEntry mutators with optimistic UI.
-///
-/// Time Complexity: O(N) for list render. O(1) for optimistic local mutations.
-@riverpod
-class DiaryListNotifier extends _$DiaryListNotifier {
+final diaryListProvider =
+    AsyncNotifierProvider<DiaryListNotifier, List<DiaryEntryDto>>(
+  DiaryListNotifier.new,
+);
+
+class DiaryListNotifier extends AsyncNotifier<List<DiaryEntryDto>> {
   StreamSubscription<HbpFrame>? _eventSub;
 
   @override
   Future<List<DiaryEntryDto>> build() async {
     final hbp = await ref.watch(hbpClientProvider.future);
 
-    // Subscribe to server-pushed entry.updated events to refresh the list
     _eventSub?.cancel();
     _eventSub = hbp.events.listen((frame) {
-      if (frame.op == 'entry.updated') {
-        // Refresh the full list on any entry change (entry list changes on title update)
+      if (frame.op == 'shua.diary.entry.updated') {
         ref.invalidateSelf();
       }
     });
@@ -37,14 +31,59 @@ class DiaryListNotifier extends _$DiaryListNotifier {
   }
 
   Future<List<DiaryEntryDto>> _fetchList(dynamic hbp) async {
-    final p = Packer()..packMapLength(0);
-    final resp = await hbp.send(HbpFrame.request('shua.diary', 'entry.list', p.takeBytes()));
-    final raw = resp.payloadDecoded;
-    if (raw is! List) return [];
-    return raw.map((m) => DiaryEntryDto.fromMap(m as Map)).toList();
+    final reqFrame = HbpFrame.request('shua.diary', 'entry.list', []);
+    final resp = await hbp.send(reqFrame);
+    return _decodeList(resp);
   }
 
-  /// Create a new entry and optimistically prepend it to the list.
+  List<DiaryEntryDto> _decodeList(HbpFrame frame) {
+    if (frame.payload.isEmpty) return [];
+    try {
+      final u = Unpacker(Uint8List.fromList(frame.payload));
+      final len = u.unpackListLength();
+      final list = <DiaryEntryDto>[];
+      for (var i = 0; i < len; i++) {
+        final itemMap = _unpackMap(u);
+        if (itemMap.isNotEmpty) {
+          list.add(DiaryEntryDto.fromMap(itemMap));
+        }
+      }
+      return list;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Map<String, dynamic> _unpackMap(Unpacker u) {
+    try {
+      final len = u.unpackMapLength();
+      final map = <String, dynamic>{};
+      for (var i = 0; i < len; i++) {
+        final k = u.unpackString();
+        if (k == null) continue;
+        final v = _unpackValue(u);
+        map[k] = v;
+      }
+      return map;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  dynamic _unpackValue(Unpacker u) {
+    try {
+      return u.unpackString();
+    } catch (_) {
+      try { return u.unpackInt(); } catch (_) {
+        try { return u.unpackBool(); } catch (_) {
+          try { return u.unpackDouble(); } catch (_) {
+            return null;
+          }
+        }
+      }
+    }
+  }
+
   Future<DiaryEntryDto?> createEntry({
     String title = 'Untitled',
     DateTime? loggedAt,
@@ -58,23 +97,20 @@ class DiaryListNotifier extends _$DiaryListNotifier {
       ..packString((loggedAt ?? DateTime.now()).toIso8601String());
 
     final resp = await hbp.send(HbpFrame.request('shua.diary', 'entry.create', p.takeBytes()));
-    final raw = resp.payloadDecoded;
-    if (raw is! Map) return null;
+    if (resp.payload.isEmpty) return null;
 
-    final entry = DiaryEntryDto.fromMap(raw);
+    final u = Unpacker(Uint8List.fromList(resp.payload));
+    final itemMap = _unpackMap(u);
+    if (itemMap.isEmpty) return null;
 
-    // Optimistic: prepend to list immediately
+    final entry = DiaryEntryDto.fromMap(itemMap);
     final current = state.valueOrNull ?? [];
     state = AsyncData([entry, ...current]);
-
     return entry;
   }
 
-  /// Delete an entry and remove it from the list optimistically.
   Future<void> deleteEntry(String entryId) async {
     final current = state.valueOrNull ?? [];
-
-    // Optimistic: remove immediately
     state = AsyncData(current.where((e) => e.id != entryId).toList());
 
     try {
@@ -85,11 +121,7 @@ class DiaryListNotifier extends _$DiaryListNotifier {
         ..packString(entryId);
       await hbp.send(HbpFrame.request('shua.diary', 'entry.delete', p.takeBytes()));
     } catch (_) {
-      // Rollback on failure
       state = AsyncData(current);
     }
   }
 }
-
-/// Provider for the diary list state
-final diaryListProvider = diaryListNotifierProvider;

@@ -10,6 +10,9 @@ import '../features/diary/diary_screen.dart';
 import '../features/diary/block_gallery_screen.dart';
 import '../features/code_visualizer/code_topology_screen.dart';
 import '../features/resume/resume_screen.dart';
+import '../features/certifications/cert_dashboard_screen.dart';
+import '../features/certifications/cert_roadmap_screen.dart';
+import '../features/certifications/investment_summary_screen.dart';
 import 'splash_screen.dart';
 import 'shell_scaffold.dart';
 
@@ -61,6 +64,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/resume',
             builder: (_, __) => const ResumeScreen(),
+          ),
+          GoRoute(
+            path: '/certs',
+            builder: (_, __) => const CertDashboardScreen(),
+          ),
+          GoRoute(
+            path: '/certs/roadmap',
+            builder: (_, __) => const CertRoadmapScreen(),
+          ),
+          GoRoute(
+            path: '/certs/investments',
+            builder: (_, __) => const InvestmentSummaryScreen(),
           ),
         ],
       ),
