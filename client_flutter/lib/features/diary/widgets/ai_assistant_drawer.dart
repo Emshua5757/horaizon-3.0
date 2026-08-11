@@ -56,8 +56,11 @@ class _AiAssistantDrawerState extends ConsumerState<AiAssistantDrawer> {
           final len = u.unpackMapLength();
           for (var i = 0; i < len; i++) {
             final k = u.unpackString();
-            if (k == 'content') reply = u.unpackString() ?? reply;
-            else _unpackValue(u);
+            if (k == 'content') {
+              reply = u.unpackString() ?? reply;
+            } else {
+              _unpackValue(u);
+            }
           }
         } catch (_) {}
       }

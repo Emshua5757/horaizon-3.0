@@ -90,7 +90,7 @@ class _DiaryListScreenState extends ConsumerState<DiaryListScreen> {
         label: const Text('New Entry'),
         onPressed: () async {
           final newEntry = await ref.read(diaryListProvider.notifier).createEntry();
-          if (newEntry != null && mounted) {
+          if (newEntry != null && context.mounted) {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => DiaryEditorScreen(entryId: newEntry.id)),
